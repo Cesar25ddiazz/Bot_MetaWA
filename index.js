@@ -1,9 +1,10 @@
 require('dotenv').config();
-
 const express = require("express");
 const axios = require("axios");
+const cloudinary = require('cloudinary').v2;
 const fs = require("fs-extra");
 const path = require("path");
+
 
 //Funcion de horario
 function estaFueraDeHorario() {
@@ -13,7 +14,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || dia === 6 || hora >= 21 || hora < 9;
+  return dia === 0 || dia === 6 || hora >= 22 || hora < 9;
 }
 
 //Funcion retraso 
@@ -32,7 +33,7 @@ const app = express();
 app.use(express.json());
 
 // ==========================================
-// 1. CONFIGURACIÓN
+// 1. CONFIGURACIÓN PLUG AND PLAY
 // ==========================================
 const PHONE_NUMBER_ID =
 process.env.PHONE_NUMBER_ID;
@@ -40,6 +41,15 @@ const ACCESS_TOKEN =
 process.env.ACCESS_TOKEN;
 const WEBHOOK_TOKEN =
 process.env.WEBHOOK_TOKEN;
+const MI_NUMERO =
+process.env.MY_PERSONAL_NUMBER;
+
+//Configuracion de Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 const BASE_PATH = path.join(__dirname, "pedidos_clientes");
 fs.ensureDirSync(BASE_PATH); // Crea la carpeta principal si no existe
 
@@ -47,7 +57,10 @@ const PRECIOS = {
   playera_basica: "250",
   sudadera: "450",
   gorra: "180",
-  personalizacion_extra: "150",
+  taza_personalizada: "85",
+  etiquetas: "260",
+  mdf: "Cotizacion segun diseño",
+  personalizacion_extra: "150"
 };
 
 // ==========================================
@@ -233,6 +246,36 @@ app.get("/webhook", (req, res) => {
   }
 });
 
+async function procesarPedidoDetallado(nombreCliente, numeroCliente, imageId, comentario, ticket) {
+  try {
+    const urlImagenMeta = await obtenerUrlImagen(imageId); //Funcion link de meta 
+
+  //Subida a Cloudinary
+  const result = await cloudinary.uploader.upload(urlImagenMeta, {folder: "SISTEMA_PRODUCCION",
+          public_id: ticket});
+  
+  const urlPermanente = result.secure_url;
+  const fechaHora = new Date().toLocaleString("es-MX", {timeZone: "America/Mexico_City"});
+
+  // Determinar categoria para la notificacion
+  let cat = "General";
+  const c = comentario.toLowerCase();
+  if (c.includes("taza")) cat = "☕ TAZA";
+  else if (c.includes("mdf")) cat = "🪵 MDF";
+  else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
+  else if (c.includes("playera") || c.includes("sudadera")) cat = "👕 TEXTIL";
+
+  //NOTIFICACION PARA ADMIN
+  const mensajeAdmin = `🛠️ *Orden: ${ticket}*\n 📂 *CAT:* ${cat}\n 👤 *Cliente:* ${nombreCliente}\n 
+  📱 *WA:* wa.me/${numeroCliente}\n 📝 *Notas:* ${comentario}\n 🖼️ *Link:* ${urlPermanente}`;
+
+  await enviarMensaje(MI_NUMERO, mensajeAdmin);
+  return urlPermanente;
+  } catch (e) {
+    console.error("Error en produccion", e);
+  }
+}
+
 // Recepción de mensajes
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
@@ -274,37 +317,12 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
-        const imageId = msg.image.id;
-        const comentario = msg.image.caption || "Sin instrucciones";
-        const ticket = generarNumeroPedido(); //Generamos el ID unico
-        console.log(`Procesando Pedido ${ticket} de: ${nombreCliente}`);
-        const imageUrl = await obtenerUrlImagen(imageId);
-        if (imageUrl) {
-          await descargarImagen(
-            imageUrl,
-            nombreCliente,
-            numeroCliente,
-            imageId,
-          );
-          //Se guarda el comentario incluyendo el numero de pedido
-          const textoAGuardar = `Orden: ${ticket}\nCliente: ${nombreCliente}\nTel: ${numeroCliente}\nInstrucciones: ${comentario}`;
-          await guardarComentario(
-            nombreCliente,
-            numeroCliente,
-            imageId,
-            textoAGuardar,
-          );
+        const ticket = generarNumeroPedido();
+        const comentario = msg.image.caption || "Sin notas";
 
-          //Respondemos al cliente con su numero
-          await enviarMensaje(
-            numeroCliente,
-            `✅ *¡Pedido Confirmado!*\n\n` +
-              `🆔 *Orden:* ${ticket}\n` +
-              `👤 *Cliente:* ${nombreCliente}\n` +
-              `📝 *Notas:* ${comentario}\n\n` +
-              `He guardado tu diseño. Nos pondremos en contacto contigo pronto para finalizar los detalles del pago y envio.`,
-          );
-        }
+        //Llamamos al motor de produccion
+        await procesarPedidoDetallado(nombreCliente, numeroCliente, msg.image.id, comentario, ticket);
+        await enviarMensaje(numeroCliente, `✅ *¡Recibido!*\n Tu orden *${ticket}* ha sido registrada. Un asesor revisara el diseño.`);
       }
 
       // B. SI ENVÍAN TEXTO
@@ -349,11 +367,10 @@ app.post("/webhook", async (req, res) => {
             await delay(3000);
             await enviarBotones(numeroCliente, "Ahi tienes el catalogo. ¿Deseas algo mas?", ["Tallas", "Personalizar"]);
         }
-        
         else {
-          await enviarMensaje(
+          await enviarBotones(
             numeroCliente,
-            "Si quieres ver el menú principal, escribe *Hola*.",);
+            "No estoy seguro de entender eso, pero aqui esta el menu para apoyarte:", ["Inicio, Catalogo"]);
         }
       }
 
@@ -364,42 +381,62 @@ app.post("/webhook", async (req, res) => {
         if (!resBtn) return; //Si por algo viene vacio, salimos para evitar errores
         console.log(`El cliente presiono: ${resBtn}`);
 
-        if (resBtn === "Catalogo"){
-            const urlPdf = "https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf"
-            await enviarMensaje(numeroCliente, "Claro aqui tienes nuestro catalogo completo en PDF");
-            await enviarPDF(numeroCliente, urlPdf, "Catalogo_Tienda.pdf")
-            await delay(3000);
-            //Enviamos un mensaje extra para ofrecer las tallas
-            await enviarBotones(numeroCliente, "¿Desea revisar nuestra tabla de tallas o prefieres personalizar?", ["Tallas", "Personalizar"]);
-        }
+        switch (resBtn){
+          case "Inicio":
+          case "Hola":
+          case "Menu":
+            await enviarBotones(numeroCliente, "🏠 *Menu Principal*\nBienvenido a nuestro centro de atencion. ¿Que deseas consultar?", ["Catalogo", "Precios", "Personalizar"]);
+            break;
 
-        if (resBtn === "Tallas") {
-          //URL ejemplo de una tabla de tallas.
-          //Cambiala por la URL real de tu imagen (puedes subirla a imgur o PostImages)
-          const urlTabla =
-            "https://i.postimg.cc/PfFWcjG7/6e514668-b37d-4302-85d2-1153da9afe73.jpg";
-          await enviarImagen(
-            numeroCliente,
-            urlTabla,
-            "Aqui Tienes nuestra tabla de medidas para playeras 📏",
-          );
-          await enviarBotones(numeroCliente, "¿Desea Verificar algo mas?", ["Precio", "Personalizar"]);
-        } else if (resBtn === "Personalizar") {
-          await enviarMensaje(
-            numeroCliente,
-            "¡Excelente! Enviamos el diseño del modelo y tus instrucciones",
-          );
-        }
-       else if (resBtn === "Precios") {
-        const lista = `💰 *Nuestros Precios:*
+            case "Catalogo":await enviarMensaje(numeroCliente, "📂 *Nuestros Catalogos*\n\n👕 *Textil:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estes listo presiona 'Personalizar'_");
+            await delay(2000);
+            await enviarBotones(numeroCliente, "¿Te gustaria ver los precios o ya prefieres personalizar?", ["Precios", "Personalizar", "Inicio"]);
+            break;
+            case "Precios":
+              const listaPrecios = `💰 *Lista de Nuestros Precios:*
             👕 Playera: ${PRECIOS.playera_basica}
             🧥 Sudadera: ${PRECIOS.sudadera}
             🧢 Gorra: ${PRECIOS.gorra}
+            ☕ Taza Personalizada: ${PRECIOS.taza_personalizada}
+            🏷️ Etiquetas (100 pzas): ${PRECIOS.etiquetas}
+            🪵 MDF: ${PRECIOS.mdf}
             ✨ Extra: ${PRECIOS.personalizacion_extra}
-            _Precios sujetos a cambios_`;
-        await enviarMensaje(numeroCliente, lista);
-        console.log("Lista de precios enviada correctamente");
-      }
+            _Precios sujetos a cambios o segun la complejidad_`;
+        await enviarMensaje(numeroCliente, listaPrecios);
+        await delay(2000);
+        await enviarBotones(numeroCliente, "¿Deseas ver las tallas o empezar tu pedido?", ["Tallas", "Personalizar", "Inicio"]);
+        break;
+
+        case "Tallas":
+          const urlTabla = "https://i.postimg.cc/PfFWcjG7/6e514668-b37d-4302-85d2-1153da9afe73.jpg";
+          await enviarImagen(numeroCliente, urlTabla, "📏 *Guia de Medidas*\nAqui tienes las tallas para nuestras prendas textiles");
+          await delay(3000);
+          await enviarBotones(numeroCliente, "¿Deseas regresar al menu o ir a personalizar?", ["Inicio", "Personalizar"]);
+          break;
+
+          case "Personalizar":
+            //Menu de los servicios
+            await enviarBotones(numeroCliente, "🎨 *Centro de Personalizacion*\n ¿En que tipo de producto te gustaria trabajar hoy?", 
+              ["Textil", "Tazas y MDF", "Etiquetas"]);
+            break;
+
+          case "Textil":
+              await enviarMensaje(numeroCliente, 
+                "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envia la imagen de tu diseño.\n2. En la descripcion escribe: *Talla, Color y que tipo deprenda se estampara*.");
+                break;
+
+          case "Tazas y MDF":
+              await enviarMensaje(numeroCliente, "☕*Tazas y madera MDF*🪵\n\nEnvia tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte laser en MDF");
+              break;
+
+          case "Etiquetas":
+            await enviarMensaje(numeroCliente, "🏷️ *Etiquetas*\nEnvia tu logo y menciona las *medidas* y la *cantidad* que necesitas.");
+            break;
+
+          case "Inicio":
+            await enviarBotones(numeroCliente, "Menu principal 🏠\n Selecciona una opcion:", ["Catalogo", "Precios", "Personalizar"]);
+            break;
+        }
     }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
       else {
