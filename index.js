@@ -281,7 +281,7 @@ app.post("/webhook", async (req, res) => {
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
 
-  if (!entry || !entry.messages || !entry.messages[0]) {
+  if (entry && entry.messages && entry.messages[0]) {
     const msg = entry.messages[0];
     const timestampMsg = parseInt(msg.timestamp);
     const ahora = Math.floor(Date.now() / 1000);
@@ -323,7 +323,8 @@ app.post("/webhook", async (req, res) => {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
         //Verificamos si ya esta procesando a el cliente para no repetir
-        if (estadosClientes[numeroCliente]?.esperandoNombre);
+        if (estadosClientes[numeroCliente]?.esperandoNombre)
+        return;
         const ticket = `PED-${Date.now()}`;
         const comentario = msg.image.caption || "Sin notas";
         const imageId = msg.image.id;
