@@ -276,7 +276,7 @@ app.get("/webhook", (req, res) => {
 // Recepción de mensajes
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
-  res.sendStatus(200).send("EVENT_RECEIVED");
+  res.status(200).send("EVENT_RECEIVED");
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
