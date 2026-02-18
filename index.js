@@ -229,13 +229,13 @@ async function marcarComoLeido(messageId) {
       {
         messaging_product: "whatsapp",
         status: "read",
-        message_Id: messageId
+        message_id: messageId
       },
       {
         headers: {Authorization: `Bearer ${process.env.ACCESS_TOKEN}`}
       }
     );
-    console.log("✅ Check azul enviado para:", messageId);
+    console.log("✅ Check azul enviado para");
   }catch (error) {
     console.error("Error al marcar como leido:", error.response?.data || error.message);
   }
