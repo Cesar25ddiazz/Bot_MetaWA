@@ -257,13 +257,19 @@ app.get("/webhook", (req, res) => {
 // Recepción de mensajes
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
-  res.sendStatus(200);
+  res.sendStatus(200).send("EVENT_RECEIVED");
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
 
   if (entry?.messages?.[0]) {
     const msg = entry.messages[0];
+    const timestampMsg = parseInt(msg.timestamp);
+    const ahora = Math.floor(Date.now() / 1000);
+    if (ahora - timestampMsg > 120) {
+      console.log("⚠️ Ignorando mensaje antiguo/reintento");
+      return;
+    }
     await marcarComoLeido(msg.id);
     const numeroCliente = msg.from;
     const nombreCliente = (
@@ -296,6 +302,8 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
+        //Verificamos si ya esta procesando a el cliente para no repetir
+        if (estadosClientes[numeroCliente]?.esperandoNombre);
         const ticket = `PED-${Date.now()}`;
         const comentario = msg.image.caption || "Sin notas";
         const imageId = msg.image.id;
