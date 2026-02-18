@@ -281,7 +281,7 @@ app.post("/webhook", async (req, res) => {
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
 
-  if (entry?.messages?.[0]) {
+  if (!entry || !entry.messages || !entry.messages[0]) {
     const msg = entry.messages[0];
     const timestampMsg = parseInt(msg.timestamp);
     const ahora = Math.floor(Date.now() / 1000);
