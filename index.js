@@ -43,6 +43,7 @@ const WEBHOOK_TOKEN =
 process.env.WEBHOOK_TOKEN;
 const MI_NUMERO =
 process.env.MY_PERSONAL_NUMBER;
+const estadosClientes = {};
 
 //Configuracion de Cloudinary
 cloudinary.config({
@@ -163,74 +164,63 @@ async function enviarPDF(numero, url, nombreArchivo){
 }
 
 // Obtener la URL de descarga de una imagen desde Meta
-async function obtenerUrlImagen(id) {
+async function procesarPedidoDetallado(nombreCliente, numeroCliente, imageId, comentario, ticket) {
   try {
-    const response = await axios({
-      method: "GET",
-      url: `https://graph.facebook.com/v18.0/${id}`,
-      headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    const fechaHora = new Date().toLocaleString("es-MX", {timeZone: "America/Mexico_City"});
+    console.log("Iniciando proceso de imagen para:", ticket);
+    const responseMeta = await axios.get(`https://graph.facebook.com/v18.0/${imageId}`, 
+      {headers: {'Authorization': `Bearer ${process.env.ACCESS_TOKEN}`} 
     });
-    return response.data.url;
-  } catch (e) {
-    console.error("❌ Error obtenerUrlImagen:", e.message);
-    return null;
-  }
-}
+    const urlDescarga = responseMeta.data.url;
 
-// Descargar imagen y guardarla en carpeta del cliente
-async function descargarImagen(url, nombreCliente, telefono, imageId) {
-  try {
-    const folderPath = path.join(BASE_PATH, `${nombreCliente}_${telefono}`);
-    await fs.ensureDir(folderPath);
-    const filePath = path.join(folderPath, `${imageId}.jpg`);
-
-    const response = await axios({
-      method: "GET",
-      url: url,
-      responseType: "stream",
-      headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    //Descarga de imagen como buffer
+    const imagenResponse = await axios.get(urlDescarga, {
+      headers: {'Authorization': `Bearer ${process.env.ACCESS_TOKEN}`},
+      responseType: 'arraybuffer'
     });
 
-    const writer = fs.createWriteStream(filePath);
-    response.data.pipe(writer);
+    //Convertir en formato Base64 para cloudinary
+    const base64Image = `data:image/jpeg;base64,${Buffer.from(imagenResponse.data).toString('base64')}`;
 
-    return new Promise((resolve, reject) => {
-      writer.on("finish", resolve);
-      writer.on("error", reject);
-    });
-  } catch (e) {
-    console.error("❌ Error descargarImagen:", e.message);
+    //SUbir a cloudinary
+    const result = await cloudinary.uploader.upload(base64Image, {folder: "SISTEMA_PRODUCCION", public_id: ticket, resource_type: "image"});
+    const urlPermanente = result.secure_url;
+    console.log("Imagen en cloudinary:", urlPermanente);
+
+    // Determinar categoria para la notificacion
+    let cat = "📦 GENERAL";
+    const c = comentario.toLowerCase();
+    if (c.includes("taza")) cat = "☕ TAZA";
+    else if (c.includes("mdf")) cat = "🪵 MDF";
+    else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
+    else if (c.includes("playera") || c.includes("sudadera")) cat = "👕 TEXTIL";
+
+    //Notidicacion detallada
+    const mensajeAdmin = 
+    `🛠️ *Orden de Produccion:* 🛠️\n` +
+    `-----------------------------\n` +
+    `🆔 *Ticket:* ${ticket}\n` + 
+    `👤 *Cliente:* ${nombreCliente}\n` + 
+    `📱 *Whatsapp:* wa.me/${numeroCliente}\n` + 
+    `📝 *Notas:* ${comentario}\n` + 
+    `🖼️ *Link:* ${result.secure_url}\n` +
+    `-----------------------------\n` +
+    `⏰ ${fechaHora}`;
+    await enviarMensaje(MI_NUMERO, mensajeAdmin);
+
+    const despedidaElegante = `✅ *¡Orden registrada con exito!*\n\n` +
+  `Estimado cliente, su solicitud ha sido enviada a nuestro taller de diseño.\n` +
+  `Estamos trabajando para que su proyecto sea unico.\n\n` +
+  `🕐 *Tiempo de respuesta:* 15 a 30 minutos.\n\n` +
+  `¡Gracias por su preferencia! ✨ \n\n` +
+  `¿Desea realizar alguna otra consulta o prefiere hablar con un *Asesor Especializado*?`;
+
+  await delay(1500);
+  await enviarBotones(numeroCliente, despedidaElegante, ["Hablar con Asesor", "Nuevo Pedido", "Inicio"]);
+
+  } catch (error) {
+    console.error("✖️ Error en produccion:", error);
   }
-}
-
-// Guardar el texto que acompaña a la imagen en un .txt
-async function guardarComentario(nombreCliente, telefono, imageId, comentario) {
-  try {
-    const folderPath = path.join(BASE_PATH, `${nombreCliente}_${telefono}`);
-    const filePath = path.join(folderPath, `${imageId}.txt`);
-    await fs.writeFile(filePath, `Instrucciones del cliente:\n${comentario}`);
-  } catch (e) {
-    console.error("❌ Error guardarComentario:", e.message);
-  }
-}
-
-function generarNumeroPedido() {
-  // Obtenemos la fecha actual y ajustamos a UTC-6 (México) de forma manual pero segura
-  const ahora = new Date();
-  const utc = ahora.getTime() + (ahora.getTimezoneOffset() * 60000);
-  // México es UTC-6
-  const horaMexico = new Date(utc + (3600000 * -6));
-
-  const anio = horaMexico.getFullYear();
-  const mes = String(horaMexico.getMonth() + 1).padStart(2, '0');
-  const dia = String(horaMexico.getDate()).padStart(2, '0');
-  const horas = String(horaMexico.getHours()).padStart(2, '0');
-  const minutos = String(horaMexico.getMinutes()).padStart(2, '0');
-
-  const fechaFormateada = `${anio}${mes}${dia}`;
-  const horaFormateada = `${horas}${minutos}`;
-
-  return `PED-${fechaFormateada}-${horaFormateada}`;
 }
 
 // ==========================================
@@ -245,36 +235,6 @@ app.get("/webhook", (req, res) => {
     res.sendStatus(403);
   }
 });
-
-async function procesarPedidoDetallado(nombreCliente, numeroCliente, imageId, comentario, ticket) {
-  try {
-    const urlImagenMeta = await obtenerUrlImagen(imageId); //Funcion link de meta 
-
-  //Subida a Cloudinary
-  const result = await cloudinary.uploader.upload(urlImagenMeta, {folder: "SISTEMA_PRODUCCION",
-          public_id: ticket});
-  
-  const urlPermanente = result.secure_url;
-  const fechaHora = new Date().toLocaleString("es-MX", {timeZone: "America/Mexico_City"});
-
-  // Determinar categoria para la notificacion
-  let cat = "General";
-  const c = comentario.toLowerCase();
-  if (c.includes("taza")) cat = "☕ TAZA";
-  else if (c.includes("mdf")) cat = "🪵 MDF";
-  else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
-  else if (c.includes("playera") || c.includes("sudadera")) cat = "👕 TEXTIL";
-
-  //NOTIFICACION PARA ADMIN
-  const mensajeAdmin = `🛠️ *Orden: ${ticket}*\n 📂 *CAT:* ${cat}\n 👤 *Cliente:* ${nombreCliente}\n 
-  📱 *WA:* wa.me/${numeroCliente}\n 📝 *Notas:* ${comentario}\n 🖼️ *Link:* ${urlPermanente}`;
-
-  await enviarMensaje(MI_NUMERO, mensajeAdmin);
-  return urlPermanente;
-  } catch (e) {
-    console.error("Error en produccion", e);
-  }
-}
 
 // Recepción de mensajes
 app.post("/webhook", async (req, res) => {
@@ -317,12 +277,20 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
-        const ticket = generarNumeroPedido();
+        const ticket = `PED-${Date.now()}`;
         const comentario = msg.image.caption || "Sin notas";
+        const imageId = msg.image.id;
 
-        //Llamamos al motor de produccion
-        await procesarPedidoDetallado(nombreCliente, numeroCliente, msg.image.id, comentario, ticket);
-        await enviarMensaje(numeroCliente, `✅ *¡Recibido!*\n Tu orden *${ticket}* ha sido registrada. Un asesor revisara el diseño.`);
+        //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
+        estadosClientes[numeroCliente] = {esperandoNombre: true, ticket, imageId, comentario};
+
+        //Confirmacion inmediata del cliente 
+        await enviarMensaje(numeroCliente, `📸 *Imagen recibida con exito*`);
+        await delay(1000);
+
+        //Preguntamos el nombre para el registro
+        await enviarMensaje(numeroCliente, `Para registrar tu orden *${ticket}*, ¿Podrias poner tu *Nombre Completo*? ✨`);
+
       }
 
       // B. SI ENVÍAN TEXTO
@@ -333,6 +301,17 @@ app.post("/webhook", async (req, res) => {
         const disparadoresBienvenida = ["hola", "buenos dias", "buenas tardes", "buenas noches", "hey", "que tal"];
         // Se verifica si una de estas palabras esta dentro de lo que escribio el cliente
         const quiereBienvenida = disparadoresBienvenida.some(palabra => textoCliente.includes(palabra));
+
+        if (estadosClientes[numeroCliente]?.esperandoNombre) {
+          const datos = estadosClientes[numeroCliente];
+
+          //Procesamos con el nombre real que acaba de escribir
+          await procesarPedidoDetallado(textoCliente, numeroCliente, datos.imageId, datos.comentario, datos.ticket);
+
+          //Limpiamos el estado para que pueda seguir usando el bot normal
+          delete estadosClientes[numeroCliente];
+          return; //Salimos para que no ejecute la logica de bienvenida 
+        }
 
         if (quiereBienvenida) {
             await enviarBotones(numeroCliente, `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
@@ -436,6 +415,16 @@ app.post("/webhook", async (req, res) => {
           case "Inicio":
             await enviarBotones(numeroCliente, "Menu principal 🏠\n Selecciona una opcion:", ["Catalogo", "Precios", "Personalizar"]);
             break;
+
+          case "Hablar con Asesor":
+            await enviarMensaje(numeroCliente, "🫱🏼‍🫲🏼 *Conectando con un especialista...*\n\nHe notificado a nuestro equipo especializado. En un momento uno de nuestros asesores tomara la conversacion para una atencion personalizada. ¡Gracias por tu paciencia.!");
+            //Notificacion para mi
+            await enviarMensaje(MI_NUMERO, `⚠️ *ATENCION HUMANA:* El cliente wa.me/${numeroCliente} solicita un asesor especializado.`);
+            break;
+
+          case "Nuevo Pedido":
+            await enviarBotones(numeroCliente, "¡Perfecto! vamos a crear algo nuevo. ¿Que producto te interesa?", ["Textil", "Tazas y MDF", "Etiquetas"]);
+            break;  
         }
     }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
