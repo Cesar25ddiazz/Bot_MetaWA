@@ -349,7 +349,7 @@ app.post("/webhook", async (req, res) => {
         else {
           await enviarBotones(
             numeroCliente,
-            "No estoy seguro de entender eso, pero aqui esta el menu para apoyarte:", ["Inicio, Catalogo"]);
+            "No estoy seguro de entender eso, pero aqui esta el menu para apoyarte:", ["Inicio", "Catalogo"]);
         }
       }
 
