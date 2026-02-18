@@ -223,6 +223,23 @@ async function procesarPedidoDetallado(nombreCliente, numeroCliente, imageId, co
   }
 }
 
+async function marcarComoLeido(messageId) {
+  try {
+    await axios.post(`https://graph.facebook.com/v18.0/${process.env.PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        status: "read",
+        message_Id_: messageId
+      },
+      {
+        headers: {Authorization: `Bearer ${process.env.ACCESS_TOKEN}`}
+      }
+    );
+  }catch (error) {
+    console.error("Error al marcar como leido:", error.response?.data || error.message);
+  }
+}
+
 // ==========================================
 // 3. WEBHOOK (Rutas)
 // ==========================================
@@ -246,6 +263,7 @@ app.post("/webhook", async (req, res) => {
 
   if (entry?.messages?.[0]) {
     const msg = entry.messages[0];
+    await marcarComoLeido(msg.id);
     const numeroCliente = msg.from;
     const nombreCliente = (
       entry.contacts?.[0]?.profile?.name || "Cliente").replace(/\s+/g, "_");
