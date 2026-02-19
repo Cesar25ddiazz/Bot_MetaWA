@@ -274,8 +274,7 @@ async function procesarPedidoDetallado(
 
     
     //Intenta detectar cantidad
-    const matchCantidad = comentario.match(
-      /(\d+)\s*piezas|tazas|playeras|sudaderas|unidad|pzs|cant)/i);
+    const matchCantidad = comentario.match(/(\d+)\s*(piezas|tazas|playeras|sudaderas|unidad|pzs|cant)/i);
     let cantidad = matchCantidad ? parseInt(matchCantidad[1]) : 1; //Si no se encuentra asume 1
 
     //Calculo total
