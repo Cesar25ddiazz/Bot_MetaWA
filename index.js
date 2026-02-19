@@ -124,7 +124,7 @@ async function escribir(numero) {
       },
     });
   }catch (e) {
-    console.error("Error en funcion escribir:", e.response?.data || e.message);
+    console.log("Sender action no soportada:", e.message);
   }
 }
 
