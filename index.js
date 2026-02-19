@@ -4,6 +4,8 @@ const axios = require("axios");
 const cloudinary = require("cloudinary").v2;
 const fs = require("fs-extra");
 const path = require("path");
+const { GoogleSpreadsheet } = require("google-spreadsheet");
+const { JWT } = require("google-auth-library");
 
 //Función de horario
 function estaFueraDeHorario() {
@@ -183,6 +185,40 @@ async function enviarPDF(numero, url, nombreArchivo) {
   }
 }
 
+async function guardarEnCRM(datos) {
+  try {
+    const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const doc = new GoogleSpreadsheet(
+      process.env.GOOGLE_SHEET_ID,
+      serviceAccountAuth,
+    );
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+
+    await sheet.addRow({
+      Fecha: new Date().toLocaleString("es-MX", {
+        timeZone: "America/Mexico_City",
+      }),
+      Ticket: datos.ticket,
+      Cliente: datos.nombre,
+      Whatsapp: `wa.me/${datos.numero}`,
+      Producto: datos.categoria || "📦 GENERAL",
+      Descripcion: datos.notas,
+      Link_Imagen: datos.urlImagen,
+      Estado_Produccion: "Pendiente",
+      Estado_Pago: "Sin Pagar",
+      Total_a_Pagar: datos.precio,
+    });
+    console.log("Registro guardado en el CRM de Google Sheet");
+  } catch (error) {
+    console.error("Error al escribir en Google Sheet:", error);
+  }
+}
+
 // Obtener la URL de descarga de una imagen desde Meta
 async function procesarPedidoDetallado(
   nombreCliente,
@@ -224,9 +260,39 @@ async function procesarPedidoDetallado(
     let cat = "📦 GENERAL";
     const c = comentario.toLowerCase();
     if (c.includes("taza")) cat = "☕ TAZA";
-    else if (c.includes("mdf")) cat = "🪵 MDF";
+    else if (c.includes("mdf")) cat = "🪵 MDF", precioUnitario = 0;
     else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
     else if (c.includes("playera") || c.includes("sudadera")) cat = "👕 TEXTIL";
+    else if (c.includes("gorra")) cat = "🧢 GORRA";
+
+    let precioUnitario = 0;
+    if (cat === "👕 TEXTIL") precioUnitario = parseInt(PRECIOS.playera_básica);
+    else if (cat === "☕ TAZA") precioUnitario = parseInt(PRECIOS.taza_personalizada);
+    else if (cat === "🏷️ ETIQUETAS") precioUnitario = parseInt(PRECIOS.etiquetas);
+    else if (cat === "🧢 GORRA") precioUnitario = parseInt(PRECIOS.gorra);
+    else if (cat === "🧥 SUDADERA") precioUnitario = parseInt(PRECIOS.sudadera);
+
+    
+    //Intenta detectar cantidad
+    const matchCantidad = comentario.match(
+      /(\d+)\s*piezas|tazas|playeras|sudaderas|unidad|pzs|cant)/i,
+    );
+    let cantidad = matchCantidad ? parseInt(matchCantidad[1]) : 1; //Si no se encuentra asume 1
+
+    //Calculo total
+    let totalCalculado = precioUnitario * cantidad;
+    let textoPresupuesto = cat === "🪵 MDF" ? "Sujeto a cotizacion segun diseño" : `${totalCalculado} MXM (${cantidad} pz/s)`;
+
+    //Guardar en CRM
+    await guardarEnCRM({
+      ticket: ticket,
+      nombre: nombreCliente,
+      numero: numeroCliente,
+      categoria: cat,
+      notas: comentario,
+      urlImagen: urlPermanente,
+      precio: cat === "🪵 MDF" ? "Cotizacion" : totalCalculado.toString() //Se guarda el total en la columna
+    });
 
     //Notidicacion detallada
     const mensajeAdmin =
@@ -235,7 +301,9 @@ async function procesarPedidoDetallado(
       `🆔 *Ticket:* ${ticket}\n` +
       `👤 *Cliente:* ${nombreCliente}\n` +
       `📱 *Whatsapp:* wa.me/${numeroCliente}\n` +
+      `📦 *CAT:* ${cat}\n` +
       `📝 *Notas:* ${comentario}\n` +
+      `💵 *Total:* ${textoPresupuesto}\n` +
       `🖼️ *Link:* ${result.secure_url}\n` +
       `-----------------------------\n` +
       `⏰ ${fechaHora}`;
@@ -243,7 +311,9 @@ async function procesarPedidoDetallado(
 
     const despedidaElegante =
       `✅ *¡Orden registrada con éxito!*\n\n` +
-      `Estimado cliente, su solicitud ha sido enviada a nuestro taller de diseño.\n` +
+      `🆔 *Ticket:* ${ticket}\n` +
+      `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
+      `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n` +
       `Estamos trabajando para que su proyecto sea único.\n\n` +
       `🕐 *Tiempo de respuesta:* 15 a 30 minutos.\n\n` +
       `¡Gracias por su preferencia! ✨ \n\n` +
@@ -405,7 +475,7 @@ app.post("/webhook", async (req, res) => {
         }
 
         if (quiereBienvenida) {
-         // await escribir(numeroCliente); //El cliente ve escribiendo
+          // await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
           await enviarBotones(
             numeroCliente,
