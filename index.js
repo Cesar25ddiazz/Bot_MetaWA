@@ -115,7 +115,10 @@ async function escribir(numero) {
     await axios({
       method: "POST",
       url: `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
-      headers: { Authorization: `Bearer ${ACCESS_TOKEN}`},
+      headers: {
+        Authorization: `Bearer ${ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
       data: {
         messaging_product: "whatsapp",
         recipient_type: "individual",
@@ -123,8 +126,8 @@ async function escribir(numero) {
         sender_action: "typing_on",
       },
     });
-  }catch (e) {
-    console.log("Sender action no soportada:", e.message);
+  } catch (e) {
+    console.log("Sender action no soportada por Meta para este numero");
   }
 }
 
@@ -342,8 +345,7 @@ app.post("/webhook", async (req, res) => {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
         //Verificamos si ya esta procesando a el cliente para no repetir
-        if (estadosClientes[numeroCliente]?.esperandoNombre)
-        return;
+        if (estadosClientes[numeroCliente]?.esperandoNombre) return;
         const ticket = `PED-${Date.now()}`;
         const comentario = msg.image.caption || "Sin notas";
         const imageId = msg.image.id;
@@ -469,7 +471,7 @@ app.post("/webhook", async (req, res) => {
           case "Hola":
           case "Menu":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             await enviarBotones(
               numeroCliente,
               "🏠 *Menu Principal*\nBienvenido a nuestro centro de atención. ¿Que deseas consultar?",
@@ -478,8 +480,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Catalogo":
-          await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await escribir(numeroCliente); //El cliente ve escribiendo
+            await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
@@ -492,8 +494,8 @@ app.post("/webhook", async (req, res) => {
             );
             break;
           case "Precios":
-          await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await escribir(numeroCliente); //El cliente ve escribiendo
+            await delay(1500);
             const listaPrecios = `💰 *Lista de Nuestros Precios:*\n
             👕 Playera: ${PRECIOS.playera_básica}
             🧥 Sudadera: ${PRECIOS.sudadera}
@@ -513,8 +515,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Tallas":
-          await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await escribir(numeroCliente); //El cliente ve escribiendo
+            await delay(1500);
             const urlTabla =
               "https://i.postimg.cc/PfFWcjG7/6e514668-b37d-4302-85d2-1153da9afe73.jpg";
             await enviarImagen(
@@ -532,7 +534,7 @@ app.post("/webhook", async (req, res) => {
 
           case "Personalizar":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             //Menu de los servicios
             await enviarBotones(
               numeroCliente,
@@ -543,7 +545,7 @@ app.post("/webhook", async (req, res) => {
 
           case "Textil":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envía la imagen de tu diseño.\n2. En la descripción escribe: *Talla, Color y que tipo deprenda se estampara*.",
@@ -552,7 +554,7 @@ app.post("/webhook", async (req, res) => {
 
           case "Tazas y MDF":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "☕*Tazas y madera MDF*🪵\n\nEnvía tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte láser en MDF",
@@ -561,7 +563,7 @@ app.post("/webhook", async (req, res) => {
 
           case "Etiquetas":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "🏷️ *Etiquetas*\nEnvía tu logo y menciona las *medidas* y la *cantidad* que necesitas.",
@@ -570,7 +572,7 @@ app.post("/webhook", async (req, res) => {
 
           case "Inicio":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             await enviarBotones(
               numeroCliente,
               "Menu principal 🏠\n Selecciona una opción:",
@@ -580,7 +582,7 @@ app.post("/webhook", async (req, res) => {
 
           case "Hablar con Asesor":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "🫱🏼‍🫲🏼 *Conectando con un especialista...*\n\nHe notificado a nuestro equipo especializado. En un momento uno de nuestros asesores tomara la conversación para una atención personalizada. ¡Gracias por tu paciencia.!",
@@ -594,7 +596,7 @@ app.post("/webhook", async (req, res) => {
 
           case "Nuevo Pedido":
             await escribir(numeroCliente); //El cliente ve escribiendo
-          await delay(1500);
+            await delay(1500);
             await enviarBotones(
               numeroCliente,
               "¡Perfecto! vamos a crear algo nuevo. ¿Que producto te interesa?",
