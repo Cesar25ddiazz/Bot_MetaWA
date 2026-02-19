@@ -109,6 +109,25 @@ async function enviarMensaje(numero, texto) {
   }
 }
 
+//Funcion para mostrar "Escribiendo"
+async function escribir(numero) {
+  try {
+    await axios({
+      method: "POST",
+      url: `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}`},
+      data: {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: numero,
+        sender_action: "typing_on",
+      },
+    });
+  }catch (e) {
+    console.error("Error en funcion escribir:", e.response?.data || e.message);
+  }
+}
+
 // Enviar botones interactivos
 async function enviarBotones(numero, textoCuerpo, listaBotones) {
   try {
@@ -384,6 +403,8 @@ app.post("/webhook", async (req, res) => {
         }
 
         if (quiereBienvenida) {
+          await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
           await enviarBotones(
             numeroCliente,
             `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
@@ -398,13 +419,15 @@ app.post("/webhook", async (req, res) => {
           textoCliente.includes("costo") ||
           textoCliente.includes("cotización")
         ) {
+          await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
           const mensajePrecios =
             `💰 *Lista de Precios actualizada* 💰\n\n` +
             `👕 *Playera personalizada:* ${PRECIOS.playera_básica}\n` +
             `🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}\n` +
             `🧢 *Gorra estampada:* ${PRECIOS.gorra}\n` +
             `✨ *Diseño extra:* ${PRECIOS.personalización_extra}\n\n` +
-            `_Precios sujetos a cambios según la complejidad del diseño._\n\n` +
+            `_Precios sujetos a cambios según la complejidad del diseño._\n` +
             `¿Te gustaría iniciar un pedido ahora? Presiona el botón *Personalizar*.`;
 
           await enviarBotones(numeroCliente, mensajePrecios, [
@@ -412,6 +435,8 @@ app.post("/webhook", async (req, res) => {
             "Tallas",
           ]);
         } else if (textoCliente.includes("catalogo")) {
+          await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
           const urlPdf =
             "https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf";
           await enviarPDF(numeroCliente, urlPdf, "Catalogo_Tienda.pdf");
@@ -422,6 +447,8 @@ app.post("/webhook", async (req, res) => {
             ["Tallas", "Personalizar"],
           );
         } else {
+          await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
           await enviarBotones(
             numeroCliente,
             "No estoy seguro de entender eso, pero aquí esta el menu para apoyarte:",
@@ -441,6 +468,8 @@ app.post("/webhook", async (req, res) => {
           case "Inicio":
           case "Hola":
           case "Menu":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarBotones(
               numeroCliente,
               "🏠 *Menu Principal*\nBienvenido a nuestro centro de atención. ¿Que deseas consultar?",
@@ -449,9 +478,11 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Catalogo":
+          await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarMensaje(
               numeroCliente,
-              "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
+              "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
             );
             await delay(2000);
             await enviarBotones(
@@ -461,14 +492,16 @@ app.post("/webhook", async (req, res) => {
             );
             break;
           case "Precios":
-            const listaPrecios = `💰 *Lista de Nuestros Precios:*
+          await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
+            const listaPrecios = `💰 *Lista de Nuestros Precios:*\n
             👕 Playera: ${PRECIOS.playera_básica}
             🧥 Sudadera: ${PRECIOS.sudadera}
             🧢 Gorra: ${PRECIOS.gorra}
             ☕ Taza Personalizada: ${PRECIOS.taza_personalizada}
             🏷️ Etiquetas (100 piezas): ${PRECIOS.etiquetas}
             🪵 MDF: ${PRECIOS.mdf}
-            ✨ Extra: ${PRECIOS.personalización_extra}
+            ✨ Extra: ${PRECIOS.personalización_extra}\n
             _Precios sujetos a cambios o según la complejidad_`;
             await enviarMensaje(numeroCliente, listaPrecios);
             await delay(2000);
@@ -480,6 +513,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Tallas":
+          await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             const urlTabla =
               "https://i.postimg.cc/PfFWcjG7/6e514668-b37d-4302-85d2-1153da9afe73.jpg";
             await enviarImagen(
@@ -496,6 +531,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Personalizar":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             //Menu de los servicios
             await enviarBotones(
               numeroCliente,
@@ -505,6 +542,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Textil":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envía la imagen de tu diseño.\n2. En la descripción escribe: *Talla, Color y que tipo deprenda se estampara*.",
@@ -512,6 +551,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Tazas y MDF":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "☕*Tazas y madera MDF*🪵\n\nEnvía tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte láser en MDF",
@@ -519,6 +560,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Etiquetas":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "🏷️ *Etiquetas*\nEnvía tu logo y menciona las *medidas* y la *cantidad* que necesitas.",
@@ -526,6 +569,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Inicio":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarBotones(
               numeroCliente,
               "Menu principal 🏠\n Selecciona una opción:",
@@ -534,6 +579,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Hablar con Asesor":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarMensaje(
               numeroCliente,
               "🫱🏼‍🫲🏼 *Conectando con un especialista...*\n\nHe notificado a nuestro equipo especializado. En un momento uno de nuestros asesores tomara la conversación para una atención personalizada. ¡Gracias por tu paciencia.!",
@@ -546,6 +593,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Nuevo Pedido":
+            await escribir(numeroCliente); //El cliente ve escribiendo
+          await delay(1500);
             await enviarBotones(
               numeroCliente,
               "¡Perfecto! vamos a crear algo nuevo. ¿Que producto te interesa?",
