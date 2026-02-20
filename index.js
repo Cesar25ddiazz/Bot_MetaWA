@@ -15,7 +15,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || dia === 6 || hora >= 21 || hora < 9;
+  return dia === 0 || dia === 6 || hora >= 23 || hora < 9;
 }
 
 //Función retraso
