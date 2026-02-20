@@ -518,7 +518,7 @@ app.post("/webhook", async (req, res) => {
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
         //Limpiamos el texto del cliente
-        const textoCliente = msg.text.body.toLowerCase().trim();
+        const textoCliente = msg.text.body.trim();
         // Definimos una lista de palabras que activan la bienvenida
         const disparadoresBienvenida = [
           "hola",
@@ -612,10 +612,10 @@ if (ticketBusqueda) {
 }
 }
 
-else if (textoCliente.startsWith("estatus ")  || textoCliente.startsWith("ped-")){
-  let ticketBusqueda = textoCliente.includes("estatus ") ? textoCliente.split("")[1]?.toUpperCase() : textoCliente.toUpperCase();
+if (textoCliente.toUpperCase().startsWith("ESTATUS ")  || textoCliente.toUpperCase().startsWith("PED-")){
+
+  let ticketBusqueda = textoCliente.toUpperCase().includes("ESTATUS ") ? textoCliente.split("")[1]?.trim() : textoCliente.trim();
   if (ticketBusqueda) {
-    console.log("Buscando ticket", ticketBusqueda)
    const resultado = await consultarStatusCRM(ticketBusqueda);
   await enviarMensaje(numeroCliente, resultado); 
   return;
