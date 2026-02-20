@@ -314,7 +314,7 @@ async function buscarNombreEnSheets(whatsapp) {
   const filas = await sheet.getRows();
 
   const fila = filas.find((f) => {
-    const telSheet = f.get("Whatsapp") ? f.get(Whatsapp).toString().trim() : "";
+    const telSheet = f.get(Whatsapp) ? f.get(Whatsapp).toString().trim() : "";
     const telCliente = whatsapp.toString().trim();
   return telSheet.includes(telCliente) || telCliente.includes(telSheet);
 });
