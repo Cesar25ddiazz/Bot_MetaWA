@@ -603,7 +603,7 @@ if (ticketBusqueda) {
 }
 }
 
-if (textoCliente.toUpperCase().startsWith("ESTATUS")  || textoCliente.toUpperCase().startsWith("PED-")){
+/*if (textoCliente.toUpperCase().startsWith("ESTATUS")  || textoCliente.toUpperCase().startsWith("PED-")){
 
   let ticketParaBuscar = textoUpper.replace("ESTATUS", "").trim();
   if (ticketParaBuscar) {
@@ -611,7 +611,16 @@ if (textoCliente.toUpperCase().startsWith("ESTATUS")  || textoCliente.toUpperCas
   await enviarMensaje(numeroCliente, resultado); 
   return;
   }
-}
+}*/
+ const matchTicket = textoCliente.match(/PED-\d+/i);
+  if (matchTicket) {
+    const ticketBusqueda = matchTicket[0].toUpperCase();
+    console.log("Ticket detectado con exito:" , ticketBusqueda);
+    const resultado = await consultarStatusCRM(ticketBusqueda);
+    await enviarMensaje(numeroCliente, resultado);
+    return;
+    
+  }
       }
 
       // C. SI ENVÍAN BOTONES
