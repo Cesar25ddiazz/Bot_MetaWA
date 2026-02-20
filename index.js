@@ -340,10 +340,21 @@ async function procesarPedidoDetallado(
     
     //Intenta detectar cantidad
     const matchCantidad = comentario.match(/(\d+)\s*(piezas|tazas|playeras|sudaderas|unidad|pzs|cant)/i);
-    let cantidad = matchCantidad ? parseInt(matchCantidad[1]) : 1; //Si no se encuentra asume 1
+    let cantidadDetectada = matchCantidad ? parseInt(matchCantidad[1]) : 1; //Si no se encuentra asume 1
+    
+    //Logica para etiquetas
+    let totalCalculado = 0;
+    if (cat === "🏷️ ETIQUETAS") {
+      //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
+      //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
+      let unidadesDeCien = Math.ceil(cantidadDetectada / 100);
+      totalCalculado = unidadesDeCien;
+    }else {
+      totalCalculado = precioUnitario * cantidadDetectada;
+      cantidad = cantidadDetectada;
+    }
 
     //Calculo total
-    let totalCalculado = precioUnitario * cantidad;
     let textoPresupuesto = cat === "🪵 MDF" ? "Sujeto a cotizacion segun diseño" : `${totalCalculado} MXN (${cantidad} pz/s)`;
 
     //Guardar en CRM
@@ -374,7 +385,7 @@ async function procesarPedidoDetallado(
 
     const despedidaElegante =
       `✅ *¡Orden registrada con éxito!*\n\n` +
-      `🆔 *Ticket:* ${ticket}\n` +
+      `🆔 *Ticket:* ${ticket}\n\n` +
       `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
       `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n` +
       `Estamos trabajando para que su proyecto sea único.\n\n` +
@@ -593,16 +604,18 @@ app.post("/webhook", async (req, res) => {
 
         if (textoCliente.startsWith("pagado ")) {
   const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
-
-  //Actualizar y buscar en sheets
-  await actualizarEstadoCRM(ticketBusqueda, {Estado_Pago: "Pagado"});
+if (ticketBusqueda) {
+   await actualizarEstadoCRM(ticketBusqueda, {Estado_Pago: "Pagado"});
   await enviarMensaje(numeroCliente, `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`);
 }
+}
 
-if (textoCliente.startsWith("estatus ")) {
-  const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
-  const resultado = await consultarStatusCRM(ticketBusqueda);
-  await enviarMensaje(numeroCliente, resultado);
+if (textoCliente.startsWith("estatus ")  || textoCliente.startsWith("ped-")){
+  let ticketBusqueda = textoCliente.includes("estatus") ? textoCliente.split("")[1].toUpperCase() : textoCliente.toUpperCase();
+  if (ticketBusqueda) {
+   const resultado = await consultarStatusCRM(ticketBusqueda);
+  await enviarMensaje(numeroCliente, resultado); 
+  }
 }
       }
 
@@ -685,8 +698,8 @@ if (textoCliente.startsWith("estatus ")) {
             //Menu de los servicios
             const instrucciones = "🎨 *Área de Personalización*\n\n" +
             "Selecciona una Categoría para realizar un *Nuevo Pedido*.\n\n" +
-            "---------------------------------------\n" +
-            "🔎 Si ya tienes un pedido y quieres saber su estatus, escribe:\n" +
+            "-----------------------------\n" +
+            "🔎 Si ya tienes un pedido y quieres saber su estatus escribe:\n\n" +
             "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)";
             await enviarBotones(
               numeroCliente, instrucciones,
