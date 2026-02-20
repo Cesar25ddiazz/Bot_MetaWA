@@ -52,13 +52,13 @@ const BASE_PATH = path.join(__dirname, "pedidos_clientes");
 fs.ensureDirSync(BASE_PATH); // Crea la carpeta principal si no existe
 
 const PRECIOS = {
-  playera_básica: "250",
-  sudadera: "450",
-  gorra: "180",
-  taza_personalizada: "85",
-  etiquetas: "260",
+  playera_básica: 250,
+  sudadera: 450,
+  gorra: 180,
+  taza_personalizada: 85,
+  etiquetas: 260,
   mdf: "Cotización según diseño",
-  personalización_extra: "150",
+  personalización_extra: 150,
 };
 
 // ==========================================
@@ -332,10 +332,10 @@ async function procesarPedidoDetallado(
     else if (c.includes("gorra")) cat = "🧢 GORRA";
 
     let precioUnitario = 0;
-    if (cat === "👕 TEXTIL") precioUnitario = parseInt(PRECIOS.playera_básica);
-    else if (cat === "☕ TAZA") precioUnitario = parseInt(PRECIOS.taza_personalizada);
-    else if (cat === "🏷️ ETIQUETAS") precioUnitario = parseInt(PRECIOS.etiquetas);
-    else if (cat === "🧢 GORRA") precioUnitario = parseInt(PRECIOS.gorra);
+    if (cat === "👕 TEXTIL") precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+    else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
+    else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
 
     
     //Intenta detectar cantidad
@@ -349,7 +349,6 @@ async function procesarPedidoDetallado(
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
       //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
       totalCalculado = (cantidadDetectada / 100) * precioUnitario;
-      totalFinal = precioUnitario * paquetes; 
     }else {
       totalCalculado = precioUnitario * cantidadDetectada;
     }
@@ -611,8 +610,9 @@ if (ticketBusqueda) {
 }
 
 if (textoCliente.startsWith("estatus ")  || textoCliente.startsWith("ped-")){
-  let ticketBusqueda = textoCliente.includes("estatus") ? textoCliente.split("")[1].toUpperCase() : textoCliente.toUpperCase();
+  let ticketBusqueda = textoCliente.includes("estatus ") ? textoCliente.split("")[1]?.toUpperCase() : textoCliente.toUpperCase();
   if (ticketBusqueda) {
+    console.log("Buscando ticket", ticketBusqueda)
    const resultado = await consultarStatusCRM(ticketBusqueda);
   await enviarMensaje(numeroCliente, resultado); 
   }
