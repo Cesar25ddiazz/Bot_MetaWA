@@ -772,17 +772,17 @@ if (textoCliente.toUpperCase().startsWith("ESTATUS ")  || textoCliente.toUpperCa
           ` Lo siento *${nombreCliente}*, recibí tu ${msg.type}, pero por ahora solo puedo recibir imágenes para los diseños personalizados. 👕\n\nPor favor, envíame una foto.`,
         );
       }
+        //await escribir(numeroCliente); //El cliente ve escribiendo
+        //await delay(1500);
+        const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
+        await enviarBotones(
+            numeroCliente, ayuda,
+            ["Inicio", "Catalogo", "Personalizar"]
+          );
     } catch (err) {
       console.error("❌ Error procesando flujo:", err.message);
     }
   }
-  //await escribir(numeroCliente); //El cliente ve escribiendo
-          //await delay(1500);
-          const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
-          await enviarBotones(
-            numeroCliente, ayuda,
-            ["Inicio", "Catalogo", "Personalizar"]
-          );
 });
 
 // ==========================================
