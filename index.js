@@ -198,9 +198,12 @@ async function guardarEnCRM(datos) {
     );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
+    const hoy = new Date();
+    const entrega = new Date();
+    entrega.setDate(hoy.getDate() + 3); //Suma 3 dias por defecto
 
     await sheet.addRow({
-      Fecha: new Date().toLocaleString("es-MX", {
+      Fecha: hoy.toLocaleString ("es-MX", {
         timeZone: "America/Mexico_City",
       }),
       Ticket: datos.ticket,
@@ -209,13 +212,76 @@ async function guardarEnCRM(datos) {
       Producto: datos.categoria || "📦 GENERAL",
       Descripcion: datos.notas,
       Link_Imagen: datos.urlImagen,
-      Estado_Produccion: "Pendiente",
-      Estado_Pago: "Sin Pagar",
+      Estado_Produccion: "En Cola",
+      Estado_Pago: "Pendiente",
       Total_a_Pagar: datos.precio,
+      Fecha_Entrega: entrega.toLocaleDateString("es-MX")
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
     console.error("Error al escribir en Google Sheet:", error);
+  }
+}
+
+async function actualizarEstadoCRM(ticket, nuevosDatos) {
+  try {
+    const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+    });
+
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    const filas = await sheet.getRows();
+
+    //Busca la fila que coincida con el ticket
+    const fila = filas.find(f => f.get('Ticket') === ticket);
+
+    if (fila) {
+      if (nuevosDatos.Estado_Pago) fila.set('Estado_Pago', nuevosDatos.Estado_Pago);
+      if (nuevosDatos.Estado_Produccion) fila.set('Estado_Produccion', nuevosDatos.Estado_Produccion);
+      await fila.save(); //Guarda los cambios en la nube
+    }
+  }catch (error) {
+    console.error("Error en actualizar el CRM:", error);
+  }
+}
+
+async function consultarStatusCRM(ticket) {
+  try {
+    const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+    });
+
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    const filas = await sheet.getRows();
+
+    //Busca la fila que coincida con el ticket
+    const fila = filas.find(f => f.get('Ticket') === ticket);
+    
+    if (!fila) {
+      return `No encontre ningun pedido con el ticket *${ticket}*. Por favor, verifica que esté bien escrito.`;
+    }
+
+    //Estraer datos de la fila
+    const produccion = fila.get('Estado_Produccion') || "Pendiente";
+    const pago = fila.get('Estado_Pago') || "Pendiente";
+    const entrega = fila.get('Fecha_Entrega') || "Por definir";
+
+    return `🔎 *Estado de tu Pedido:* ${ticket}\n\n` +
+    `🛠️ *Producción:* ${produccion}\n` +
+    `💰 *Pago:* ${pago}\n` +
+    `📅 *Fecha estimada de entrega:* ${entrega}\n\n` +
+    `Si tienes dudas, un asesor te puede ayudar.`;
+  }catch (error) {
+    console.error("Error al consultar status:", error);
+    return "Hubo un error al consultar el sistema. Intentalo mas tarde.";
   }
 }
 
@@ -519,12 +585,26 @@ app.post("/webhook", async (req, res) => {
         } else {
           //await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
+          const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
           await enviarBotones(
-            numeroCliente,
-            "No estoy seguro de entender eso, pero aquí esta el menu para apoyarte:",
-            ["Inicio", "Catalogo"],
+            numeroCliente, ayuda,
+            ["Inicio", "Catalogo", "Personalizar"]
           );
         }
+
+        if (texto.toLowerCase().startsWith("pagado ")) {
+  const ticketBusqueda = texto.split("")[1].toUpperCase();
+
+  //Actualizar y buscar en sheets
+  await actualizarEstadoCRM(ticketBusqueda, {Estado_Pago: "Pagado"});
+  await enviarMensaje(numeroCliente, `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`);
+}
+
+if (texto.toLowerCase().startsWith("estatus ")) {
+  const ticketBusqueda = texto.split("")[1].toUpperCase();
+  const resultado = await consultarStatusCRM(ticketBusqueda);
+  await enviarMensaje(numeroCliente, resultado);
+}
       }
 
       // C. SI ENVÍAN BOTONES
@@ -604,10 +684,14 @@ app.post("/webhook", async (req, res) => {
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             //Menu de los servicios
+            const instrucciones = "🎨 *Área de Personalización*\n\n" +
+            "Selecciona una Categoría para realizar un *Nuevo Pedido*.\n\n" +
+            "---------------------------------------\n" +
+            "🔎 Si ya tienes un pedido y quieres saber su estatus, escribe:\n" +
+            "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)";
             await enviarBotones(
-              numeroCliente,
-              "🎨 *Centro de Personalización*\n ¿En que tipo de producto te gustaría trabajar hoy?",
-              ["Textil", "Tazas y MDF", "Etiquetas"],
+              numeroCliente, instrucciones,
+              ["Textil", "Tazas, MDF y Etiquetas", "Etiquetas"],
             );
             break;
 
