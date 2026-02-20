@@ -804,12 +804,12 @@ app.post("/webhook", async (req, res) => {
       }
       //await escribir(numeroCliente); //El cliente ve escribiendo
       //await delay(1500);
-      const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n";
+      /*const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n";
       await enviarBotones(numeroCliente, ayuda, [
         "Inicio",
         "Catalogo",
         "Personalizar",
-      ]);
+      ]);*/
     } catch (err) {
       console.error("❌ Error procesando flujo:", err.message);
     }
