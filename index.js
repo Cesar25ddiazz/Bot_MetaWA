@@ -339,7 +339,7 @@ async function procesarPedidoDetallado(
 
     
     //Intenta detectar cantidad
-    const matchCantidad = comentario.match(/(\d+)\s*(piezas|tazas|playeras|sudaderas|unidad|pzs|cant)/i);
+    const matchCantidad = comentario.match(/(\d+)\s*(piezas|tazas|playeras|sudaderas|etiquetas|unidad|pzs|cant)/i);
     let cantidadDetectada = matchCantidad ? parseInt(matchCantidad[0]) : 1; //Si no se encuentra asume 1
     
     //Logica para etiquetas
