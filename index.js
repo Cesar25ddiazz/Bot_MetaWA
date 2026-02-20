@@ -194,7 +194,7 @@ async function guardarEnCRM(datos) {
     });
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
-      serviceAccountAuth,
+      serviceAccountAuth
     );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
@@ -235,7 +235,7 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
 
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
-      serviceAccountAuth,
+      serviceAccountAuth
     );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
@@ -261,12 +261,12 @@ async function consultarStatusCRM(ticket) {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_CLIENT_EMAIL,
       key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"]
     });
 
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
-      serviceAccountAuth,
+      serviceAccountAuth
     );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
@@ -298,16 +298,27 @@ async function consultarStatusCRM(ticket) {
 }
 
 async function buscarNombreEnSheets(whatsapp) {
+  try {
+
+ const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+
   const doc = new GoogleSpreadsheet(
-    process.env.GOOGLE_SHEET_ID,
-    serviceAccountAuth,
+    process.env.GOOGLE_SHEET_ID, serviceAccountAuth
   );
   await doc.loadInfo();
   const sheet = doc.sheetsByIndex[0];
   const filas = await sheet.getRows();
 
-  const fila = filas.find((f) => f.get("Whatsapp").includes(whatsapp));
+  const fila = filas.find((f) => f.get("Whatsapp").toString().includes(whatsapp));
   return fila ? fila.get("Nombre") : null;
+}catch (error){
+  console.error("Error buscando el cliente:", error);
+  return null;
+}
 }
 
 // Obtener la URL de descarga de una imagen desde Meta
