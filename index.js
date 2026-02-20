@@ -453,15 +453,14 @@ app.post("/webhook", async (req, res) => {
     const msg = entry.messages[0];
     const timestampMsg = parseInt(msg.timestamp);
     const ahora = Math.floor(Date.now() / 1000);
-    if (ahora - timestampMsg > 120) {
-      console.log("⚠️ Ignorando mensaje antiguo/reintento");
-      return;
-    }
+
+    //Evita reintentos y mensajes viejos
+    if (ahora - timestampMsg > 120) return;
+
     await marcarComoLeido(msg.id);
     const numeroCliente = msg.from;
     const nombreCliente = (
-      entry.contacts?.[0]?.profile?.name || "Cliente"
-    ).replace(/\s+/g, "_");
+      entry.contacts?.[0]?.profile?.name || "Cliente").replace(/\s+/g, "_");
 
     // Filtro: Solo procesar si es texto, botón o imagen (ignorar estados read/delivered)
     if (
@@ -500,8 +499,8 @@ app.post("/webhook", async (req, res) => {
         estadosClientes[numeroCliente] = {
           esperandoNombre: true,
           ticket,
-          imageId,
-          comentario,
+          imageId: msg.image.id,
+          comentario
         };
 
         //Confirmación inmediata del cliente
@@ -511,8 +510,8 @@ app.post("/webhook", async (req, res) => {
         //Preguntamos el nombre para el registro
         await enviarMensaje(
           numeroCliente,
-          `Para registrar tu orden *${ticket}*, ¿Podrías poner tu *Nombre Completo*? ✨`,
-        );
+          `Para registrar tu orden *${ticket}*, ¿Podrías poner tu *Nombre Completo*? ✨`);
+          return;
       }
 
       // B. SI ENVÍAN TEXTO
@@ -542,7 +541,7 @@ app.post("/webhook", async (req, res) => {
             numeroCliente,
             datos.imageId,
             datos.comentario,
-            datos.ticket,
+            datos.ticket
           );
 
           //Limpiamos el estado para que pueda seguir usando el bot normal
@@ -594,15 +593,7 @@ app.post("/webhook", async (req, res) => {
             "Ahi tienes el catalogo. ¿Deseas algo mas?",
             ["Tallas", "Personalizar"],
           );
-        } else {
-          //await escribir(numeroCliente); //El cliente ve escribiendo
-          //await delay(1500);
-          const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
-          await enviarBotones(
-            numeroCliente, ayuda,
-            ["Inicio", "Catalogo", "Personalizar"]
-          );
-        }
+        } 
 
         if (textoCliente.startsWith("pagado ")) {
   const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
@@ -785,6 +776,13 @@ if (textoCliente.toUpperCase().startsWith("ESTATUS ")  || textoCliente.toUpperCa
       console.error("❌ Error procesando flujo:", err.message);
     }
   }
+  //await escribir(numeroCliente); //El cliente ve escribiendo
+          //await delay(1500);
+          const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
+          await enviarBotones(
+            numeroCliente, ayuda,
+            ["Inicio", "Catalogo", "Personalizar"]
+          );
 });
 
 // ==========================================
