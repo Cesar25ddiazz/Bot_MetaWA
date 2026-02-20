@@ -346,7 +346,7 @@ async function procesarPedidoDetallado(
     let totalFinal = 0;
     let precioBase = Number(PRECIOS.etiquetas);
 
-    if (cat,includes("ETIQUETAS")) {
+    if (cat.includes("ETIQUETAS")) {
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
       //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
       totalFinal = (cantidadDetectada / 100) * precioBase;
