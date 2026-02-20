@@ -533,6 +533,33 @@ app.post("/webhook", async (req, res) => {
       else if (msg.type === "text") {
         //Limpiamos el texto del cliente
         const textoCliente = msg.text.body.toLowerCase().trim();
+
+        const groserias = [
+          "puto",
+          "chingada",
+          "idiota",
+          "estupido",
+          "huevos",
+          "mames",
+          "pendejo",
+        ];
+        const detectoGroseria = groserias.some((palabra) =>
+          textoCliente.includes(palabra),
+        );
+        if (detectoGroseria) {
+          await enviarMensaje(
+            numeroCliente,
+            "⚠️ Mantengamos un lenguaje respetuoso para poder brindarte la mejor atencion",
+          );
+          await delay(1000);
+          await enviarBotones(
+            numeroCliente,
+            "¿En que podemos ayudarte formalmente?",
+            ["Inicio", "Catalogo", "Personalizar"],
+          );
+          return;
+        }
+
         // Definimos una lista de palabras que activan la bienvenida
         const disparadoresBienvenida = [
           "hola",
@@ -572,6 +599,13 @@ app.post("/webhook", async (req, res) => {
             `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
             ["Catalogo", "Precios", "Personalizar"],
           );
+          console.log(`Mensaje no reconocido: ${textoCliente}`);
+          const mensajeNoEntendido = `Lo siento, no logre entender tu mensaje: "${textoCliente}".`;
+          await enviarBotones(numeroCliente, mensajeNoEntendido, [
+            "Inicio",
+            "Catalogo",
+            "Personalizar",
+          ]);
           return;
         }
 
