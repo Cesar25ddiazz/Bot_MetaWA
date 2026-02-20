@@ -313,8 +313,12 @@ async function buscarNombreEnSheets(whatsapp) {
   const sheet = doc.sheetsByIndex[0];
   const filas = await sheet.getRows();
 
-  const fila = filas.find((f) => f.get("Whatsapp").toString().includes(whatsapp));
-  return fila ? fila.get("Nombre") : null;
+  const fila = filas.find((f) => {
+    const telSheet = f.get("Whatsapp") ? f.get(Whatsapp).toString().trim() : "";
+    const telCliente = whatsapp.toString().trim();
+  return telSheet.includes(telCliente) || telCliente.includes(telSheet);
+});
+return fila ? fila.get("Nombre") : null;
 }catch (error){
   console.error("Error buscando el cliente:", error);
   return null;
@@ -548,13 +552,16 @@ app.post("/webhook", async (req, res) => {
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         if (nombreRegistrado) {
+          console.log(`Cliente reconocido: ${nombreRegistrado}`)
           const ticket = `PED-${Date.now()}`;
+          const comentario = msg.image.caption || "Sin notas";
+
           await procesarPedidoDetallado(
             nombreRegistrado,
             numeroCliente,
             msg.image.id,
-            msg.image.caption,
-            ticket,
+            comentario,
+            ticket
           );
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticket}*`
@@ -701,7 +708,7 @@ app.post("/webhook", async (req, res) => {
         }
 
         if (textoCliente.startsWith("pagado ")) {
-          const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
+          const ticketBusqueda = textoCliente.split(" ")[1].toUpperCase();
           if (ticketBusqueda) {
             await actualizarEstadoCRM(ticketBusqueda, {
               Estado_Pago: "Pagado",
