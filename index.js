@@ -343,20 +343,20 @@ async function procesarPedidoDetallado(
     let cantidadDetectada = matchCantidad ? parseInt(matchCantidad[1]) : 1; //Si no se encuentra asume 1
     
     //Logica para etiquetas
-    let totalCalculado = 0;
+    let totalFinal = 0;
+    let cantidadParaMostrar = cantidadDetectada;
+
     if (cat === "🏷️ ETIQUETAS") {
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
       //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
-      let unidadesDeCien = Math.ceil(cantidadDetectada / 100);
-      totalCalculado = precioUnitario * unidadesDeCien;
-      cantidad = unidadesDeCien;
+      let paquetes = Math.ceil(cantidadDetectada / 100);
+      totalFinal = precioUnitario * paquetes; 
     }else {
-      totalCalculado = precioUnitario * cantidadDetectada;
-      cantidad = cantidadDetectada;
+      totalFinal = precioUnitario * cantidadDetectada;
     }
 
     //Calculo total
-    let textoPresupuesto = cat === "🪵 MDF" ? "Sujeto a cotizacion segun diseño" : `${totalCalculado} MXN (${cantidad} pz/s)`;
+    let textoPresupuesto = cat === "🪵 MDF" ? "Sujeto a cotizacion segun diseño" : `$${totalFinal} MXN (${cantidadParaMostrar} pzs)`;
 
     //Guardar en CRM
     await guardarEnCRM({
@@ -366,7 +366,7 @@ async function procesarPedidoDetallado(
       categoria: cat,
       notas: comentario,
       urlImagen: urlPermanente,
-      precio: cat === "🪵 MDF" ? "Cotizacion" : totalCalculado.toString() //Se guarda el total en la columna
+      precio: cat === "🪵 MDF" ? "Cotizacion" : totalFinal.toString() //Se guarda el total en la columna
     });
 
     //Notidicacion detallada
