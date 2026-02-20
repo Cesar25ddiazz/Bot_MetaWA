@@ -603,11 +603,11 @@ if (ticketBusqueda) {
 }
 }
 
-if (textoCliente.toUpperCase().startsWith("ESTATUS ")  || textoCliente.toUpperCase().startsWith("PED-")){
+if (textoCliente.toUpperCase().startsWith("ESTATUS")  || textoCliente.toUpperCase().startsWith("PED-")){
 
-  let ticketBusqueda = textoCliente.toUpperCase().includes("ESTATUS ") ? textoCliente.split("")[1]?.trim() : textoCliente.trim();
-  if (ticketBusqueda) {
-   const resultado = await consultarStatusCRM(ticketBusqueda);
+  let ticketParaBuscar = textoUpper.replace("ESTATUS", "").trim();
+  if (ticketParaBuscar) {
+   const resultado = await consultarStatusCRM(ticketParaBuscar);
   await enviarMensaje(numeroCliente, resultado); 
   return;
   }
