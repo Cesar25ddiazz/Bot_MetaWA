@@ -326,7 +326,7 @@ async function procesarPedidoDetallado(
     let cat = "📦 GENERAL";
     const c = comentario.toLowerCase();
     if (c.includes("taza")) cat = "☕ TAZA";
-    else if (c.includes("mdf")) cat = "🪵 MDF", precioUnitario = 0;
+    else if (c.includes("mdf")) cat = "🪵 MDF";
     else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
     else if (c.includes("playera") || c.includes("sudadera")) cat = "👕 TEXTIL";
     else if (c.includes("gorra")) cat = "🧢 GORRA";
@@ -336,7 +336,6 @@ async function procesarPedidoDetallado(
     else if (cat === "☕ TAZA") precioUnitario = parseInt(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = parseInt(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = parseInt(PRECIOS.gorra);
-    else if (cat === "🧥 SUDADERA") precioUnitario = parseInt(PRECIOS.sudadera);
 
     
     //Intenta detectar cantidad
@@ -345,7 +344,7 @@ async function procesarPedidoDetallado(
 
     //Calculo total
     let totalCalculado = precioUnitario * cantidad;
-    let textoPresupuesto = cat === "🪵 MDF" ? "Sujeto a cotizacion segun diseño" : `${totalCalculado} MXM (${cantidad} pz/s)`;
+    let textoPresupuesto = cat === "🪵 MDF" ? "Sujeto a cotizacion segun diseño" : `${totalCalculado} MXN (${cantidad} pz/s)`;
 
     //Guardar en CRM
     await guardarEnCRM({
@@ -592,16 +591,16 @@ app.post("/webhook", async (req, res) => {
           );
         }
 
-        if (texto.toLowerCase().startsWith("pagado ")) {
-  const ticketBusqueda = texto.split("")[1].toUpperCase();
+        if (textoCliente.toLowerCase().startsWith("pagado ")) {
+  const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
 
   //Actualizar y buscar en sheets
   await actualizarEstadoCRM(ticketBusqueda, {Estado_Pago: "Pagado"});
   await enviarMensaje(numeroCliente, `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`);
 }
 
-if (texto.toLowerCase().startsWith("estatus ")) {
-  const ticketBusqueda = texto.split("")[1].toUpperCase();
+if (textoCliente.toLowerCase().startsWith("estatus ")) {
+  const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
   const resultado = await consultarStatusCRM(ticketBusqueda);
   await enviarMensaje(numeroCliente, resultado);
 }
@@ -691,7 +690,7 @@ if (texto.toLowerCase().startsWith("estatus ")) {
             "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)";
             await enviarBotones(
               numeroCliente, instrucciones,
-              ["Textil", "Tazas, MDF y Etiquetas", "Etiquetas"],
+              ["Textil", "Tazas y MDF", "Etiquetas"],
             );
             break;
 
