@@ -348,7 +348,8 @@ async function procesarPedidoDetallado(
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
       //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
       let unidadesDeCien = Math.ceil(cantidadDetectada / 100);
-      totalCalculado = unidadesDeCien;
+      totalCalculado = precioUnitario * unidadesDeCien;
+      cantidad = unidadesDeCien;
     }else {
       totalCalculado = precioUnitario * cantidadDetectada;
       cantidad = cantidadDetectada;
