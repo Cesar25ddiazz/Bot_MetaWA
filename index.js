@@ -339,23 +339,24 @@ async function procesarPedidoDetallado(
 
     
     //Intenta detectar cantidad
-    const matchCantidad = comentario.match(/(\d+)\s*(piezas|tazas|playeras|sudaderas|etiquetas|unidad|pzs|cant)/i);
-    let cantidadDetectada = matchCantidad ? parseInt(matchCantidad[0]) : 1; //Si no se encuentra asume 1
+    const numerosEnTexto = comentario.match(/\d+/);
+    let cantidadDetectada = numerosEnTexto ? parseInt(numerosEnTexto[0]) : 1; //Si no se encuentra asume 1
     
     //Logica para etiquetas
     let totalFinal = 0;
     let precioBase = Number(PRECIOS.etiquetas);
 
-    if (cat === "🏷️ ETIQUETAS") {
+    if (cat,includes("ETIQUETAS")) {
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
       //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
       totalFinal = (cantidadDetectada / 100) * precioBase;
     }else {
-      totalFinal = precioUnitario * cantidadDetectada;
+      totalFinal = Number(precioUnitario) * cantidadDetectada;
     }
+    totalFinal = Math.round(totalFinal * 100) / 100;
 
     //Calculo total
-    let textoPresupuesto = cat === "🪵 MDF" ? "Sujeto a cotizacion segun diseño" : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
+    let textoPresupuesto = cat.includes("MDF") ? "Sujeto a cotizacion segun diseño" : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
     //Guardar en CRM
     await guardarEnCRM({
