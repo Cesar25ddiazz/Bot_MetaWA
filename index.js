@@ -346,7 +346,7 @@ async function procesarPedidoDetallado(
     let totalFinal = 0;
     let precioBase = Number(PRECIOS.etiquetas);
 
-    if (cat.includes("ETIQUETAS")) {
+    if (cat && cat.includes("ETIQUETAS")) {
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
       //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
       totalFinal = (cantidadDetectada / 100) * precioBase;
@@ -356,7 +356,7 @@ async function procesarPedidoDetallado(
     totalFinal = Math.round(totalFinal * 100) / 100;
 
     //Calculo total
-    let textoPresupuesto = cat.includes("MDF") ? "Sujeto a cotizacion segun diseño" : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
+    let textoPresupuesto = cat && cat.includes("MDF") ? "Sujeto a cotizacion segun diseño" : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
     //Guardar en CRM
     await guardarEnCRM({
@@ -403,6 +403,7 @@ async function procesarPedidoDetallado(
   } catch (error) {
     console.error("✖️ Error en producción:", error);
   }
+  return;
 }
 
 async function marcarComoLeido(messageId) {
@@ -611,12 +612,13 @@ if (ticketBusqueda) {
 }
 }
 
-if (textoCliente.startsWith("estatus ")  || textoCliente.startsWith("ped-")){
+else if (textoCliente.startsWith("estatus ")  || textoCliente.startsWith("ped-")){
   let ticketBusqueda = textoCliente.includes("estatus ") ? textoCliente.split("")[1]?.toUpperCase() : textoCliente.toUpperCase();
   if (ticketBusqueda) {
     console.log("Buscando ticket", ticketBusqueda)
    const resultado = await consultarStatusCRM(ticketBusqueda);
   await enviarMensaje(numeroCliente, resultado); 
+  return;
   }
 }
       }
