@@ -599,13 +599,6 @@ app.post("/webhook", async (req, res) => {
             `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
             ["Catalogo", "Precios", "Personalizar"],
           );
-          console.log(`Mensaje no reconocido: ${textoCliente}`);
-          const mensajeNoEntendido = `Lo siento, no logre entender tu mensaje: "${textoCliente}".`;
-          await enviarBotones(numeroCliente, mensajeNoEntendido, [
-            "Inicio",
-            "Catalogo",
-            "Personalizar",
-          ]);
           return;
         }
 
@@ -631,6 +624,7 @@ app.post("/webhook", async (req, res) => {
             "Personalizar",
             "Tallas",
           ]);
+          return;
         } else if (textoCliente.includes("catalogo")) {
           //await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
@@ -643,6 +637,7 @@ app.post("/webhook", async (req, res) => {
             "Ahi tienes el catalogo. ¿Deseas algo mas?",
             ["Tallas", "Personalizar"],
           );
+          return;
         }
 
         if (textoCliente.startsWith("pagado ")) {
@@ -656,17 +651,8 @@ app.post("/webhook", async (req, res) => {
               `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`,
             );
           }
+          return;
         }
-
-        /*if (textoCliente.toUpperCase().startsWith("ESTATUS")  || textoCliente.toUpperCase().startsWith("PED-")){
-
-  let ticketParaBuscar = textoUpper.replace("ESTATUS", "").trim();
-  if (ticketParaBuscar) {
-   const resultado = await consultarStatusCRM(ticketParaBuscar);
-  await enviarMensaje(numeroCliente, resultado); 
-  return;
-  }
-}*/
 
         const matchTicket = textoCliente.match(/PED-\d+/i);
         if (matchTicket) {
@@ -676,6 +662,15 @@ app.post("/webhook", async (req, res) => {
           await enviarMensaje(numeroCliente, resultado);
           return;
         }
+
+        console.log(`Mensaje no reconocido: ${textoCliente}`);
+        const mensajeNoEntendido = `Lo siento, no logre entender tu mensaje: "${textoCliente}".`;
+        await enviarBotones(numeroCliente, mensajeNoEntendido, [
+          "Inicio",
+          "Catalogo",
+          "Personalizar",
+        ]);
+        return;
       }
 
       // C. SI ENVÍAN BOTONES
