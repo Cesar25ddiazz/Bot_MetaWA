@@ -291,7 +291,7 @@ async function procesarPedidoDetallado(
   numeroCliente,
   imageId,
   comentario,
-  ticket,
+  ticket
 ) {
   try {
     const fechaHora = new Date().toLocaleString("es-MX", {
@@ -340,18 +340,18 @@ async function procesarPedidoDetallado(
     
     //Intenta detectar cantidad
     const matchCantidad = comentario.match(/(\d+)\s*(piezas|tazas|playeras|sudaderas|unidad|pzs|cant)/i);
-    let cantidadDetectada = matchCantidad ? parseInt(matchCantidad[1]) : 1; //Si no se encuentra asume 1
+    let cantidadDetectada = matchCantidad ? parseInt(matchCantidad[0]) : 1; //Si no se encuentra asume 1
     
     //Logica para etiquetas
     let totalFinal = 0;
+    let precioBase = Number(PRECIOS.etiquetas);
 
     if (cat === "🏷️ ETIQUETAS") {
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
       //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
-      let paquetes = Math.ceil(cantidadDetectada / 100);
       totalFinal = paquetes * Number(PRECIOS.etiquetas);
     }else {
-      totalFinal = cantidadDetectada * Number(precioUnitario);
+      totalFinal = precioUnitario * cantidadDetectada;
     }
 
     //Calculo total
