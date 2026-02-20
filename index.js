@@ -591,7 +591,7 @@ app.post("/webhook", async (req, res) => {
           );
         }
 
-        if (textoCliente.toLowerCase().startsWith("pagado ")) {
+        if (textoCliente.startsWith("pagado ")) {
   const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
 
   //Actualizar y buscar en sheets
@@ -599,7 +599,7 @@ app.post("/webhook", async (req, res) => {
   await enviarMensaje(numeroCliente, `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`);
 }
 
-if (textoCliente.toLowerCase().startsWith("estatus ")) {
+if (textoCliente.startsWith("estatus ")) {
   const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
   const resultado = await consultarStatusCRM(ticketBusqueda);
   await enviarMensaje(numeroCliente, resultado);
