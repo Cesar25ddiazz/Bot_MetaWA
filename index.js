@@ -203,7 +203,7 @@ async function guardarEnCRM(datos) {
     entrega.setDate(hoy.getDate() + 3); //Suma 3 dias por defecto
 
     await sheet.addRow({
-      Fecha: hoy.toLocaleString ("es-MX", {
+      Fecha: hoy.toLocaleString("es-MX", {
         timeZone: "America/Mexico_City",
       }),
       Ticket: datos.ticket,
@@ -215,7 +215,7 @@ async function guardarEnCRM(datos) {
       Estado_Produccion: "En Cola",
       Estado_Pago: "Pendiente",
       Total_a_Pagar: datos.precio,
-      Fecha_Entrega: entrega.toLocaleDateString("es-MX")
+      Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
@@ -227,24 +227,29 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_CLIENT_EMAIL,
-      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
-    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
+    const doc = new GoogleSpreadsheet(
+      process.env.GOOGLE_SHEET_ID,
+      serviceAccountAuth,
+    );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     const filas = await sheet.getRows();
 
     //Busca la fila que coincida con el ticket
-    const fila = filas.find(f => f.get('Ticket') === ticket);
+    const fila = filas.find((f) => f.get("Ticket") === ticket);
 
     if (fila) {
-      if (nuevosDatos.Estado_Pago) fila.set('Estado_Pago', nuevosDatos.Estado_Pago);
-      if (nuevosDatos.Estado_Produccion) fila.set('Estado_Produccion', nuevosDatos.Estado_Produccion);
+      if (nuevosDatos.Estado_Pago)
+        fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
+      if (nuevosDatos.Estado_Produccion)
+        fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
       await fila.save(); //Guarda los cambios en la nube
     }
-  }catch (error) {
+  } catch (error) {
     console.error("Error en actualizar el CRM:", error);
   }
 }
@@ -253,33 +258,38 @@ async function consultarStatusCRM(ticket) {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_CLIENT_EMAIL,
-      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
-    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
+    const doc = new GoogleSpreadsheet(
+      process.env.GOOGLE_SHEET_ID,
+      serviceAccountAuth,
+    );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     const filas = await sheet.getRows();
 
     //Busca la fila que coincida con el ticket
-    const fila = filas.find(f => f.get('Ticket') === ticket);
-    
+    const fila = filas.find((f) => f.get("Ticket") === ticket);
+
     if (!fila) {
       return `No encontre ningun pedido con el ticket *${ticket}*. Por favor, verifica que esté bien escrito.`;
     }
 
     //Estraer datos de la fila
-    const produccion = fila.get('Estado_Produccion') || "Pendiente";
-    const pago = fila.get('Estado_Pago') || "Pendiente";
-    const entrega = fila.get('Fecha_Entrega') || "Por definir";
+    const produccion = fila.get("Estado_Produccion") || "Pendiente";
+    const pago = fila.get("Estado_Pago") || "Pendiente";
+    const entrega = fila.get("Fecha_Entrega") || "Por definir";
 
-    return `🔎 *Estado de tu Pedido:* ${ticket}\n\n` +
-    `🛠️ *Producción:* ${produccion}\n` +
-    `💰 *Pago:* ${pago}\n` +
-    `📅 *Fecha estimada de entrega:* ${entrega}\n\n` +
-    `Si tienes dudas, un asesor te puede ayudar.`;
-  }catch (error) {
+    return (
+      `🔎 *Estado de tu Pedido:* ${ticket}\n\n` +
+      `🛠️ *Producción:* ${produccion}\n` +
+      `💰 *Pago:* ${pago}\n` +
+      `📅 *Fecha estimada de entrega:* ${entrega}\n\n` +
+      `Si tienes dudas, un asesor te puede ayudar.`
+    );
+  } catch (error) {
     console.error("Error al consultar status:", error);
     return "Hubo un error al consultar el sistema. Intentalo mas tarde.";
   }
@@ -291,7 +301,7 @@ async function procesarPedidoDetallado(
   numeroCliente,
   imageId,
   comentario,
-  ticket
+  ticket,
 ) {
   try {
     const fechaHora = new Date().toLocaleString("es-MX", {
@@ -333,30 +343,33 @@ async function procesarPedidoDetallado(
 
     let precioUnitario = 0;
     if (cat === "👕 TEXTIL") precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+    else if (cat === "☕ TAZA")
+      precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
 
-    
     //Intenta detectar cantidad
     const numerosEnTexto = comentario.match(/\d+/);
     let cantidadDetectada = numerosEnTexto ? parseInt(numerosEnTexto[0]) : 1; //Si no se encuentra asume 1
-    
+
     //Logica para etiquetas
     let totalFinal = 0;
     let precioBase = Number(PRECIOS.etiquetas);
 
     if (cat && cat.includes("ETIQUETAS")) {
       //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
-      //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes 
+      //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes
       totalFinal = (cantidadDetectada / 100) * precioBase;
-    }else {
+    } else {
       totalFinal = Number(precioUnitario) * cantidadDetectada;
     }
     totalFinal = Math.round(totalFinal * 100) / 100;
 
     //Calculo total
-    let textoPresupuesto = cat && cat.includes("MDF") ? "Sujeto a cotizacion segun diseño" : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
+    let textoPresupuesto =
+      cat && cat.includes("MDF")
+        ? "Sujeto a cotizacion segun diseño"
+        : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
     //Guardar en CRM
     await guardarEnCRM({
@@ -366,7 +379,7 @@ async function procesarPedidoDetallado(
       categoria: cat,
       notas: comentario,
       urlImagen: urlPermanente,
-      precio: cat === "🪵 MDF" ? "Cotizacion" : totalFinal.toString() //Se guarda el total en la columna
+      precio: cat === "🪵 MDF" ? "Cotizacion" : totalFinal.toString(), //Se guarda el total en la columna
     });
 
     //Notidicacion detallada
@@ -460,7 +473,8 @@ app.post("/webhook", async (req, res) => {
     await marcarComoLeido(msg.id);
     const numeroCliente = msg.from;
     const nombreCliente = (
-      entry.contacts?.[0]?.profile?.name || "Cliente").replace(/\s+/g, "_");
+      entry.contacts?.[0]?.profile?.name || "Cliente"
+    ).replace(/\s+/g, "_");
 
     // Filtro: Solo procesar si es texto, botón o imagen (ignorar estados read/delivered)
     if (
@@ -500,7 +514,7 @@ app.post("/webhook", async (req, res) => {
           esperandoNombre: true,
           ticket,
           imageId: msg.image.id,
-          comentario
+          comentario,
         };
 
         //Confirmación inmediata del cliente
@@ -510,14 +524,15 @@ app.post("/webhook", async (req, res) => {
         //Preguntamos el nombre para el registro
         await enviarMensaje(
           numeroCliente,
-          `Para registrar tu orden *${ticket}*, ¿Podrías poner tu *Nombre Completo*? ✨`);
-          return;
+          `Para registrar tu orden *${ticket}*, ¿Podrías poner tu *Nombre Completo*? ✨`,
+        );
+        return;
       }
 
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
         //Limpiamos el texto del cliente
-        const textoCliente = msg.text.body.trim();
+        const textoCliente = msg.text.body.toLowerCase().trim();
         // Definimos una lista de palabras que activan la bienvenida
         const disparadoresBienvenida = [
           "hola",
@@ -541,7 +556,7 @@ app.post("/webhook", async (req, res) => {
             numeroCliente,
             datos.imageId,
             datos.comentario,
-            datos.ticket
+            datos.ticket,
           );
 
           //Limpiamos el estado para que pueda seguir usando el bot normal
@@ -557,6 +572,7 @@ app.post("/webhook", async (req, res) => {
             `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
             ["Catalogo", "Precios", "Personalizar"],
           );
+          return;
         }
 
         //Nueva respuesta de precios
@@ -593,17 +609,22 @@ app.post("/webhook", async (req, res) => {
             "Ahi tienes el catalogo. ¿Deseas algo mas?",
             ["Tallas", "Personalizar"],
           );
-        } 
+        }
 
         if (textoCliente.startsWith("pagado ")) {
-  const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
-if (ticketBusqueda) {
-   await actualizarEstadoCRM(ticketBusqueda, {Estado_Pago: "Pagado"});
-  await enviarMensaje(numeroCliente, `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`);
-}
-}
+          const ticketBusqueda = textoCliente.split("")[1].toUpperCase();
+          if (ticketBusqueda) {
+            await actualizarEstadoCRM(ticketBusqueda, {
+              Estado_Pago: "Pagado",
+            });
+            await enviarMensaje(
+              numeroCliente,
+              `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`,
+            );
+          }
+        }
 
-/*if (textoCliente.toUpperCase().startsWith("ESTATUS")  || textoCliente.toUpperCase().startsWith("PED-")){
+        /*if (textoCliente.toUpperCase().startsWith("ESTATUS")  || textoCliente.toUpperCase().startsWith("PED-")){
 
   let ticketParaBuscar = textoUpper.replace("ESTATUS", "").trim();
   if (ticketParaBuscar) {
@@ -613,14 +634,14 @@ if (ticketBusqueda) {
   }
 }*/
 
-const matchTicket = textoCliente.match(/PED-\d+/i);
-  if (matchTicket) {
-    const ticketBusqueda = matchTicket[0].toUpperCase();
-    console.log("Ticket detectado con exito:" , ticketBusqueda);
-    const resultado = await consultarStatusCRM(ticketBusqueda);
-    await enviarMensaje(numeroCliente, resultado);
-    return;
-  }
+        const matchTicket = textoCliente.match(/PED-\d+/i);
+        if (matchTicket) {
+          const ticketBusqueda = matchTicket[0].toUpperCase();
+          console.log("Ticket detectado con exito:", ticketBusqueda);
+          const resultado = await consultarStatusCRM(ticketBusqueda);
+          await enviarMensaje(numeroCliente, resultado);
+          return;
+        }
       }
 
       // C. SI ENVÍAN BOTONES
@@ -700,15 +721,17 @@ const matchTicket = textoCliente.match(/PED-\d+/i);
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             //Menu de los servicios
-            const instrucciones = "🎨 *Área de Personalización*\n\n" +
-            "Selecciona una Categoría para realizar un *Nuevo Pedido*.\n\n" +
-            "-----------------------------\n" +
-            "🔎 Si ya tienes un pedido y quieres saber su estatus escribe:\n\n" +
-            "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)";
-            await enviarBotones(
-              numeroCliente, instrucciones,
-              ["Textil", "Tazas y MDF", "Etiquetas"],
-            );
+            const instrucciones =
+              "🎨 *Área de Personalización*\n\n" +
+              "Selecciona una Categoría para realizar un *Nuevo Pedido*.\n\n" +
+              "-----------------------------\n" +
+              "🔎 Si ya tienes un pedido y quieres saber su estatus escribe:\n\n" +
+              "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)";
+            await enviarBotones(numeroCliente, instrucciones, [
+              "Textil",
+              "Tazas y MDF",
+              "Etiquetas",
+            ]);
             break;
 
           case "Textil":
@@ -781,9 +804,9 @@ const matchTicket = textoCliente.match(/PED-\d+/i);
           ` Lo siento *${nombreCliente}*, recibí tu ${msg.type}, pero por ahora solo puedo recibir imágenes para los diseños personalizados. 👕\n\nPor favor, envíame una foto.`,
         );
       }
-        //await escribir(numeroCliente); //El cliente ve escribiendo
-        //await delay(1500);
-       /* const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
+      //await escribir(numeroCliente); //El cliente ve escribiendo
+      //await delay(1500);
+      /* const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
         await enviarBotones(
             numeroCliente, ayuda,
             ["Inicio", "Catalogo", "Personalizar"]
