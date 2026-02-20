@@ -201,6 +201,7 @@ async function guardarEnCRM(datos) {
     const hoy = new Date();
     const entrega = new Date();
     entrega.setDate(hoy.getDate() + 3); //Suma 3 dias por defecto
+    const origen = estaFueraDeHorario() ? "🌙 Nocturno" : "☀️ Diurno";
 
     await sheet.addRow({
       Fecha: hoy.toLocaleString("es-MX", {
@@ -216,6 +217,7 @@ async function guardarEnCRM(datos) {
       Estado_Pago: "Pendiente",
       Total_a_Pagar: datos.precio,
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
+      Origen: origen,
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
@@ -293,6 +295,19 @@ async function consultarStatusCRM(ticket) {
     console.error("Error al consultar status:", error);
     return "Hubo un error al consultar el sistema. Intentalo mas tarde.";
   }
+}
+
+async function buscarNombreEnSheets(whatsapp) {
+  const doc = new GoogleSpreadsheet(
+    process.env.GOOGLE_SHEET_ID,
+    serviceAccountAuth,
+  );
+  await doc.loadInfo();
+  const sheet = doc.sheetsByIndex[0];
+  const filas = await sheet.getRows();
+
+  const fila = filas.find((f) => f.get("Whatsapp").includes(whatsapp));
+  return fila ? fila.get("Nombre") : null;
 }
 
 // Obtener la URL de descarga de una imagen desde Meta
@@ -491,10 +506,26 @@ app.post("/webhook", async (req, res) => {
     //Validar horario
     if (estaFueraDeHorario() && msg.type === "text") {
       const textoCliente = msg.text.body.toLowerCase();
+      const horaMexico = new Date().getHours();
+      if (horaMexico === 9) {
+        await enviarMensaje(
+          numeroCliente,
+          `☀️ ¡Buenos Dias! Ya estamos de vuelta. Si mandaste un diseño anoche, un asesor lo esta revisando justo ahora. Estaremos enviándote actualizaciones en breve. 📝`,
+        );
+      }
       if (textoCliente.includes("hola") || textoCliente.includes("inicio")) {
         await enviarMensaje(
           numeroCliente,
           `Hola ${nombreCliente} Estamos fuera de horario  (Lunes a Viernes de 9am-8pm). Puedes enviarnos tu diseño de una vez y lo revisaremos.`,
+        );
+        return;
+      }
+
+      if (msg.type === "image") {
+        await enviarMensaje(
+          numeroCliente,
+          `*Diseño recibido correctamente.*\n\n
+          Tu archivo ha quedado en nuestra fila de espera. Un asesor revisará los detalles y te dará una actualización el *próximo día hábil a partir de las 9:00 AM*. ⏳`,
         );
         return;
       }
@@ -503,6 +534,24 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
+        const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
+
+        if (nombreRegistrado) {
+          const ticket = `PED-${Date.now()}`;
+          await procesarPedidoDetallado(
+            nombreRegistrado,
+            numeroCliente,
+            msg.image.id,
+            msg.image.caption,
+            ticket,
+          );
+          const saludo = estaFueraDeHorario()
+            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticket}*`
+            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticket}*. En un momento te confirmo los detalles.`;
+          await enviarMensaje(numeroCliente, saludo);
+          return;
+        }
+
         //Verificamos si ya esta procesando a el cliente para no repetir
         if (estadosClientes[numeroCliente]?.esperandoNombre) return;
         const ticket = `PED-${Date.now()}`;
@@ -664,7 +713,7 @@ app.post("/webhook", async (req, res) => {
         }
 
         console.log(`Mensaje no reconocido: ${textoCliente}`);
-        const mensajeNoEntendido = `Lo siento, no logre entender tu mensaje: "${textoCliente}".`;
+        const mensajeNoEntendido = `Lo siento, no logre entender tu mensaje: "${textoCliente}". 😅`;
         await enviarBotones(numeroCliente, mensajeNoEntendido, [
           "Inicio",
           "Catalogo",
@@ -833,13 +882,6 @@ app.post("/webhook", async (req, res) => {
           ` Lo siento *${nombreCliente}*, recibí tu ${msg.type}, pero por ahora solo puedo recibir imágenes para los diseños personalizados. 👕\n\nPor favor, envíame una foto.`,
         );
       }
-      //await escribir(numeroCliente); //El cliente ve escribiendo
-      //await delay(1500);
-      /* const ayuda = "No estoy seguro de ayudarte con eso. 😅 \n"
-        await enviarBotones(
-            numeroCliente, ayuda,
-            ["Inicio", "Catalogo", "Personalizar"]
-          );*/
     } catch (err) {
       console.error("❌ Error procesando flujo:", err.message);
     }
