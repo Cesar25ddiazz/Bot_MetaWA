@@ -577,6 +577,45 @@ app.post("/webhook", async (req, res) => {
         );
         return;
       }
+
+      // --- SECCIÓN EXCLUSIVA PARA EL ADMINISTRADOR ---
+      const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
+
+      if (esAdmin && msg.type === "text") {
+        const texto = msg.text.body.trim();
+
+        // COMANDO PARA PAGO TOTAL (Ejemplo: Pago PED-123)
+        if (texto.toLowerCase().startsWith("pago ")) {
+          const ticketId = texto.split(" ")[1]; // Extrae el PED-XXXX
+
+          await actualizarEstadoCRM(ticketId, {
+            Estado_Pago: "Pagado",
+            Estado_Produccion: "En Proceso",
+          });
+
+          await enviarMensaje(
+            numeroCliente,
+            `✅ Confirmado: El ticket *${ticketId}* se marcó como PAGADO.`,
+          );
+          return; // Detiene el flujo para que no responda como si fueras un cliente
+        }
+
+        // COMANDO PARA ANTICIPO (Ejemplo: Anticipo PED-123)
+        if (texto.toLowerCase().startsWith("anticipo ")) {
+          const ticketId = texto.split(" ")[1];
+
+          await actualizarEstadoCRM(ticketId, {
+            Estado_Pago: "Anticipo",
+            Estado_Produccion: "En Espera",
+          });
+
+          await enviarMensaje(
+            numeroCliente,
+            `💰 Confirmado: El ticket *${ticketId}* se marcó con ANTICIPO.`,
+          );
+          return;
+        }
+      }
     }
 
     try {
@@ -859,6 +898,7 @@ app.post("/webhook", async (req, res) => {
       // C. SI ENVÍAN BOTONES
       else if (msg.type === "interactive") {
         const resBtn = msg.interactive.button_reply?.title;
+        const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER; // Verificamos que seas tú
 
         if (!resBtn) return; //Si por algo viene vacío, salimos para evitar errores
         console.log(`El cliente presiono: ${resBtn}`);
@@ -1025,7 +1065,6 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-            // El bot busca el ticket que guardamos en el paso 1
             const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
 
             if (ticketParaBorrar) {
@@ -1034,27 +1073,50 @@ app.post("/webhook", async (req, res) => {
                 Estado_Produccion: "Cancelado",
               });
 
-              // 2. Te enviamos la alerta a TI (Administrador)
+              // Alerta para TI con opción de reactivar
               const alertaAdmin =
-                `⚠️ *PEDIDO CANCELADO* ⚠️\n\n` +
-                `El cliente acaba de cancelar una orden.\n` +
+                `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
                 `🆔 *Ticket:* ${ticketParaBorrar}\n` +
-                `📱 *Número:* wa.me/${numeroCliente}\n` +
-                `❌ El estado en Sheets ha sido actualizado a 'Cancelado'.`;
+                `👤 *Cliente:* ${numeroCliente}\n` +
+                `--------------------------\n` +
+                `_La fila en el Sheet se ha tachado automáticamente._`;
 
-              // Usamos tu variable de entorno MY_PERSONAL_NUMBER o tu número directo
-              await enviarMensaje(process.env.MY_PERSONAL_NUMBER, alertaAdmin);
+              // Enviamos el mensaje a tu número con un botón de acción rápida
+              await enviarBotones(process.env.MY_PERSONAL_NUMBER, alertaAdmin, [
+                "Reactivar Ticket",
+              ]);
 
               await enviarMensaje(
                 numeroCliente,
-                `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado.`,
+                `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
               );
-              delete estadosClientes[numeroCliente]; // Limpiamos la memoria
+              delete estadosClientes[numeroCliente];
             } else {
               await enviarMensaje(
                 numeroCliente,
-                "❌ No encontré un ticket reciente para cancelar.",
+                "❌ No encontré un pedido reciente para cancelar.",
               );
+            }
+            break;
+
+          case "Reactivar Ticket":
+            if (esAdmin) {
+              // El bot debe saber qué ticket reactivar.
+              // Podriamos sacar el ID del texto del mensaje anterior o de la memoria
+              const ticketAReactivar = estadosClientes[numeroCliente]?.ticket;
+
+              if (ticketAReactivar) {
+                // LLAMADA A LA FUNCIÓN (La lupa):
+                await actualizarEstadoCRM(ticketAReactivar, {
+                  Estado_Pago: "Pendiente",
+                  Estado_Produccion: "En Espera",
+                });
+
+                await enviarMensaje(
+                  process.env.MY_PERSONAL_NUMBER,
+                  `✅ Ticket ${ticketAReactivar} reactivado en el Sheet.`,
+                );
+              }
             }
             break;
         }
