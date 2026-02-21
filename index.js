@@ -15,7 +15,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || dia === 6 || hora >= 21 || hora < 9;
+  return dia === 0 || dia === 6 || hora >= 23 || hora < 9;
 }
 
 //Función retraso
@@ -547,15 +547,15 @@ app.post("/webhook", async (req, res) => {
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
         const ticketGenerado = `PED-${Date.now()}`;
-          const comentarioImagen = msg.image.caption || "Sin notas";
+        const comentarioImagen = msg.image.caption || "Sin notas";
 
-          //Limpiamos estados previos
+        //Limpiamos estados previos
         delete estadosClientes[numeroCliente];
 
         //Buscamos al cliente
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
-        if (!imageId) {
+        if (!idDeLaImagen) {
           console.error("No se pudo obtener el ID de la imagen");
           return;
         }
@@ -563,7 +563,7 @@ app.post("/webhook", async (req, res) => {
         //Cliente ya existe en excel
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
-      
+
           await procesarPedidoDetallado(
             nombreRegistrado,
             numeroCliente,
@@ -572,13 +572,13 @@ app.post("/webhook", async (req, res) => {
             ticketGenerado,
           );
           const saludo = estaFueraDeHorario()
-            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticket}*`
-            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticket}*. En un momento te confirmo los detalles.`;
+            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticketGenerado}*`
+            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*. En un momento te confirmo los detalles.`;
           await enviarMensaje(numeroCliente, saludo);
           return;
         }
 
-        //Cliente nuevo 
+        //Cliente nuevo
         if (estadosClientes[numeroCliente]?.esperandoNombre) {
           console.log(
             "Ya estamos esperando el nombre de este cliente, ignorando repetición.",
@@ -591,7 +591,7 @@ app.post("/webhook", async (req, res) => {
           esperandoNombre: true,
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
-          comentario: comentarioImagen
+          comentario: comentarioImagen,
         };
 
         //Confirmación inmediata del cliente
@@ -601,7 +601,7 @@ app.post("/webhook", async (req, res) => {
         //Preguntamos el nombre para el registro
         await enviarMensaje(
           numeroCliente,
-          `Para registrar tu orden *${ticket}*, ¿Podrías poner tu *Nombre Completo*? ✨`,
+          `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`,
         );
         return;
       }
