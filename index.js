@@ -586,7 +586,7 @@ app.post("/webhook", async (req, res) => {
         console.log("Ticket detectado con éxito:", ticketId);
 
         // Pasamos el objeto EXACTAMENTE como lo espera la función
-        await actualizarEstadoCRM(ticketId, { 
+        await actualizarEstadoCRM(ticketId, nuevosDatos, { 
             Estado_Pago: "Pagado", 
             Estado_Produccion: "En Proceso" 
         });
@@ -600,7 +600,7 @@ app.post("/webhook", async (req, res) => {
     if (texto.toLowerCase().startsWith("anticipo ")) {
         const ticketId = texto.split(" ")[1];
         
-        await actualizarEstadoCRM(ticketId, { 
+        await actualizarEstadoCRM(ticketId, nuevosDatos, { 
             Estado_Pago: "Anticipo" 
         });
         const mensajeConfirmacionA = `💰 Anticipo registrado para el ticket: *${ticketId}*`;
