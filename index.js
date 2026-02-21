@@ -246,19 +246,19 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
 
     if (fila) {
       console.log(`✅ Fila encontrada para el ticket: ${ticket}`);
-      if (nuevosDatos.Estado_Pago){
-        fila.set("Estado_Pago", "Cancelado")
-      await fila.save();
+      if (nuevosDatos.Estado_Pago) {
+        fila.set("Estado_Pago", "Cancelado");
+        await fila.save();
       }
 
-      if (nuevosDatos.Estado_Produccion){
-        fila.set("Estado_Produccion", "Cancelado")
-      await fila.save();
+      if (nuevosDatos.Estado_Produccion) {
+        fila.set("Estado_Produccion", "Cancelado");
+        await fila.save();
       }
       await fila.save(); //Guarda los cambios en la nube
 
-    // 3. Guardar cambios
-      await fila.save(); 
+      // 3. Guardar cambios
+      await fila.save();
       console.log("💾 Cambios guardados en Google Sheets correctamente.");
     } else {
       console.log(`⚠️ No se encontró ninguna fila con el ticket: ${ticket}`);
@@ -285,7 +285,9 @@ async function consultarStatusCRM(ticket) {
     const filas = await sheet.getRows();
 
     // 1. Localizar la fila (asegurando que ambos sean strings)
-    const fila = filas.find((f) => String(f.get("Ticket")).trim() === String(ticket).trim());
+    const fila = filas.find(
+      (f) => String(f.get("Ticket")).trim() === String(ticket).trim(),
+    );
 
     if (!fila) {
       console.log(`⚠️ No se encontró el ticket: ${ticket}`);
@@ -305,9 +307,8 @@ async function consultarStatusCRM(ticket) {
     }
 
     // 3. Guardado Crítico
-    await fila.save(); 
+    await fila.save();
     console.log("💾 ¡Hoja de cálculo actualizada con éxito!");
-
   } catch (error) {
     console.error("❌ Error al guardar en Sheets:", error.message);
   }
@@ -335,18 +336,26 @@ async function buscarNombreEnSheets(whatsapp) {
       // Buscamos la columna "Whatsapp" sin importar si es minúscula o mayúscula
       const celdaWhatsapp = f.get("Whatsapp") || f.get("whatsapp") || "";
       const telSheet = celdaWhatsapp.toString().replace(/\D/g, "");
-      
-      return telSheet.length > 5 && (telSheet.includes(telCliente) || telCliente.includes(telSheet));
+
+      return (
+        telSheet.length > 5 &&
+        (telSheet.includes(telCliente) || telCliente.includes(telSheet))
+      );
     });
 
     if (fila) {
       // Intentamos obtener el nombre de varias formas por si acaso
-      const nombreEncontrado = fila.get("Nombre") || fila.get("nombre") || fila.get("Cliente");
-      console.log(`✅ ¡Éxito! Nombre recuperado del Sheets: ${nombreEncontrado}`);
+      const nombreEncontrado =
+        fila.get("Nombre") || fila.get("nombre") || fila.get("Cliente");
+      console.log(
+        `✅ ¡Éxito! Nombre recuperado del Sheets: ${nombreEncontrado}`,
+      );
       return nombreEncontrado;
     }
 
-    console.log("⚠️ El número coincide pero la columna 'Nombre' parece estar vacía o mal escrita.");
+    console.log(
+      "⚠️ El número coincide pero la columna 'Nombre' parece estar vacía o mal escrita.",
+    );
     return null;
   } catch (error) {
     console.error("❌ Error buscando el cliente:", error.message);
@@ -403,7 +412,6 @@ async function procesarPedidoDetallado(
     else if (c.includes("playera") || c.includes("sudadera")) cat = "👕 TEXTIL";
     else if (c.includes("gorra")) cat = "🧢 GORRA";
 
-
     let precioUnitario = 0;
     if (cat === "👕 TEXTIL") precioUnitario = Number(PRECIOS.playera_básica);
     else if (cat === "☕ TAZA")
@@ -429,7 +437,7 @@ async function procesarPedidoDetallado(
     totalFinal = Math.round(totalFinal * 100) / 100;
 
     //Calculo total
-   let textoPresupuesto =
+    let textoPresupuesto =
       (cat && cat.includes("MDF")) || c.includes("mdf") || c.includes("madera")
         ? "Sujeto a cotización según diseño"
         : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
@@ -442,7 +450,7 @@ async function procesarPedidoDetallado(
       categoria: cat,
       notas: comentario,
       urlImagen: urlPermanente,
-      precio: cat.includes("MDF") ? "Cotización" : totalFinal.toString() //Se guarda el total en la columna
+      precio: cat.includes("MDF") ? "Cotización" : totalFinal.toString(), //Se guarda el total en la columna
     });
 
     //Notidicacion detallada
@@ -466,15 +474,12 @@ async function procesarPedidoDetallado(
       `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
       `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n` +
       `Estamos trabajando para que su proyecto sea único.\n\n` +
-      `🕐 *Tiempo de respuesta:* 15 a 30 minutos.\n\n` +
       `¡Gracias por su preferencia! ✨ \n\n` +
       `¿Desea realizar alguna otra consulta o prefiere hablar con un *Asesor Especializado*?`;
 
     await delay(1500);
     await enviarBotones(numeroCliente, despedidaElegante, [
       "Hablar con Asesor",
-      "Nuevo Pedido",
-      "Inicio",
     ]);
   } catch (error) {
     console.error("✖️ Error en producción:", error);
@@ -521,10 +526,10 @@ app.get("/webhook", (req, res) => {
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
   res.status(200).send("EVENT_RECEIVED");
-      let imageId;
-      let ticket;
-      let comentario;
-      let nombreRegistrado;
+  let imageId;
+  let ticket;
+  let comentario;
+  let nombreRegistrado;
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
@@ -575,7 +580,6 @@ app.post("/webhook", async (req, res) => {
     }
 
     try {
-      
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
@@ -591,11 +595,20 @@ app.post("/webhook", async (req, res) => {
 
         if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
-          const tieneMaterial = textoAnalizar.includes("taza") ||
-          textoAnalizar.includes("mdf") || textoAnalizar.includes("madera");
+          const tieneMaterial =
+            textoAnalizar.includes("taza") ||
+            textoAnalizar.includes("mdf") ||
+            textoAnalizar.includes("madera");
 
-          if (!tieneMaterial && comentarioImagen !== "Sin notas" && comentarioImagen !== "") {
-            await enviarMensaje(numeroCliente, "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripcion.\n\n Por favor, vuelve a enviar la imagen y escribe el material. ✨");
+          if (
+            !tieneMaterial &&
+            comentarioImagen !== "Sin notas" &&
+            comentarioImagen !== ""
+          ) {
+            await enviarMensaje(
+              numeroCliente,
+              "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripcion.\n\n Por favor, vuelve a enviar la imagen y escribe el material. ✨",
+            );
             return;
           }
         }
@@ -610,7 +623,7 @@ app.post("/webhook", async (req, res) => {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
           estadosClientes[numeroCliente] = {
             ...estadosClientes[numeroCliente],
-            ticket: ticketGenerado
+            ticket: ticketGenerado,
           };
 
           await procesarPedidoDetallado(
@@ -621,12 +634,13 @@ app.post("/webhook", async (req, res) => {
             ticketGenerado,
           );
           const saludo = estaFueraDeHorario()
-            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticketGenerado}*`
-            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*. En un momento te confirmo los detalles.`;
+            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
+            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*.\n En un momento te confirmo los detalles.`;
           await enviarBotones(
-            numeroCliente, 
-            saludo + "\n\n¿Deseas realizar otra acción?", 
-            ["Cancelar Pedido", "Nuevo Pedido", "Inicio"]);
+            numeroCliente,
+            saludo + "\n\n¿Deseas realizar otra acción?",
+            ["Cancelar Pedido", "Nuevo Pedido", "Inicio"],
+          );
           return;
         }
 
@@ -644,7 +658,7 @@ app.post("/webhook", async (req, res) => {
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
           comentario: comentarioImagen,
-          categoria: estadoPrevio.categoria
+          categoria: estadoPrevio.categoria,
         };
 
         //Confirmación inmediata del cliente
@@ -664,22 +678,41 @@ app.post("/webhook", async (req, res) => {
         //Limpiamos el texto del cliente
         const textoCliente = msg.text.body.toLowerCase().trim();
 
-        //CANCELACION Y DUDA 
+        //CANCELACION Y DUDA
         //Ayuda de un asesor si no sabe el cliente
-        if (textoCliente.includes("ayuda") || textoCliente.includes("duda") || textoCliente.includes("no se")) {
-          await enviarMensaje(numeroCliente, "🫱🏼‍🫲🏼 *No te preocupes.* Si tienes duda sobre como pedir, he solicitado que un asesor humano revise el chat.\n\n En breve se comicarán contigo para que no generes un pedido incorrecto. ¡Gracias!");
-          await enviarMensaje(MI_NUMERO, `⚠️ *ASESORIA:* el cliente wa.me/${numeroCliente} tiene dudas sobre su pedido.`);
+        if (
+          textoCliente.includes("ayuda") ||
+          textoCliente.includes("duda") ||
+          textoCliente.includes("no se")
+        ) {
+          await enviarMensaje(
+            numeroCliente,
+            "🫱🏼‍🫲🏼 *No te preocupes.* Si tienes duda sobre como pedir, he solicitado que un asesor humano revise el chat.\n\n En breve se comicarán contigo para que no generes un pedido incorrecto. ¡Gracias!",
+          );
+          await enviarMensaje(
+            MI_NUMERO,
+            `⚠️ *ASESORIA:* el cliente wa.me/${numeroCliente} tiene dudas sobre su pedido.`,
+          );
           return;
         }
 
         //Cancelacion de Pedido
         if (textoCliente.startsWith("cancelar")) {
-          const ticketACancelar = textoCliente.replace("cancelar ", "").toUpperCase().trim();
+          const ticketACancelar = textoCliente
+            .replace("cancelar ", "")
+            .toUpperCase()
+            .trim();
           if (ticketACancelar.includes("PED-")) {
-            await actualizarEstadoCRM(ticketACancelar, {Estado: "Cancelado"});
-            await enviarMensaje(numeroCliente, `🚫 El pedido *${ticketACancelar}* ha sido cancelado en nuestro sistema.`);
-          }else {
-            await enviarMensaje(numeroCliente, "⚠️ Para cancelar usa el formato *Cancelar PED-12345*");
+            await actualizarEstadoCRM(ticketACancelar, { Estado: "Cancelado" });
+            await enviarMensaje(
+              numeroCliente,
+              `🚫 El pedido *${ticketACancelar}* ha sido cancelado en nuestro sistema.`,
+            );
+          } else {
+            await enviarMensaje(
+              numeroCliente,
+              "⚠️ Para cancelar usa el formato *Cancelar PED-12345*",
+            );
           }
           return;
         }
@@ -992,21 +1025,38 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-    // El bot busca el ticket que guardamos en el paso 1
-    const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+            // El bot busca el ticket que guardamos en el paso 1
+            const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
 
-    if (ticketParaBorrar) {
-        await actualizarEstadoCRM(ticketParaBorrar, { 
-            Estado_Pago: "Cancelado", 
-            Estado_Produccion: "Cancelado" 
-        });
-        await enviarMensaje(numeroCliente, `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado.`);
-        delete estadosClientes[numeroCliente]; // Limpiamos la memoria
-    } else {
-        await enviarMensaje(numeroCliente, "❌ No encontré un ticket reciente para cancelar.");
-    }
-    break;
+            if (ticketParaBorrar) {
+              await actualizarEstadoCRM(ticketParaBorrar, {
+                Estado_Pago: "Cancelado",
+                Estado_Produccion: "Cancelado",
+              });
 
+              // 2. Te enviamos la alerta a TI (Administrador)
+              const alertaAdmin =
+                `⚠️ *PEDIDO CANCELADO* ⚠️\n\n` +
+                `El cliente acaba de cancelar una orden.\n` +
+                `🆔 *Ticket:* ${ticketParaBorrar}\n` +
+                `📱 *Número:* wa.me/${numeroCliente}\n` +
+                `❌ El estado en Sheets ha sido actualizado a 'Cancelado'.`;
+
+              // Usamos tu variable de entorno MY_PERSONAL_NUMBER o tu número directo
+              await enviarMensaje(process.env.MY_PERSONAL_NUMBER, alertaAdmin);
+
+              await enviarMensaje(
+                numeroCliente,
+                `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado.`,
+              );
+              delete estadosClientes[numeroCliente]; // Limpiamos la memoria
+            } else {
+              await enviarMensaje(
+                numeroCliente,
+                "❌ No encontré un ticket reciente para cancelar.",
+              );
+            }
+            break;
         }
       }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
