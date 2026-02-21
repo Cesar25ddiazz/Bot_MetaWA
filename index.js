@@ -677,7 +677,7 @@ app.post("/webhook", async (req, res) => {
 
         if (esAdmin) {
           if (texto.toLowerCase().startsWith("pago ")) {
-            const ticketId = texto.split(" ")[1];
+            const ticketId = textoCliente.split(" ")[1];
             console.log("Ticket detectado con éxito:", ticketId);
 
             // Pasamos el objeto EXACTAMENTE como lo espera la función
@@ -692,8 +692,8 @@ app.post("/webhook", async (req, res) => {
             return;
           }
 
-          if (texto.toLowerCase().startsWith("anticipo ")) {
-            const ticketId = texto.split(" ")[1];
+          if (textoCliente.toLowerCase().startsWith("anticipo ")) {
+            const ticketId = textoCliente.split(" ")[1];
 
             await actualizarEstadoCRM(ticketId, nuevosDatos, {
               Estado_Pago: "Anticipo",
