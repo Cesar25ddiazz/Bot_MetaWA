@@ -248,7 +248,11 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
 
     if (fila) {
       console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
+      
+      // LOG DE CONTROL: Ver que datos llegan
+      console.log("Datos recibidos para actualizar:", nuevosDatos);
 
+      // 2. Aplicamos los cambios
       if (nuevosDatos.Estado_Pago) {
         fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
       }
@@ -256,11 +260,17 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
         fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
       }
 
+      // 3. GUARDADO (Crucial)
       await fila.save();
       console.log("💾 Guardado en Sheets con éxito");
+      return true;
+    } else {
+      console.log(`⚠️ No se encontró ninguna fila con el ticket: ${ticket}`);
+      return false;
     }
   } catch (error) {
     console.error("❌ Error al guardar en Sheets:", error.message);
+    throw error;
   }
 }
 
