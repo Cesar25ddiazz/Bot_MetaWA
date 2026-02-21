@@ -284,28 +284,32 @@ async function consultarStatusCRM(ticket) {
     const sheet = doc.sheetsByIndex[0];
     const filas = await sheet.getRows();
 
-    //Busca la fila que coincida con el ticket
-    const fila = filas.find((f) => f.get("Ticket") === ticket);
+    // 1. Localizar la fila (asegurando que ambos sean strings)
+    const fila = filas.find((f) => String(f.get("Ticket")).trim() === String(ticket).trim());
 
     if (!fila) {
-      return `No encontre ningun pedido con el ticket *${ticket}*. Por favor, verifica que esté bien escrito.`;
+      console.log(`⚠️ No se encontró el ticket: ${ticket}`);
+      return;
     }
 
-    //Estraer datos de la fila
-    const produccion = fila.get("Estado_Produccion") || "Pendiente";
-    const pago = fila.get("Estado_Pago") || "Pendiente";
-    const entrega = fila.get("Fecha_Entrega") || "Por definir";
+    console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
 
-    return (
-      `🔎 *Estado de tu Pedido:* ${ticket}\n\n` +
-      `🛠️ *Producción:* ${produccion}\n` +
-      `💰 *Pago:* ${pago}\n` +
-      `📅 *Fecha estimada de entrega:* ${entrega}\n\n` +
-      `Si tienes dudas, un asesor te puede ayudar.`
-    );
+    // 2. Actualización Dinámica
+    // Si mandas nuevosDatos.Estado_Pago, se guarda ese valor exacto
+    if (nuevosDatos.Estado_Pago !== undefined) {
+      fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
+    }
+
+    if (nuevosDatos.Estado_Produccion !== undefined) {
+      fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
+    }
+
+    // 3. Guardado Crítico
+    await fila.save(); 
+    console.log("💾 ¡Hoja de cálculo actualizada con éxito!");
+
   } catch (error) {
-    console.error("Error al consultar status:", error);
-    return "Hubo un error al consultar el sistema. Intentalo mas tarde.";
+    console.error("❌ Error al guardar en Sheets:", error.message);
   }
 }
 
@@ -604,6 +608,10 @@ app.post("/webhook", async (req, res) => {
         //Cliente ya existe en excel
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
+          estadosClientes[numeroCliente] = {
+            ...estadosClientes[numeroCliente],
+            ticket: ticketGenerado
+          };
 
           await procesarPedidoDetallado(
             nombreRegistrado,
@@ -615,7 +623,10 @@ app.post("/webhook", async (req, res) => {
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticketGenerado}*`
             : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*. En un momento te confirmo los detalles.`;
-          await enviarMensaje(numeroCliente, saludo);
+          await enviarBotones(
+            numeroCliente, 
+            saludo + "\n\n¿Deseas realizar otra acción?", 
+            ["Cancelar Pedido", "Nuevo Pedido", "Inicio"]);
           return;
         }
 
@@ -979,6 +990,23 @@ app.post("/webhook", async (req, res) => {
               ["Textil", "Tazas y MDF", "Etiquetas"],
             );
             break;
+
+          case "Cancelar Pedido":
+    // El bot busca el ticket que guardamos en el paso 1
+    const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+
+    if (ticketParaBorrar) {
+        await actualizarEstadoCRM(ticketParaBorrar, { 
+            Estado_Pago: "Cancelado", 
+            Estado_Produccion: "Cancelado" 
+        });
+        await enviarMensaje(numeroCliente, `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado.`);
+        delete estadosClientes[numeroCliente]; // Limpiamos la memoria
+    } else {
+        await enviarMensaje(numeroCliente, "❌ No encontré un ticket reciente para cancelar.");
+    }
+    break;
+
         }
       }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
