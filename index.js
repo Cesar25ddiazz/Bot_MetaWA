@@ -545,8 +545,14 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
-        imageId = msg.image?.id || msg.id;
+        const idDeLaImagen = msg.image?.id || msg.id;
+        const ticketGenerado = `PED-${Date.now()}`;
+          const comentarioImagen = msg.image.caption || "Sin notas";
+
+          //Limpiamos estados previos
         delete estadosClientes[numeroCliente];
+
+        //Buscamos al cliente
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         if (!imageId) {
@@ -554,17 +560,16 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
+        //Cliente ya existe en excel
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
-          const ticket = `PED-${Date.now()}`;
-          const comentario = msg.image.caption || "Sin notas";
-
+      
           await procesarPedidoDetallado(
             nombreRegistrado,
             numeroCliente,
-            msg.image.id,
-            comentario,
-            ticket,
+            idDeLaImagen,
+            comentarioImagen,
+            ticketGenerado,
           );
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticket}*`
@@ -573,23 +578,20 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
-        //Verificamos si ya esta procesando a el cliente para no repetir
+        //Cliente nuevo 
         if (estadosClientes[numeroCliente]?.esperandoNombre) {
           console.log(
             "Ya estamos esperando el nombre de este cliente, ignorando repetición.",
           );
           return;
         }
-        const ticket = `PED-${Date.now()}`;
-        const comentario = msg.image.caption || "Sin notas";
-        const imageId = msg.image?.id || msg.id;
 
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         estadosClientes[numeroCliente] = {
           esperandoNombre: true,
-          ticket,
-          imageId,
-          comentario,
+          ticket: ticketGenerado,
+          imageId: idDeLaImagen,
+          comentario: comentarioImagen
         };
 
         //Confirmación inmediata del cliente
