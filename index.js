@@ -242,9 +242,12 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
     const filas = await sheet.getRows();
 
     //Busca la fila que coincida con el ticket
-    const fila = filas.find(
-      (f) => String(f.get("Ticket")).trim() === String(ticket).trim(),
-    );
+    const fila = filas.find((f) => {
+      const ticketEnSheet = String(f.get("Ticket")).trim().toUpperCase();
+      const ticketBuscado = String(ticket).trim().toUpperCase();
+      
+      return ticketEnSheet === ticketBuscado;
+    });
 
     if (fila) {
       console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
@@ -684,7 +687,7 @@ app.post("/webhook", async (req, res) => {
 
         if (esAdmin) {
           if (textoCliente.toLowerCase().startsWith("pago ")) {
-            const ticketId = textoCliente.split(" ")[1];
+            const ticketId = textoCliente.split(" ")[1].trim();
             console.log("Ticket detectado con éxito:", ticketId);
 
             // Pasamos el objeto EXACTAMENTE como lo espera la función
@@ -700,7 +703,7 @@ app.post("/webhook", async (req, res) => {
           }
 
           if (textoCliente.toLowerCase().startsWith("anticipo ")) {
-            const ticketId = textoCliente.split(" ")[1];
+            const ticketId = textoCliente.split(" ")[1].trim();
 
             await actualizarEstadoCRM(ticketId, {
               Estado_Pago: "Anticipo",
