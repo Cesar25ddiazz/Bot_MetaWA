@@ -194,7 +194,7 @@ async function guardarEnCRM(datos) {
     });
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
-      serviceAccountAuth
+      serviceAccountAuth,
     );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
@@ -235,7 +235,7 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
 
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
-      serviceAccountAuth
+      serviceAccountAuth,
     );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
@@ -261,12 +261,12 @@ async function consultarStatusCRM(ticket) {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_CLIENT_EMAIL,
       key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
-      serviceAccountAuth
+      serviceAccountAuth,
     );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
@@ -299,30 +299,32 @@ async function consultarStatusCRM(ticket) {
 
 async function buscarNombreEnSheets(whatsapp) {
   try {
-
- const serviceAccountAuth = new JWT({
+    const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_CLIENT_EMAIL,
       key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
-  const doc = new GoogleSpreadsheet(
-    process.env.GOOGLE_SHEET_ID, serviceAccountAuth
-  );
-  await doc.loadInfo();
-  const sheet = doc.sheetsByIndex[0];
-  const filas = await sheet.getRows();
+    const doc = new GoogleSpreadsheet(
+      process.env.GOOGLE_SHEET_ID,
+      serviceAccountAuth,
+    );
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    const filas = await sheet.getRows();
 
-  const fila = filas.find((f) => {
-    const telSheet = f.get("Whatsapp") ? f.get("Whatsapp").toString().trim() : "";
-    const telCliente = whatsapp.toString().trim();
-  return telSheet.includes(telCliente) || telCliente.includes(telSheet);
-});
-return fila ? fila.get("Nombre") : null;
-}catch (error){
-  console.error("Error buscando el cliente:", error);
-  return null;
-}
+    const fila = filas.find((f) => {
+      const telSheet = f.get("Whatsapp")
+        ? f.get("Whatsapp").toString().trim()
+        : "";
+      const telCliente = whatsapp.toString().trim();
+      return telSheet.includes(telCliente) || telCliente.includes(telSheet);
+    });
+    return fila ? fila.get("Nombre") : null;
+  } catch (error) {
+    console.error("Error buscando el cliente:", error);
+    return null;
+  }
 }
 
 // Obtener la URL de descarga de una imagen desde Meta
@@ -552,7 +554,7 @@ app.post("/webhook", async (req, res) => {
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         if (nombreRegistrado) {
-          console.log(`Cliente reconocido: ${nombreRegistrado}`)
+          console.log(`Cliente reconocido: ${nombreRegistrado}`);
           const ticket = `PED-${Date.now()}`;
           const comentario = msg.image.caption || "Sin notas";
 
@@ -561,7 +563,7 @@ app.post("/webhook", async (req, res) => {
             numeroCliente,
             msg.image.id,
             comentario,
-            ticket
+            ticket,
           );
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticket}*`
@@ -746,6 +748,7 @@ app.post("/webhook", async (req, res) => {
 
         if (!resBtn) return; //Si por algo viene vacío, salimos para evitar errores
         console.log(`El cliente presiono: ${resBtn}`);
+        let nombreRegistrado;
 
         switch (resBtn) {
           case "Inicio":
@@ -833,6 +836,12 @@ app.post("/webhook", async (req, res) => {
           case "Textil":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
+            if (nombreRegistrado) {
+              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
+            } else {
+              estadosClientes[numeroCliente] = { esperandoNombre: true };
+            }
             await enviarMensaje(
               numeroCliente,
               "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envía la imagen de tu diseño.\n2. En la descripción escribe: *Talla, Color y que tipo deprenda se estampara*.",
@@ -842,6 +851,12 @@ app.post("/webhook", async (req, res) => {
           case "Tazas y MDF":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
+            if (nombreRegistrado) {
+              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
+            } else {
+              estadosClientes[numeroCliente] = { esperandoNombre: true };
+            }
             await enviarMensaje(
               numeroCliente,
               "☕*Tazas y madera MDF*🪵\n\nEnvía tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte láser en MDF",
@@ -851,6 +866,12 @@ app.post("/webhook", async (req, res) => {
           case "Etiquetas":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
+            if (nombreRegistrado) {
+              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
+            } else {
+              estadosClientes[numeroCliente] = { esperandoNombre: true };
+            }
             await enviarMensaje(
               numeroCliente,
               "🏷️ *Etiquetas*\nEnvía tu logo y menciona las *medidas* y la *cantidad* que necesitas.",
@@ -884,6 +905,12 @@ app.post("/webhook", async (req, res) => {
           case "Nuevo Pedido":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
+            if (nombreRegistrado) {
+              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
+            } else {
+              estadosClientes[numeroCliente] = { esperandoNombre: true };
+            }
             await enviarBotones(
               numeroCliente,
               "¡Perfecto! vamos a crear algo nuevo. ¿Que producto te interesa?",
