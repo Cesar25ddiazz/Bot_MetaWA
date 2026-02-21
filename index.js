@@ -242,17 +242,24 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
     const filas = await sheet.getRows();
 
     //Busca la fila que coincida con el ticket
-    const fila = filas.find((f) => f.get("Ticket") === ticket);
+    const fila = filas.find((f) => String(f.get("Ticket")) === String(ticket));
 
     if (fila) {
-      if (nuevosDatos.Estado_Pago)
-        fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
-      if (nuevosDatos.Estado_Produccion)
-        fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
+      console.log(`✅ Fila encontrada para el ticket: ${ticket}`);
+      if (nuevosDatos.Estado_Pago){
+        fila.set("Estado_Pago", nuevosDatos.Estado_Pago)}
+
+      if (nuevosDatos.Estado_Produccion){
+        fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion)}
       await fila.save(); //Guarda los cambios en la nube
+    // 3. Guardar cambios
+      await fila.save(); 
+      console.log("💾 Cambios guardados en Google Sheets correctamente.");
+    } else {
+      console.log(`⚠️ No se encontró ninguna fila con el ticket: ${ticket}`);
     }
   } catch (error) {
-    console.error("Error en actualizar el CRM:", error);
+    console.error("❌ Error grave en actualizarEstadoCRM:", error.message);
   }
 }
 
