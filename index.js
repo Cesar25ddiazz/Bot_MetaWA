@@ -323,14 +323,17 @@ async function buscarNombreEnSheets(whatsapp) {
       return telSheet.length > 5 && (telSheet.includes(telCliente) || telCliente.includes(telSheet));
     });
 
-    // Validamos que la fila exista Y que tenga un nombre escrito
-    if (fila && fila.get("Nombre") && fila.get("Nombre").toString().trim() !== "") {
-      return fila.get("Nombre").toString().trim();
+    if (fila) {
+      // Intentamos obtener el nombre de varias formas por si acaso
+      const nombreEncontrado = fila.get("Nombre") || fila.get("nombre") || fila.get("Cliente");
+      console.log(`✅ ¡Éxito! Nombre recuperado del Sheets: ${nombreEncontrado}`);
+      return nombreEncontrado;
     }
 
-    return null; // Si no hay fila o el nombre está vacío, devolvemos null
+    console.log("⚠️ El número coincide pero la columna 'Nombre' parece estar vacía o mal escrita.");
+    return null;
   } catch (error) {
-    console.error("❌ Error en búsqueda:", error.message);
+    console.error("❌ Error buscando el cliente:", error.message);
     return null;
   }
 }
@@ -567,24 +570,6 @@ app.post("/webhook", async (req, res) => {
         delete estadosClientes[numeroCliente];
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
-         //Cliente ya existe en excel
-        if (nombreRegistrado) {
-          console.log(`Cliente reconocido: ${nombreRegistrado}`);
-
-          await procesarPedidoDetallado(
-            nombreRegistrado,
-            numeroCliente,
-            idDeLaImagen,
-            comentarioImagen,
-            ticketGenerado,
-          );
-          const saludo = estaFueraDeHorario()
-            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticketGenerado}*`
-            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*. En un momento te confirmo los detalles.`;
-          await enviarMensaje(numeroCliente, saludo);
-          return;
-        }
-
         //Validacion de material
         const estadoPrevio = estadosClientes[numeroCliente] || {};
 
@@ -601,6 +586,24 @@ app.post("/webhook", async (req, res) => {
 
         if (!idDeLaImagen) {
           console.error("No se pudo obtener el ID de la imagen");
+          return;
+        }
+
+        //Cliente ya existe en excel
+        if (nombreRegistrado) {
+          console.log(`Cliente reconocido: ${nombreRegistrado}`);
+
+          await procesarPedidoDetallado(
+            nombreRegistrado,
+            numeroCliente,
+            idDeLaImagen,
+            comentarioImagen,
+            ticketGenerado,
+          );
+          const saludo = estaFueraDeHorario()
+            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticketGenerado}*`
+            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*. En un momento te confirmo los detalles.`;
+          await enviarMensaje(numeroCliente, saludo);
           return;
         }
 
