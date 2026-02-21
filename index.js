@@ -537,15 +537,6 @@ app.post("/webhook", async (req, res) => {
         );
         return;
       }
-
-      if (msg.type === "image") {
-        await enviarMensaje(
-          numeroCliente,
-          `*Diseño recibido correctamente.*\n\n
-          Tu archivo ha quedado en nuestra fila de espera. Un asesor revisará los detalles y te dará una actualización el *próximo día hábil a partir de las 9:00 AM*. ⏳`,
-        );
-        return;
-      }
     }
 
     try {
@@ -837,12 +828,7 @@ app.post("/webhook", async (req, res) => {
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             console.log("iniciando busqueda para:", numeroCliente);
-            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
-            if (nombreRegistrado) {
-              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
-            } else {
-              estadosClientes[numeroCliente] = { esperandoNombre: true };
-            }
+            estadosClientes[numeroCliente] = {nombre: nombreRegistrado || null, esperandoNombre: !nombreRegistrado, categoria: "TEXTIL"};
             await enviarMensaje(
               numeroCliente,
               "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envía la imagen de tu diseño.\n2. En la descripción escribe: *Talla, Color y que tipo deprenda se estampara*.",
@@ -852,12 +838,7 @@ app.post("/webhook", async (req, res) => {
           case "Tazas y MDF":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
-            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
-            if (nombreRegistrado) {
-              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
-            } else {
-              estadosClientes[numeroCliente] = { esperandoNombre: true };
-            }
+            estadosClientes[numeroCliente] = {nombre: nombreRegistrado || null, esperandoNombre: !nombreRegistrado, categoria: "TAZAS Y MDF"};
             await enviarMensaje(
               numeroCliente,
               "☕*Tazas y madera MDF*🪵\n\nEnvía tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte láser en MDF",
@@ -867,12 +848,7 @@ app.post("/webhook", async (req, res) => {
           case "Etiquetas":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
-            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
-            if (nombreRegistrado) {
-              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
-            } else {
-              estadosClientes[numeroCliente] = { esperandoNombre: true };
-            }
+            estadosClientes[numeroCliente] = {nombre: nombreRegistrado || null, esperandoNombre: !nombreRegistrado, categoria: "ETIQUETAS"};
             await enviarMensaje(
               numeroCliente,
               "🏷️ *Etiquetas*\nEnvía tu logo y menciona las *medidas* y la *cantidad* que necesitas.",
@@ -906,13 +882,6 @@ app.post("/webhook", async (req, res) => {
           case "Nuevo Pedido":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
-            console.log("iniciando busqueda para:", numeroCliente);
-            nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
-            if (nombreRegistrado) {
-              estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
-            } else {
-              estadosClientes[numeroCliente] = { esperandoNombre: true };
-            }
             await enviarBotones(
               numeroCliente,
               "¡Perfecto! vamos a crear algo nuevo. ¿Que producto te interesa?",
