@@ -493,6 +493,9 @@ app.get("/webhook", (req, res) => {
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
   res.status(200).send("EVENT_RECEIVED");
+  let imageId;
+  let nombreRegistrado;
+  let ticket;
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
