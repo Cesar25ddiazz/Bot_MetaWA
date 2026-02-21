@@ -714,7 +714,7 @@ app.post("/webhook", async (req, res) => {
           );
           await enviarMensaje(
             MI_NUMERO,
-            `⚠️ *ASESORIA:* el cliente wa.me/${numeroCliente} tiene dudas sobre su pedido.`,
+            `⚠️ *ASESORIA:* el cliente wa.me/${numeroCliente} tiene dudas sobre su pedido. `,
           );
           return;
         }
