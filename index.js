@@ -340,6 +340,9 @@ async function procesarPedidoDetallado(
       timeZone: "America/Mexico_City",
     });
     console.log("Iniciando proceso de imagen para:", ticket);
+    if(!imageId || imageId === "Undefined") {
+      throw new Error("El ID de la imagen es invalido antes de la peticion");
+    }
     const responseMeta = await axios.get(
       `https://graph.facebook.com/v18.0/${imageId}`,
       { headers: { Authorization: `Bearer ${process.env.ACCESS_TOKEN}` } },
@@ -542,8 +545,14 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
+        imageId = msg.image?.id || msg.id;
         delete estadosClientes[numeroCliente];
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
+
+        if (!imageId) {
+          console.error("No se pudo obtener el ID de la imagen");
+          return;
+        }
 
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
