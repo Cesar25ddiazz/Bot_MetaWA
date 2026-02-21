@@ -836,6 +836,7 @@ app.post("/webhook", async (req, res) => {
           case "Textil":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            console.log("iniciando busqueda para:", numeroCliente);
             nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
             if (nombreRegistrado) {
               estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
@@ -905,6 +906,7 @@ app.post("/webhook", async (req, res) => {
           case "Nuevo Pedido":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            console.log("iniciando busqueda para:", numeroCliente);
             nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
             if (nombreRegistrado) {
               estadosClientes[numeroCliente] = { nombre: nombreRegistrado };
