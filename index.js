@@ -246,14 +246,11 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
 
     if (fila) {
       console.log(`✅ Fila encontrada para el ticket: ${ticket}`);
-      if (nuevosDatos.Estado_Pago) {
-        fila.set("Estado_Pago", "Cancelado");
-        await fila.save();
+      if (nuevosDatos && nuevosDatos.Estado_Pago) {
+        fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
       }
-
-      if (nuevosDatos.Estado_Produccion) {
-        fila.set("Estado_Produccion", "Cancelado");
-        await fila.save();
+      if (nuevosDatos && nuevosDatos.Estado_Produccion) {
+        fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
       }
       await fila.save(); //Guarda los cambios en la nube
 
@@ -584,36 +581,30 @@ app.post("/webhook", async (req, res) => {
       if (esAdmin && msg.type === "text") {
         const texto = msg.text.body.trim();
 
-        // COMANDO PARA PAGO TOTAL (Ejemplo: Pago PED-123)
-        if (texto.toLowerCase().startsWith("pago ")) {
-          const ticketId = texto.split(" ")[1]; // Extrae el PED-XXXX
+    if (texto.toLowerCase().startsWith("pago ")) {
+        const ticketId = texto.split(" ")[1];
+        console.log("Ticket detectado con éxito:", ticketId);
 
-          await actualizarEstadoCRM(ticketId, {
-            Estado_Pago: "Pagado",
-            Estado_Produccion: "En Proceso",
-          });
+        // Pasamos el objeto EXACTAMENTE como lo espera la función
+        await actualizarEstadoCRM(ticketId, { 
+            Estado_Pago: "Pagado", 
+            Estado_Produccion: "En Proceso" 
+        });
 
-          await enviarMensaje(
-            numeroCliente,
-            `✅ Confirmado: El ticket *${ticketId}* se marcó como PAGADO.`,
-          );
-          return; // Detiene el flujo para que no responda como si fueras un cliente
-        }
+        // segundo parámetro sea un STRING
+        await enviarMensaje(numeroCliente, `✅ El ticket *${ticketId}* ha sido marcado como PAGADO.`);
+        return;
+    }
 
-        // COMANDO PARA ANTICIPO (Ejemplo: Anticipo PED-123)
-        if (texto.toLowerCase().startsWith("anticipo ")) {
-          const ticketId = texto.split(" ")[1];
+    if (texto.toLowerCase().startsWith("anticipo ")) {
+        const ticketId = texto.split(" ")[1];
+        
+        await actualizarEstadoCRM(ticketId, { 
+            Estado_Pago: "Anticipo" 
+        });
 
-          await actualizarEstadoCRM(ticketId, {
-            Estado_Pago: "Anticipo",
-            Estado_Produccion: "En Espera",
-          });
-
-          await enviarMensaje(
-            numeroCliente,
-            `💰 Confirmado: El ticket *${ticketId}* se marcó con ANTICIPO.`,
-          );
-          return;
+        await enviarMensaje(numeroCliente, `💰 Anticipo registrado para el ticket: *${ticketId}*`);
+        return;
         }
       }
     }
@@ -859,20 +850,6 @@ app.post("/webhook", async (req, res) => {
             "Ahi tienes el catalogo. ¿Deseas algo mas?",
             ["Tallas", "Personalizar"],
           );
-          return;
-        }
-
-        if (textoCliente.startsWith("pagado ")) {
-          const ticketBusqueda = textoCliente.split(" ")[1].toUpperCase();
-          if (ticketBusqueda) {
-            await actualizarEstadoCRM(ticketBusqueda, {
-              Estado_Pago: "Pagado",
-            });
-            await enviarMensaje(
-              numeroCliente,
-              `El ticket *${ticketBusqueda}* ha sido marcado como PAGADO en el CRM.`,
-            );
-          }
           return;
         }
 
