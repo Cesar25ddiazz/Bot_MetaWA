@@ -247,10 +247,14 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
     if (fila) {
       console.log(`✅ Fila encontrada para el ticket: ${ticket}`);
       if (nuevosDatos.Estado_Pago){
-        fila.set("Estado_Pago", "Cancelado")}
+        fila.set("Estado_Pago", "Cancelado")
+      await fila.save();
+      }
 
       if (nuevosDatos.Estado_Produccion){
-        fila.set("Estado_Produccion", "Cancelado")}
+        fila.set("Estado_Produccion", "Cancelado")
+      await fila.save();
+      }
       await fila.save(); //Guarda los cambios en la nube
 
     // 3. Guardar cambios
