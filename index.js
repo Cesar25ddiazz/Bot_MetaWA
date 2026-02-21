@@ -242,7 +242,9 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
     const filas = await sheet.getRows();
 
     //Busca la fila que coincida con el ticket
-    const fila = filas.find((f) => String(f.get("Ticket")).trim() === String(ticket).trim());
+    const fila = filas.find(
+      (f) => String(f.get("Ticket")).trim() === String(ticket).trim(),
+    );
 
     if (fila) {
       console.log(`✅ Fila encontrada para el ticket: ${ticket}`);
@@ -253,7 +255,7 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
       if (nuevosDatos.Estado_Produccion) {
         fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
       }
-      
+
       // 3. Guardar cambios
       await fila.save();
       console.log("💾 Cambios guardados en Google Sheets correctamente.");
@@ -523,10 +525,6 @@ app.get("/webhook", (req, res) => {
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
   res.status(200).send("EVENT_RECEIVED");
-  let imageId;
-  let ticket;
-  let comentario;
-  let nombreRegistrado;
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
@@ -573,40 +571,6 @@ app.post("/webhook", async (req, res) => {
           `Hola ${nombreCliente} Estamos fuera de horario  (Lunes a Viernes de 9am-8pm). Puedes enviarnos tu diseño de una vez y lo revisaremos.`,
         );
         return;
-      }
-
-      // --- SECCIÓN EXCLUSIVA PARA EL ADMINISTRADOR ---
-      const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
-
-      if (esAdmin && msg.type === "text") {
-        const texto = msg.text.body.trim();
-
-    if (texto.toLowerCase().startsWith("pago ")) {
-        const ticketId = texto.split(" ")[1];
-        console.log("Ticket detectado con éxito:", ticketId);
-
-        // Pasamos el objeto EXACTAMENTE como lo espera la función
-        await actualizarEstadoCRM(ticketId, nuevosDatos, { 
-            Estado_Pago: "Pagado", 
-            Estado_Produccion: "En Proceso" 
-        });
-
-        // segundo parámetro sea un STRING
-        const mensajeConfirmacion =  `✅ El ticket *${ticketId}* ha sido marcado como PAGADO en el sistema.`;
-        await enviarMensaje(numeroCliente, mensajeConfirmacion);
-        return;
-    }
-
-    if (texto.toLowerCase().startsWith("anticipo ")) {
-        const ticketId = texto.split(" ")[1];
-        
-        await actualizarEstadoCRM(ticketId, nuevosDatos, { 
-            Estado_Pago: "Anticipo" 
-        });
-        const mensajeConfirmacionA = `💰 Anticipo registrado para el ticket: *${ticketId}*`;
-        await enviarMensaje(numeroCliente, mensajeConfirmacionA);
-        return;
-        }
       }
     }
 
@@ -708,6 +672,37 @@ app.post("/webhook", async (req, res) => {
       else if (msg.type === "text") {
         //Limpiamos el texto del cliente
         const textoCliente = msg.text.body.toLowerCase().trim();
+        const numeroCliente = msg.from;
+        const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
+
+        if (esAdmin) {
+          if (texto.toLowerCase().startsWith("pago ")) {
+            const ticketId = texto.split(" ")[1];
+            console.log("Ticket detectado con éxito:", ticketId);
+
+            // Pasamos el objeto EXACTAMENTE como lo espera la función
+            await actualizarEstadoCRM(ticketId, nuevosDatos, {
+              Estado_Pago: "Pagado",
+              Estado_Produccion: "En Proceso",
+            });
+
+            // segundo parámetro sea un STRING
+            const mensajeConfirmacion = `✅ El ticket *${ticketId}* ha sido marcado como PAGADO en el sistema.`;
+            await enviarMensaje(numeroCliente, mensajeConfirmacion);
+            return;
+          }
+
+          if (texto.toLowerCase().startsWith("anticipo ")) {
+            const ticketId = texto.split(" ")[1];
+
+            await actualizarEstadoCRM(ticketId, nuevosDatos, {
+              Estado_Pago: "Anticipo",
+            });
+            const mensajeConfirmacionA = `💰 Anticipo registrado para el ticket: *${ticketId}*`;
+            await enviarMensaje(numeroCliente, mensajeConfirmacionA);
+            return;
+          }
+        }
 
         //CANCELACION Y DUDA
         //Ayuda de un asesor si no sabe el cliente
