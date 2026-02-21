@@ -242,18 +242,18 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
     const filas = await sheet.getRows();
 
     //Busca la fila que coincida con el ticket
-    const fila = filas.find((f) => String(f.get("Ticket")) === String(ticket));
+    const fila = filas.find((f) => String(f.get("Ticket")).trim() === String(ticket).trim());
 
     if (fila) {
       console.log(`✅ Fila encontrada para el ticket: ${ticket}`);
-      if (nuevosDatos && nuevosDatos.Estado_Pago) {
+
+      if (nuevosDatos.Estado_Pago) {
         fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
       }
-      if (nuevosDatos && nuevosDatos.Estado_Produccion) {
+      if (nuevosDatos.Estado_Produccion) {
         fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
       }
-      await fila.save(); //Guarda los cambios en la nube
-
+      
       // 3. Guardar cambios
       await fila.save();
       console.log("💾 Cambios guardados en Google Sheets correctamente.");
@@ -592,7 +592,8 @@ app.post("/webhook", async (req, res) => {
         });
 
         // segundo parámetro sea un STRING
-        await enviarMensaje(numeroCliente, `✅ El ticket *${ticketId}* ha sido marcado como PAGADO.`);
+        const mensajeConfirmacion =  `✅ El ticket *${ticketId}* ha sido marcado como PAGADO en el sistema.`;
+        await enviarMensaje(numeroCliente, mensajeConfirmacion);
         return;
     }
 
@@ -602,8 +603,8 @@ app.post("/webhook", async (req, res) => {
         await actualizarEstadoCRM(ticketId, { 
             Estado_Pago: "Anticipo" 
         });
-
-        await enviarMensaje(numeroCliente, `💰 Anticipo registrado para el ticket: *${ticketId}*`);
+        const mensajeConfirmacionA = `💰 Anticipo registrado para el ticket: *${ticketId}*`;
+        await enviarMensaje(numeroCliente, mensajeConfirmacionA);
         return;
         }
       }
