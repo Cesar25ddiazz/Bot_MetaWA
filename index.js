@@ -542,6 +542,7 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
+        delete estadosClientes[numeroCliente];
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         if (nombreRegistrado) {
