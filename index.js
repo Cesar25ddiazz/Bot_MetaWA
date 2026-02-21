@@ -676,7 +676,7 @@ app.post("/webhook", async (req, res) => {
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
         if (esAdmin) {
-          if (texto.toLowerCase().startsWith("pago ")) {
+          if (textoCliente.toLowerCase().startsWith("pago ")) {
             const ticketId = textoCliente.split(" ")[1];
             console.log("Ticket detectado con éxito:", ticketId);
 
