@@ -247,7 +247,7 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
     );
 
     if (fila) {
-      console.log(`✅ Fila encontrada para el ticket: ${ticket}`);
+      console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
 
       if (nuevosDatos.Estado_Pago) {
         fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
@@ -256,14 +256,11 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
         fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
       }
 
-      // 3. Guardar cambios
       await fila.save();
-      console.log("💾 Cambios guardados en Google Sheets correctamente.");
-    } else {
-      console.log(`⚠️ No se encontró ninguna fila con el ticket: ${ticket}`);
+      console.log("💾 Guardado en Sheets con éxito");
     }
   } catch (error) {
-    console.error("❌ Error grave en actualizarEstadoCRM:", error.message);
+    console.error("❌ Error al guardar en Sheets:", error.message);
   }
 }
 
@@ -681,7 +678,7 @@ app.post("/webhook", async (req, res) => {
             console.log("Ticket detectado con éxito:", ticketId);
 
             // Pasamos el objeto EXACTAMENTE como lo espera la función
-            await actualizarEstadoCRM(ticketId, nuevosDatos, {
+            await actualizarEstadoCRM(ticketId, {
               Estado_Pago: "Pagado",
               Estado_Produccion: "En Proceso",
             });
@@ -695,7 +692,7 @@ app.post("/webhook", async (req, res) => {
           if (textoCliente.toLowerCase().startsWith("anticipo ")) {
             const ticketId = textoCliente.split(" ")[1];
 
-            await actualizarEstadoCRM(ticketId, nuevosDatos, {
+            await actualizarEstadoCRM(ticketId, {
               Estado_Pago: "Anticipo",
             });
             const mensajeConfirmacionA = `💰 Anticipo registrado para el ticket: *${ticketId}*`;
