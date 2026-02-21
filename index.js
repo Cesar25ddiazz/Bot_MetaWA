@@ -313,16 +313,27 @@ async function buscarNombreEnSheets(whatsapp) {
     const sheet = doc.sheetsByIndex[0];
     const filas = await sheet.getRows();
 
+    const telCliente = whatsapp.toString().replace(/\D/g, "");
+
     const fila = filas.find((f) => {
-      const telSheet = f.get("Whatsapp")
-        ? f.get("Whatsapp").toString().trim()
-        : "";
-      const telCliente = whatsapp.toString().trim();
-      return telSheet.includes(telCliente) || telCliente.includes(telSheet);
+      // Buscamos la columna "Whatsapp" sin importar si es minúscula o mayúscula
+      const celdaWhatsapp = f.get("Whatsapp") || f.get("whatsapp") || "";
+      const telSheet = celdaWhatsapp.toString().replace(/\D/g, "");
+      
+      return telSheet.length > 5 && (telSheet.includes(telCliente) || telCliente.includes(telSheet));
     });
-    return fila ? fila.get("Nombre") : null;
+    
+    if (fila) {
+      // Intentamos obtener el nombre de varias formas por si acaso
+      const nombreEncontrado = fila.get("Nombre") || fila.get("nombre") || fila.get("Cliente");
+      console.log(`✅ ¡Éxito! Nombre recuperado del Sheets: ${nombreEncontrado}`);
+      return nombreEncontrado;
+    }
+
+    console.log("⚠️ El número coincide pero la columna 'Nombre' parece estar vacía o mal escrita.");
+    return null;
   } catch (error) {
-    console.error("Error buscando el cliente:", error);
+    console.error("❌ Error buscando el cliente:", error.message);
     return null;
   }
 }
