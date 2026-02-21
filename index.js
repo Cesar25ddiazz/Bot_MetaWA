@@ -563,78 +563,74 @@ app.post("/webhook", async (req, res) => {
         const ticketGenerado = `PED-${Date.now()}`;
         const comentarioImagen = (msg.image?.caption || "").trim();
 
-        //Limpiamos estados previos
-        delete estadosClientes[numeroCliente];
-        nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
-
-         //Cliente ya existe en excel
-        if (nombreRegistrado) {
-          console.log(`Cliente reconocido: ${nombreRegistrado}`);
-
-          await procesarPedidoDetallado(
-            nombreRegistrado,
-            numeroCliente,
-            idDeLaImagen,
-            comentarioImagen,
-            ticketGenerado,
-          );
-          const saludo = estaFueraDeHorario()
-            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora. Ticket: *${ticketGenerado}*`
-            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*. En un momento te confirmo los detalles.`;
-          await enviarMensaje(numeroCliente, saludo);
-          return;
-        }
-
-        //Validacion de material
+        // 1. Obtener estado previo antes de limpiar
         const estadoPrevio = estadosClientes[numeroCliente] || {};
+        
+        // 2. Limpiar estados para evitar basura, pero mantenemos la categoría si venía de un botón
+        delete estadosClientes[numeroCliente];
 
-        if (estadoPrevio.categoria === "TAZAS Y MDF") {
-          const textoAnalizar = comentarioImagen.toLowerCase();
-          const tieneMaterial = textoAnalizar.includes("taza") ||
-          textoAnalizar.includes("mdf") || textoAnalizar.includes("madera");
-
-          if (!tieneMaterial && comentarioImagen !== "Sin notas" && comentarioImagen !== "") {
-            await enviarMensaje(numeroCliente, "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripcion.\n\n Por favor, vuelve a enviar la imagen y escribe el material. ✨");
-            return;
-          }
-        }
-
-        //Buscamos al cliente
+        // 3. DECLARACIÓN ÚNICA (Aquí estaba el error)
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
-        if (!idDeLaImagen) {
-          console.error("No se pudo obtener el ID de la imagen");
-          return;
+        // 4. CLIENTE YA EXISTE
+        if (nombreRegistrado) {
+            console.log(`✅ Cliente reconocido: ${nombreRegistrado}`);
+
+            // Validación de material para clientes antiguos
+            if (estadoPrevio.categoria === "TAZAS Y MDF") {
+                const textoAnalizar = comentarioImagen.toLowerCase();
+                const tieneMaterial = textoAnalizar.includes("taza") || textoAnalizar.includes("mdf") || textoAnalizar.includes("madera");
+
+                if (!tieneMaterial && comentarioImagen !== "Sin notas" && comentarioImagen !== "") {
+                    await enviarMensaje(numeroCliente, "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\nPor favor, vuelve a enviar la foto escribiendo el material. ✨");
+                    return;
+                }
+            }
+
+            await procesarPedidoDetallado(
+                nombreRegistrado,
+                numeroCliente,
+                idDeLaImagen,
+                comentarioImagen,
+                ticketGenerado
+            );
+
+            const saludo = estaFueraDeHorario()
+                ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Lo revisaremos mañana a primera hora. Ticket: *${ticketGenerado}*`
+                : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Ticket: *${ticketGenerado}*. En un momento te confirmo los detalles.`;
+            
+            await enviarMensaje(numeroCliente, saludo);
+            return;
         }
 
-        //Cliente nuevo
-        if (estadosClientes[numeroCliente]?.esperandoNombre) {
-          console.log(
-            "Ya estamos esperando el nombre de este cliente, ignorando repetición.",
-          );
-          return;
+        // 5. CLIENTE NUEVO - Validación de material antes de pedir nombre
+        if (estadoPrevio.categoria === "TAZAS Y MDF") {
+            const textoAnalizar = comentarioImagen.toLowerCase();
+            const tieneMaterial = textoAnalizar.includes("taza") || textoAnalizar.includes("mdf") || textoAnalizar.includes("madera");
+
+            if (!tieneMaterial && comentarioImagen !== "Sin notas" && comentarioImagen !== "") {
+                await enviarMensaje(numeroCliente, "⚠️ *Dato importante:* Olvidaste especificar si es *Taza* o *MDF*.\n\nPor favor, reenvía la foto con esa nota. ✨");
+                return;
+            }
         }
 
-        //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
+        // 6. REGISTRO DE CLIENTE NUEVO (Guardar estado)
         estadosClientes[numeroCliente] = {
-          esperandoNombre: true,
-          ticket: ticketGenerado,
-          imageId: idDeLaImagen,
-          comentario: comentarioImagen,
-          categoria: estadoPrevio.categoria
+            esperandoNombre: true,
+            ticket: ticketGenerado,
+            imageId: idDeLaImagen,
+            comentario: comentarioImagen,
+            categoria: estadoPrevio.categoria || "GENERAL"
         };
 
-        //Confirmación inmediata del cliente
         await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
         await delay(1000);
-
-        //Preguntamos el nombre para el registro
         await enviarMensaje(
-          numeroCliente,
-          `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`,
+            numeroCliente,
+            `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`
         );
         return;
-      }
+    }
 
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
