@@ -340,7 +340,7 @@ async function procesarPedidoDetallado(
       timeZone: "America/Mexico_City",
     });
     console.log("Iniciando proceso de imagen para:", ticket);
-    if(!imageId || imageId === "Undefined") {
+    if (!imageId || imageId === "Undefined") {
       throw new Error("El ID de la imagen es invalido antes de la peticion");
     }
     const responseMeta = await axios.get(
@@ -493,9 +493,6 @@ app.get("/webhook", (req, res) => {
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
   res.status(200).send("EVENT_RECEIVED");
-  let imageId;
-  let nombreRegistrado;
-  let ticket;
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
@@ -577,16 +574,21 @@ app.post("/webhook", async (req, res) => {
         }
 
         //Verificamos si ya esta procesando a el cliente para no repetir
-        if (estadosClientes[numeroCliente]?.esperandoNombre) return;
+        if (estadosClientes[numeroCliente]?.esperandoNombre) {
+          console.log(
+            "Ya estamos esperando el nombre de este cliente, ignorando repetición.",
+          );
+          return;
+        }
         const ticket = `PED-${Date.now()}`;
         const comentario = msg.image.caption || "Sin notas";
-        const imageId = msg.image.id;
+        const imageId = msg.image?.id || msg.id;
 
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         estadosClientes[numeroCliente] = {
           esperandoNombre: true,
           ticket,
-          imageId: msg.image.id,
+          imageId,
           comentario,
         };
 
@@ -841,7 +843,11 @@ app.post("/webhook", async (req, res) => {
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             console.log("iniciando busqueda para:", numeroCliente);
-            estadosClientes[numeroCliente] = {nombre: nombreRegistrado || null, esperandoNombre: !nombreRegistrado, categoria: "TEXTIL"};
+            estadosClientes[numeroCliente] = {
+              nombre: nombreRegistrado || null,
+              esperandoNombre: !nombreRegistrado,
+              categoria: "TEXTIL",
+            };
             await enviarMensaje(
               numeroCliente,
               "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envía la imagen de tu diseño.\n2. En la descripción escribe: *Talla, Color y que tipo deprenda se estampara*.",
@@ -851,7 +857,11 @@ app.post("/webhook", async (req, res) => {
           case "Tazas y MDF":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
-            estadosClientes[numeroCliente] = {nombre: nombreRegistrado || null, esperandoNombre: !nombreRegistrado, categoria: "TAZAS Y MDF"};
+            estadosClientes[numeroCliente] = {
+              nombre: nombreRegistrado || null,
+              esperandoNombre: !nombreRegistrado,
+              categoria: "TAZAS Y MDF",
+            };
             await enviarMensaje(
               numeroCliente,
               "☕*Tazas y madera MDF*🪵\n\nEnvía tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte láser en MDF",
@@ -861,7 +871,11 @@ app.post("/webhook", async (req, res) => {
           case "Etiquetas":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
-            estadosClientes[numeroCliente] = {nombre: nombreRegistrado || null, esperandoNombre: !nombreRegistrado, categoria: "ETIQUETAS"};
+            estadosClientes[numeroCliente] = {
+              nombre: nombreRegistrado || null,
+              esperandoNombre: !nombreRegistrado,
+              categoria: "ETIQUETAS",
+            };
             await enviarMensaje(
               numeroCliente,
               "🏷️ *Etiquetas*\nEnvía tu logo y menciona las *medidas* y la *cantidad* que necesitas.",
