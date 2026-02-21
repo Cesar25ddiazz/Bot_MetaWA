@@ -868,7 +868,7 @@ app.post("/webhook", async (req, res) => {
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             const urlTabla =
-              "https://i.postimg.cc/PfFWcjG7/6e514668-b37d-4302-85d2-1153da9afe73.jpg";
+              "https://i.postimg.cc/13WjV0t1/Tabla-de-Tallas.jpg";
             await enviarImagen(
               numeroCliente,
               urlTabla,
