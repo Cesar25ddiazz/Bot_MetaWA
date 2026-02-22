@@ -17,7 +17,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || hora >= 24 || hora < 9;
+  return dia === 0 || hora >= 23 || hora < 9;
 }
 
 //Función retraso
@@ -279,9 +279,10 @@ async function guardarEnCRM(datos) {
       Fecha: hoy.toLocaleString("es-MX", {
         timeZone: "America/Mexico_City",
       }),
+      Fecha: hoy.toLocaleString("es-MX", { timeZone: "America/Mexico_City" }),
       Ticket: datos.ticket,
       Cliente: datos.nombre,
-      Whatsapp: datos.numero,
+      Whatsapp: `wa.me/${datos.numero}`,
       Producto: datos.categoria || "📦 GENERAL",
       Descripcion: datos.notas,
       Link_Imagen: datos.urlImagen,
@@ -289,7 +290,7 @@ async function guardarEnCRM(datos) {
       Estado_Pago: "Pendiente",
       Total_a_Pagar: datos.precio,
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
-      Origen: origen,
+      Origen: origen || estaFueraDeHorario() ? "🌙 Nocturno" : "☀️ Diurno",
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
@@ -492,6 +493,12 @@ async function procesarPedidoDetallado(
     });
     const urlPermanente = result.secure_url;
     console.log("Imagen en cloudinary:", urlPermanente);
+
+    estadosClientes[numeroCliente] = {
+      ...estadosClientes[numeroCliente], // Conservamos categoría, ticket, etc.
+      urlImagen: urlPermanente, // <--- GUARDAMOS EL LINK AQUÍ
+      esperandoNombre: true, // Seguimos con el flujo del nombre
+    };
 
     // Determinar categoria para la notificacion
     let cat = "📦 GENERAL";
@@ -1369,59 +1376,61 @@ app.post("/webhook", async (req, res) => {
             const datosParaPDF = estadosClientes[numeroCliente];
 
             if (datosParaPDF) {
-              const ticketFinal = datosParaPDF.ticket || `PED-${Date.now()}`;
-              const rutaPDF = `./temp/Orden_${ticketFinal}.pdf`;
-
               try {
-                // 🔍 LUPA: Guardamos en el CRM con el nombre REAL antes de borrar la memoria
+                const ticketFinal = datosParaPDF.ticket;
+                const rutaPDF = `./temp/Orden_${ticketFinal}.pdf`;
+
+                // 🔍 LUPA 1: Recuperar el link de Cloudinary que se guardó al recibir la imagen
+                // Asegúrate de que en el bloque de la imagen guardaste 'urlImagen' en la memoria
+                const linkCloudinary = datosParaPDF.urlImagen || "";
+
+                // 🔍 LUPA 2: Determinar si es Diurno o Nocturno al momento de confirmar
+                const origenPedido = estaFueraDeHorario()
+                  ? "🌙 Nocturno"
+                  : "☀️ Diurno";
+
+                // 🔍 LUPA 3: Mandar a guardar al CRM con TODOS los datos calculados
                 await guardarEnCRM({
                   ticket: ticketFinal,
-                  nombre: datosParaPDF.nombre, // El nombre que el cliente escribió
-                  numero: numeroCliente, // El teléfono del cliente
+                  nombre: datosParaPDF.nombre,
+                  numero: numeroCliente,
                   categoria: datosParaPDF.categoria,
                   notas: datosParaPDF.detalles,
-                  urlImagen: datosParaPDF.urlImagen || "",
-                  precio: datosParaPDF.precioTotal,
+                  urlImagen: linkCloudinary, // Aquí subirá el link de Cloudinary
+                  precio: datosParaPDF.precioTotal, // Aquí subirá el precio ($150, etc) o "Cotización"
+                  origen: origenPedido, // Pasamos el origen detectado
                 });
 
-                // Generamos el PDF
+                // Generar PDF
                 await generarPDFOrden(
                   {
                     ticket: ticketFinal,
                     numero: numeroCliente,
-                    categoria: datosParaPDF.categoria || "General",
-                    detalles: datosParaPDF.detalles || "Sin descripción",
-                    cantidad: datosParaPDF.cantidad || 1,
-                    precioTotal: datosParaPDF.precioTotal || "Cotización",
+                    categoria: datosParaPDF.categoria,
+                    detalles: datosParaPDF.detalles,
+                    cantidad: datosParaPDF.cantidad,
+                    precioTotal: datosParaPDF.precioTotal,
                     nombre: datosParaPDF.nombre,
                   },
                   rutaPDF,
                 );
 
-                // Enviamos el PDF corregido con el Blob
                 await enviarDocumento(
                   numeroCliente,
                   rutaPDF,
                   `Orden_${ticketFinal}.pdf`,
                 );
 
-                await delay(1500);
                 await enviarBotones(
                   numeroCliente,
-                  `✅ ¡Orden registrada y PDF enviado!\n\nTicket: *${ticketFinal}*\nYa no te pediré tu nombre la próxima vez. ✨`,
+                  "✅ ¡Pedido Confirmado! Tu orden ha sido registrada.",
                   ["Inicio"],
                 );
 
-                // Borramos memoria
                 delete estadosClientes[numeroCliente];
               } catch (error) {
-                console.log("❌ Error en el proceso final:", error);
+                console.error("❌ Error en Confirmar Pedido:", error);
               }
-            } else {
-              await enviarMensaje(
-                numeroCliente,
-                "⚠️ No encontré datos de tu pedido.",
-              );
             }
             break;
         }
