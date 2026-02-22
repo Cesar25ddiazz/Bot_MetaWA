@@ -773,10 +773,10 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(
             numeroCliente,
             saludo + "\n\n¿Deseas realizar otra acción?",
-            ["Cancelar Pedido", "Confirmar Pedido", "Inicio"],
+            ["Cancelar Pedido", "Confirmar Pedido", "Inicio" ],
           );
           return;
-        }
+          }
 
         //Cliente nuevo
         if (estadosClientes[numeroCliente]?.esperandoNombre) {
