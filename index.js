@@ -469,11 +469,6 @@ async function procesarPedidoDetallado(
     });
 
     //Notidicacion detallada
-    estadosClientes["ADMIN_ACTIVO"] = {
-      ultimoTicket: ticketGenerado,
-      clienteWhatsapp: numeroCliente,
-    };
-
     const mensajeAdmin =
       `🛠️ *Orden de Producción:* 🛠️\n` +
       `-----------------------------\n` +
@@ -486,10 +481,7 @@ async function procesarPedidoDetallado(
       `🖼️ *Link:* ${result.secure_url}\n` +
       `-----------------------------\n` +
       `⏰ ${fechaHora}`;
-    await enviarMensaje(MI_NUMERO, mensajeAdmin, [
-      "Marcar Pagado ✅",
-      "Marcar Anticipo 💰"
-    ]);
+    await enviarMensaje(MI_NUMERO, mensajeAdmin);
 
     const despedidaElegante =
       `✅ *¡Orden registrada con éxito!*\n\n` +
@@ -1116,37 +1108,6 @@ app.post("/webhook", async (req, res) => {
               } else {
                 console.log(
                   "❌ Error: Se recibió btn_0. Revisa la función enviarBotones.",
-                );
-              }
-            }
-            break;
-
-          case "Marcar Pagado ✅":
-            if (numeroCliente === process.env.MY_PERSONAL_NUMBER) {
-              const ticketId = estadosClientes["ADMIN_ACTIVO"]?.ultimoTicket;
-              if (ticketId) {
-                await actualizarEstadoCRM(ticketId, {
-                  Estado_Pago: "Pagado",
-                  Estado_Produccion: "En Porceso",
-                });
-                await enviarMensaje(
-                  numeroCliente,
-                  `El ticket: *${ticketId}* ha sido actualizado a PAGADO.`,
-                );
-              }
-            }
-            break;
-
-          case "Marcar Anticipo 💰":
-            if (numeroCliente === process.env.MY_PERSONAL_NUMBER) {
-              const ticketId = estadosClientes["ADMIN_ACTIVO"]?.ultimoTicket;
-              if (ticketId) {
-                await actualizarEstadoCRM(ticketId, {
-                  Estado_Pago: "Anticipo",
-                });
-                await enviarMensaje(
-                  numeroCliente,
-                  `💰 El ticket *${ticketId}* ahora tiene Anticipo.`,
                 );
               }
             }
