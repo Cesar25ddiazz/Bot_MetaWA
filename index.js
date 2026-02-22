@@ -6,10 +6,9 @@ const fs = require("fs-extra");
 const path = require("path");
 const { GoogleSpreadsheet } = require("google-spreadsheet");
 const { JWT } = require("google-auth-library");
-const PDFDocument = require('pdfkit');
-const fs = require('fs');
-const QRCode = require('qrcode');
-
+const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const QRCode = require("qrcode");
 
 //Función de horario
 function estaFueraDeHorario() {
@@ -196,36 +195,41 @@ async function enviarPDF(numero, url, nombreArchivo) {
 }
 
 async function enviarDocumento(numero, pathArchivo, nombreMostrar) {
-    try {
-        const formData = new FormData();
-        formData.append('file', fs.createReadStream(pathArchivo));
-        formData.append('messaging_product', 'whatsapp');
-        formData.append('type', 'application/pdf');
+  try {
+    const formData = new FormData();
+    formData.append("file", fs.createReadStream(pathArchivo));
+    formData.append("messaging_product", "whatsapp");
+    formData.append("type", "application/pdf");
 
-        // 1. Subir el archivo a WhatsApp
-        const upload = await axios.post(
-            `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/media`,
-            formData,
-            { headers: { ...formData.getHeaders(), Authorization: `Bearer ${ACCESS_TOKEN}` } }
-        );
+    // 1. Subir el archivo a WhatsApp
+    const upload = await axios.post(
+      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/media`,
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+        },
+      },
+    );
 
-        // 2. Enviar el mensaje con el ID del archivo subido
-        await axios.post(
-            `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
-            {
-                messaging_product: "whatsapp",
-                to: numero,
-                type: "document",
-                document: {
-                    id: upload.data.id,
-                    filename: nombreMostrar
-                }
-            },
-            { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } }
-        );
-    } catch (e) {
-        console.log("❌ Error enviando PDF:", e.response?.data || e.message);
-    }
+    // 2. Enviar el mensaje con el ID del archivo subido
+    await axios.post(
+      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: numero,
+        type: "document",
+        document: {
+          id: upload.data.id,
+          filename: nombreMostrar,
+        },
+      },
+      { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } },
+    );
+  } catch (e) {
+    console.log("❌ Error enviando PDF:", e.response?.data || e.message);
+  }
 }
 
 async function guardarEnCRM(datos) {
@@ -563,87 +567,134 @@ async function marcarComoLeido(messageId) {
 }
 
 async function generarPDFOrden(datos, pathDestino) {
-    return new Promise(async (resolve, reject) => {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
-        const stream = fs.createWriteStream(pathDestino);
+  return new Promise(async (resolve, reject) => {
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const stream = fs.createWriteStream(pathDestino);
 
-        doc.pipe(stream);
+    doc.pipe(stream);
 
-        // --- DISEÑO DE AUTORIDAD (Encabezado) ---
-        doc.rect(0, 0, 612, 120).fill('#000000'); // Bloque negro sólido
-        doc.fillColor('#ffffff')
-           .fontSize(28)
-           .font('Helvetica-Bold')
-           .text('ORDEN DE TRABAJO', 50, 45);
-        
-        doc.fontSize(10)
-           .font('Helvetica')
-           .text(`TICKET DE SEGUIMIENTO: ${datos.ticket}`, 400, 58, { align: 'right' });
+    // --- DISEÑO DE AUTORIDAD (Encabezado) ---
+    doc.rect(0, 0, 612, 120).fill("#000000"); // Bloque negro sólido
+    doc
+      .fillColor("#ffffff")
+      .fontSize(28)
+      .font("Helvetica-Bold")
+      .text("ORDEN DE TRABAJO", 50, 45);
 
-        // --- CUERPO DEL DOCUMENTO ---
-        doc.fillColor('#333333').fontSize(14).font('Helvetica-Bold').text('INFORMACIÓN DEL PEDIDO', 50, 150);
-        doc.moveTo(50, 165).lineTo(545, 165).strokeColor('#eeeeee').stroke();
+    doc
+      .fontSize(10)
+      .font("Helvetica")
+      .text(`TICKET DE SEGUIMIENTO: ${datos.ticket}`, 400, 58, {
+        align: "right",
+      });
 
-        // Datos del cliente y fecha
-        doc.moveDown();
-        doc.fillColor('#000000').fontSize(11).font('Helvetica')
-           .text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`)
-           .text(`ID Cliente (WhatsApp): ${datos.numero}`)
-           .text(`Estado Inicial: Pendiente de Revisión`);
+    // --- CUERPO DEL DOCUMENTO ---
+    doc
+      .fillColor("#333333")
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("INFORMACIÓN DEL PEDIDO", 50, 150);
+    doc.moveTo(50, 165).lineTo(545, 165).strokeColor("#eeeeee").stroke();
 
-        // --- TABLA PROFESIONAL (Detalle del Producto) ---
-        const tableTop = 250;
-        doc.rect(50, tableTop, 495, 25).fill('#f6f6f6'); // Fondo gris claro para encabezado de tabla
-        
-        doc.fillColor('#000000').font('Helvetica-Bold')
-           .text('CONCEPTO / MATERIAL', 60, tableTop + 7)
-           .text('CANT.', 350, tableTop + 7)
-           .text('TOTAL', 480, tableTop + 7);
+    // Datos del cliente y fecha
+    doc.moveDown();
+    doc
+      .fillColor("#000000")
+      .fontSize(11)
+      .font("Helvetica")
+      .text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`)
+      .text(`ID Cliente (WhatsApp): ${datos.numero}`)
+      .text(`Estado Inicial: Pendiente de Revisión`);
 
-        const rowY = tableTop + 40;
-        doc.font('Helvetica')
-           .text(`${datos.categoria.toUpperCase()}`, 60, rowY)
-           .text(`${datos.cantidad}`, 350, rowY)
-           .text(`${datos.precioTotal}`, 480, rowY);
-        
-        doc.fontSize(9).fillColor('#666666')
-           .text(`Notas adicionales: ${datos.detalles}`, 60, rowY + 15, { width: 400 });
+    // --- TABLA PROFESIONAL (Detalle del Producto) ---
+    const tableTop = 250;
+    doc.rect(50, tableTop, 495, 25).fill("#f6f6f6"); // Fondo gris claro para encabezado de tabla
 
-        // --- MARKETING Y QR (Seriedad y Modernidad) ---
-        const marketingY = 450;
-        doc.rect(50, marketingY, 495, 120).strokeColor('#000000').lineWidth(0.5).stroke();
-        
-        doc.fillColor('#000000').fontSize(12).font('Helvetica-Bold').text('NUESTRAS REDES SOCIALES', 70, marketingY + 15);
-        doc.fontSize(10).font('Helvetica')
-           .text('• Instagram: @TuNegocioCreativo', 70, marketingY + 40)
-           .text('• TikTok: @TuNegocioOficial', 70, marketingY + 55)
-           .text('• Facebook: fb.com/TuNegocio', 70, marketingY + 70);
+    doc
+      .fillColor("#000000")
+      .font("Helvetica-Bold")
+      .text("CONCEPTO / MATERIAL", 60, tableTop + 7)
+      .text("CANT.", 350, tableTop + 7)
+      .text("TOTAL", 480, tableTop + 7);
 
-        // Generar QR dinámico que apunte a tu WhatsApp de atención
-        const qrData = `https://wa.me/tu_numero?text=Hola, tengo una duda sobre mi ticket ${datos.ticket}`;
-        const qrImage = await QRCode.toDataURL(qrData);
-        doc.image(qrImage, 430, marketingY + 10, { width: 100 });
+    const rowY = tableTop + 40;
+    doc
+      .font("Helvetica")
+      .text(`${datos.categoria.toUpperCase()}`, 60, rowY)
+      .text(`${datos.cantidad}`, 350, rowY)
+      .text(`${datos.precioTotal}`, 480, rowY);
 
-        // --- MEDIOS DE PAGO ---
-        doc.fontSize(12).font('Helvetica-Bold').text('FORMAS DE PAGO ACEPTADAS', 50, 600);
-        doc.fontSize(10).font('Helvetica')
-           .text('• Transferencia Interbancaria (SPEI)', 50, 620)
-           .text('• Depósito en OXXO / 7-Eleven', 50, 635)
-           .text('• Pago con Tarjeta (vía Mercado Pago)', 50, 650);
+    doc
+      .fontSize(9)
+      .fillColor("#666666")
+      .text(`Notas adicionales: ${datos.detalles}`, 60, rowY + 15, {
+        width: 400,
+      });
 
-        if (datos.precioTotal === "Cotización") {
-            doc.fillColor('red').font('Helvetica-Bold').fontSize(10)
-               .text('⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.', 50, 680);
-        }
+    // --- MARKETING Y QR (Seriedad y Modernidad) ---
+    const marketingY = 450;
+    doc
+      .rect(50, marketingY, 495, 120)
+      .strokeColor("#000000")
+      .lineWidth(0.5)
+      .stroke();
 
-        // --- PIE DE PÁGINA ---
-        doc.fillColor('#aaaaaa').fontSize(8)
-           .text('Este es un documento oficial generado automáticamente por nuestro sistema de atención.', 0, 780, { align: 'center' });
+    doc
+      .fillColor("#000000")
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
+    doc
+      .fontSize(10)
+      .font("Helvetica")
+      .text("• Instagram: @TuNegocioCreativo", 70, marketingY + 40)
+      .text("• TikTok: @TuNegocioOficial", 70, marketingY + 55)
+      .text("• Facebook: fb.com/TuNegocio", 70, marketingY + 70);
 
-        doc.end();
-        stream.on('finish', () => resolve());
-        stream.on('error', (err) => reject(err));
-    });
+    // Generar QR dinámico que apunte a tu WhatsApp de atención
+    const qrData = `https://wa.me/tu_numero?text=Hola, tengo una duda sobre mi ticket ${datos.ticket}`;
+    const qrImage = await QRCode.toDataURL(qrData);
+    doc.image(qrImage, 430, marketingY + 10, { width: 100 });
+
+    // --- MEDIOS DE PAGO ---
+    doc
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text("FORMAS DE PAGO ACEPTADAS", 50, 600);
+    doc
+      .fontSize(10)
+      .font("Helvetica")
+      .text("• Transferencia Interbancaria (SPEI)", 50, 620)
+      .text("• Depósito en OXXO / 7-Eleven", 50, 635)
+      .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 650);
+
+    if (datos.precioTotal === "Cotización") {
+      doc
+        .fillColor("red")
+        .font("Helvetica-Bold")
+        .fontSize(10)
+        .text(
+          "⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.",
+          50,
+          680,
+        );
+    }
+
+    // --- PIE DE PÁGINA ---
+    doc
+      .fillColor("#aaaaaa")
+      .fontSize(8)
+      .text(
+        "Este es un documento oficial generado automáticamente por nuestro sistema de atención.",
+        0,
+        780,
+        { align: "center" },
+      );
+
+    doc.end();
+    stream.on("finish", () => resolve());
+    stream.on("error", (err) => reject(err));
+  });
 }
 
 // ==========================================
@@ -733,17 +784,17 @@ app.post("/webhook", async (req, res) => {
             textoAnalizar.includes("taza") ||
             textoAnalizar.includes("mdf") ||
             textoAnalizar.includes("madera") ||
-             textoAnalizar.includes("laser") ||
-              textoAnalizar.includes("grabado") ||
-               textoAnalizar.includes("corte");
+            textoAnalizar.includes("laser") ||
+            textoAnalizar.includes("grabado") ||
+            textoAnalizar.includes("corte");
 
           if (!tieneMaterial) {
-        await enviarMensaje(
-            numeroCliente,
-            "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\n" +
-            "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨"
-        );
-        return; // Detiene la generación de la orden
+            await enviarMensaje(
+              numeroCliente,
+              "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\n" +
+                "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨",
+            );
+            return; // Detiene la generación de la orden
           }
         }
 
@@ -773,10 +824,10 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(
             numeroCliente,
             saludo + "\n\n¿Deseas realizar otra acción?",
-            ["Cancelar Pedido", "Confirmar Pedido", "Inicio" ],
+            ["Confirmar Pedido", "Cancelar Pedido", "Inicio"],
           );
           return;
-          }
+        }
 
         //Cliente nuevo
         if (estadosClientes[numeroCliente]?.esperandoNombre) {
@@ -1236,55 +1287,72 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-            // COLOCAR DENTRO DE TU SWITCH (resBtn)
-case "Confirmar Pedido":
-    // 1. Verificamos que existan datos en la memoria
-    const datosCliente = estadosClientes[numeroCliente];
+          // COLOCAR DENTRO DE TU SWITCH (resBtn)
+          case "Confirmar Pedido":
+            // 1. Verificamos que existan datos en la memoria
+            const datosCliente = estadosClientes[numeroCliente];
 
-    if (datosCliente && datosCliente.ticket) {
-        // 2. Definimos la ruta donde se guardará el PDF temporalmente
-        // Asegúrate de tener una carpeta llamada 'temp' en tu proyecto
-        const rutaPDF = `./temp/Orden_${datosCliente.ticket}.pdf`;
+            if (datosCliente && datosCliente.ticket) {
+              // 2. Definimos la ruta donde se guardará el PDF temporalmente
+              // Asegúrate de tener una carpeta llamada 'temp' en tu proyecto
+              const rutaPDF = `./temp/Orden_${datosCliente.ticket}.pdf`;
 
-        try {
-            // 3. Generamos el PDF con el diseño de autoridad
-            // Usamos los datos que ya calculamos (cantidad, precioTotal, etc.)
-            await generarPDFOrden({
-                ticket: datosCliente.ticket,
-                numero: numeroCliente,
-                categoria: datosCliente.categoria,
-                detalles: datosCliente.detalles,
-                cantidad: datosCliente.cantidad,
-                precioTotal: datosCliente.precioTotal // Aquí dirá "$300" o "Cotización"
-            }, rutaPDF);
+              try {
+                // 3. Generamos el PDF con el diseño de autoridad
+                // Usamos los datos que ya calculamos (cantidad, precioTotal, etc.)
+                await generarPDFOrden(
+                  {
+                    ticket: datosCliente.ticket,
+                    numero: numeroCliente,
+                    categoria: datosCliente.categoria,
+                    detalles: datosCliente.detalles,
+                    cantidad: datosCliente.cantidad,
+                    precioTotal: datosCliente.precioTotal, // Aquí dirá "$300" o "Cotización"
+                  },
+                  rutaPDF,
+                );
 
-            // 4. Enviamos el documento al cliente
-            await enviarDocumento(numeroCliente, rutaPDF, `Orden_${datosCliente.ticket}.pdf`);
+                // 4. Enviamos el documento al cliente
+                await enviarDocumento(
+                  numeroCliente,
+                  rutaPDF,
+                  `Orden_${datosCliente.ticket}.pdf`,
+                );
 
-            // 5. Mensaje de cierre profesional
-            const mensajeCierre = 
-                `✨ *¡ORDEN GENERADA CON ÉXITO!*\n\n` +
-                `Te he enviado un documento PDF con los detalles de tu pedido, métodos de pago y nuestras redes sociales.\n\n` +
-                `🆔 *Número de Ticket:* ${datosCliente.ticket}\n\n` +
-                `_Por favor, descarga el archivo para cualquier aclaración futura. ¡Gracias por tu preferencia!_`;
+                // 5. Mensaje de cierre profesional
+                const mensajeCierre =
+                  `✨ *¡ORDEN GENERADA CON ÉXITO!*\n\n` +
+                  `Te he enviado un documento PDF con los detalles de tu pedido, métodos de pago y nuestras redes sociales.\n\n` +
+                  `🆔 *Número de Ticket:* ${datosCliente.ticket}\n\n` +
+                  `_Por favor, descarga el archivo para cualquier aclaración futura. ¡Gracias por tu preferencia!_`;
 
-            await enviarBotones(numeroCliente, mensajeCierre, ["Nuevo Pedido", "Inicio"]);
+                await enviarBotones(numeroCliente, mensajeCierre, [
+                  "Nuevo Pedido",
+                  "Inicio",
+                ]);
 
-            // 6. Opcional: Borramos el archivo físico después de enviarlo para no llenar el servidor
-            // fs.unlinkSync(rutaPDF); 
-            
-            // Limpiamos la memoria del cliente para que pueda hacer un nuevo pedido
-            delete estadosClientes[numeroCliente];
+                // 6. Opcional: Borramos el archivo físico después de enviarlo para no llenar el servidor
+                // fs.unlinkSync(rutaPDF);
 
-        } catch (error) {
-            console.log("❌ Error en el proceso de Confirmar Pedido:", error);
-            await enviarMensaje(numeroCliente, "⚠️ Hubo un error al generar tu orden PDF. Pero no te preocupes, un asesor revisará tu pedido manualmente.");
-        }
-    } else {
-        await enviarMensaje(numeroCliente, "❌ No encontré una sesión activa. Por favor, inicia un pedido en 'Personalizar'.");
-    }
-    break;
-
+                // Limpiamos la memoria del cliente para que pueda hacer un nuevo pedido
+                delete estadosClientes[numeroCliente];
+              } catch (error) {
+                console.log(
+                  "❌ Error en el proceso de Confirmar Pedido:",
+                  error,
+                );
+                await enviarMensaje(
+                  numeroCliente,
+                  "⚠️ Hubo un error al generar tu orden PDF. Pero no te preocupes, un asesor revisará tu pedido manualmente.",
+                );
+              }
+            } else {
+              await enviarMensaje(
+                numeroCliente,
+                "❌ No encontré una sesión activa. Por favor, inicia un pedido en 'Personalizar'.",
+              );
+            }
+            break;
         }
       }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
