@@ -1056,62 +1056,67 @@ app.post("/webhook", async (req, res) => {
                 Estado_Produccion: "Cancelado",
               });
 
-              const alertaAdmin = `🚫 *PEDIDO CANCELADO*\n🆔 *Ticket:* ${ticketParaBorrar}\n👤 *Cliente:* ${numeroCliente}`;
+              const alertaAdmin =
+                `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
+                `🆔 *Ticket:* ${ticketParaBorrar}\n` +
+                `👤 *Cliente:* ${numeroCliente}\n` +
+                `--------------------------\n` +
+                `_La fila en el Sheet se ha tachado automáticamente._`;
 
-              // CONFIGURACIÓN MANUAL DEL BOTÓN CON ID REAL
-              const botonesConId = [
+              // CORRECCIÓN: Definimos el botón con el ID del ticket incluido
+              const botonReactivar = [
                 {
                   type: "reply",
                   reply: {
-                    id: ticketParaBorrar, // <--- AQUÍ metemos el ID del ticket (Ej: PED-1740...)
+                    id: ticketParaBorrar, // <--- Aquí inyectamos el ticket real
                     title: "Reactivar Ticket",
                   },
                 },
               ];
 
-              // IMPORTANTE: Asegúrate de enviar el objeto 'botonesConId'
-              // Si tu función enviarBotones solo acepta texto, usa la que envíe objetos interactivos
+              // Enviamos el objeto 'botonReactivar' en lugar de solo texto
               await enviarBotones(
                 process.env.MY_PERSONAL_NUMBER,
                 alertaAdmin,
-                botonesConId,
+                botonReactivar,
               );
 
               await enviarMensaje(
                 numeroCliente,
-                `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado.`,
+                `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
               );
-
-              // No borres el estado todavía, o asegúrate de que el botón lleve el ID
               delete estadosClientes[numeroCliente];
+            } else {
+              await enviarMensaje(
+                numeroCliente,
+                "❌ No encontré un pedido reciente para cancelar.",
+              );
             }
             break;
 
           case "Reactivar Ticket":
             if (esAdmin) {
-              // Leemos el ID que nosotros mismos pusimos en el paso anterior
-              const ticketIdDelBoton = msg.interactive.button_reply.id;
+              // CORRECCIÓN: Ya no usamos 'estadosClientes', leemos el ID del botón
+              const ticketAReactivar = msg.interactive.button_reply.id;
 
-              console.log("ID recibido del botón:", ticketIdDelBoton);
+              // Verificamos que el ID no sea "btn_0"
+              if (ticketAReactivar && ticketAReactivar !== "btn_0") {
+                console.log(
+                  `🔄 Reactivando ticket desde botón: ${ticketAReactivar}`,
+                );
 
-              // Validamos que no sea un ID genérico como btn_0
-              if (ticketIdDelBoton && !ticketIdDelBoton.includes("btn_")) {
-                await actualizarEstadoCRM(ticketIdDelBoton, {
+                await actualizarEstadoCRM(ticketAReactivar, {
                   Estado_Pago: "Pendiente",
                   Estado_Produccion: "En Espera",
                 });
 
                 await enviarMensaje(
                   process.env.MY_PERSONAL_NUMBER,
-                  `✅ El ticket *${ticketIdDelBoton}* ha sido REACTIVADO.`,
+                  `✅ Ticket *${ticketAReactivar}* reactivado en el Sheet.`,
                 );
               } else {
                 console.log(
-                  "❌ Error: El botón no traía un ID de ticket válido (llegó btn_0)",
-                );
-                await enviarMensaje(
-                  numeroCliente,
-                  "❌ No se pudo reactivar: El botón no contiene el ID del ticket.",
+                  "❌ Error: El botón recibido no tiene un ID de ticket válido.",
                 );
               }
             }
