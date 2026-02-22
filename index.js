@@ -1048,60 +1048,59 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-            const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+    const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
 
-            if (ticketParaBorrar) {
-              await actualizarEstadoCRM(ticketParaBorrar, {
-                Estado_Pago: "Cancelado",
-                Estado_Produccion: "Cancelado",
-              });
+    if (ticketParaBorrar) {
+        await actualizarEstadoCRM(ticketParaBorrar, {
+            Estado_Pago: "Cancelado",
+            Estado_Produccion: "Cancelado",
+        });
 
-              // Alerta para TI con opción de reactivar
-              const alertaAdmin =
-                `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
-                `🆔 *Ticket:* ${ticketParaBorrar}\n` +
-                `👤 *Cliente:* ${numeroCliente}\n` +
-                `--------------------------\n` +
-                `_La fila en el Sheet se ha tachado automáticamente._`;
+        const alertaAdmin = `🚫 *PEDIDO CANCELADO*\n🆔 *Ticket:* ${ticketParaBorrar}\n👤 *Cliente:* ${numeroCliente}`;
 
-              // Enviamos el mensaje a tu número con un botón de acción rápida
-              await enviarBotones(process.env.MY_PERSONAL_NUMBER, alertaAdmin, [
-                "Reactivar Ticket",
-              ]);
-
-              await enviarMensaje(
-                numeroCliente,
-                `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
-              );
-              delete estadosClientes[numeroCliente];
-            } else {
-              await enviarMensaje(
-                numeroCliente,
-                "❌ No encontré un pedido reciente para cancelar.",
-              );
+        // MODIFICACIÓN AQUÍ: Enviamos un objeto de botón con ID
+        const botonesReactivar = [
+            {
+                type: "reply",
+                reply: {
+                    id: ticketParaBorrar, // <--- Guardamos el ticket AQUÍ
+                    title: "Reactivar Ticket"
+                }
             }
-            break;
+        ];
+
+        // Usa tu función de enviar botones (asegúrate de que acepte objetos o usa la estructura correcta)
+        await enviarBotones(process.env.MY_PERSONAL_NUMBER, alertaAdmin, botonesReactivar);
+
+        await enviarMensaje(numeroCliente, `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado.`);
+        
+        // No borres el estado todavía, o asegúrate de que el botón lleve el ID
+        delete estadosClientes[numeroCliente]; 
+    }
+    break;
 
           case "Reactivar Ticket":
-            if (esAdmin) {
-              // El bot debe saber qué ticket reactivar.
-              // Podriamos sacar el ID del texto del mensaje anterior o de la memoria
-              const ticketAReactivar = estadosClientes[numeroCliente]?.ticket;
+    if (esAdmin) {
+        // SACAMOS EL ID DEL BOTÓN (que es el ticket)
+        const ticketAReactivar = msg.interactive.button_reply.id; 
 
-              if (ticketAReactivar) {
-                // LLAMADA A LA FUNCIÓN (La lupa):
-                await actualizarEstadoCRM(ticketAReactivar, {
-                  Estado_Pago: "Pendiente",
-                  Estado_Produccion: "En Espera",
-                });
+        if (ticketAReactivar) {
+            console.log("Reactivando ticket detectado del botón:", ticketAReactivar);
+            
+            await actualizarEstadoCRM(ticketAReactivar, {
+                Estado_Pago: "Pendiente",
+                Estado_Produccion: "En Espera",
+            });
 
-                await enviarMensaje(
-                  process.env.MY_PERSONAL_NUMBER,
-                  `✅ Ticket ${ticketAReactivar} reactivado en el Sheet.`,
-                );
-              }
-            }
-            break;
+            await enviarMensaje(
+                process.env.MY_PERSONAL_NUMBER,
+                `✅ El ticket *${ticketAReactivar}* ha sido REACTIVADO con éxito.`
+            );
+        } else {
+            console.log("❌ No se encontró ID en el botón de reactivación");
+        }
+    }
+    break;
         }
       }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
