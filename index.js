@@ -469,6 +469,11 @@ async function procesarPedidoDetallado(
     });
 
     //Notidicacion detallada
+    estadosClientes["ADMIN_ACTIVO"] = {
+      ultimoTicket: ticketGenerado,
+      clienteWhatsapp: numeroCliente,
+    };
+
     const mensajeAdmin =
       `🛠️ *Orden de Producción:* 🛠️\n` +
       `-----------------------------\n` +
@@ -481,11 +486,14 @@ async function procesarPedidoDetallado(
       `🖼️ *Link:* ${result.secure_url}\n` +
       `-----------------------------\n` +
       `⏰ ${fechaHora}`;
-    await enviarMensaje(MI_NUMERO, mensajeAdmin);
+    await enviarMensaje(MI_NUMERO, mensajeAdmin, [
+      "Marcar Pagado ✅",
+      "Marcar Anticipo 💰"
+    ]);
 
     const despedidaElegante =
       `✅ *¡Orden registrada con éxito!*\n\n` +
-      `🆔 *Ticket:* ${ticket}\n\n` +
+      `🆔 \`*Ticket:* ${ticket}\`\n\n` +
       `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
       `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n` +
       `Estamos trabajando para que su proyecto sea único.\n\n` +
@@ -971,7 +979,8 @@ app.post("/webhook", async (req, res) => {
               "Selecciona una Categoría para realizar un *Nuevo Pedido*.\n\n" +
               "-----------------------------\n" +
               "🔎 Si ya tienes un pedido y quieres saber su estatus escribe:\n\n" +
-              "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)";
+              "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)\n" +
+              "Puedes copiar el numero de tu pedido en tu orden generada.";
             await enviarBotones(numeroCliente, instrucciones, [
               "Textil",
               "Tazas y MDF",
@@ -1107,6 +1116,37 @@ app.post("/webhook", async (req, res) => {
               } else {
                 console.log(
                   "❌ Error: Se recibió btn_0. Revisa la función enviarBotones.",
+                );
+              }
+            }
+            break;
+
+          case "Marcar Pagado ✅":
+            if (numeroCliente === process.env.MY_PERSONAL_NUMBER) {
+              const ticketId = estadosClientes["ADMIN_ACTIVO"]?.ultimoTicket;
+              if (ticketId) {
+                await actualizarEstadoCRM(ticketId, {
+                  Estado_Pago: "Pagado",
+                  Estado_Produccion: "En Porceso",
+                });
+                await enviarMensaje(
+                  numeroCliente,
+                  `El ticket: *${ticketId}* ha sido actualizado a PAGADO.`,
+                );
+              }
+            }
+            break;
+
+          case "Marcar Anticipo 💰":
+            if (numeroCliente === process.env.MY_PERSONAL_NUMBER) {
+              const ticketId = estadosClientes["ADMIN_ACTIVO"]?.ultimoTicket;
+              if (ticketId) {
+                await actualizarEstadoCRM(ticketId, {
+                  Estado_Pago: "Anticipo",
+                });
+                await enviarMensaje(
+                  numeroCliente,
+                  `💰 El ticket *${ticketId}* ahora tiene Anticipo.`,
                 );
               }
             }
