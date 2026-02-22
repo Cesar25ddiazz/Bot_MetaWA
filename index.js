@@ -204,29 +204,34 @@ async function enviarPDF(numero, url, nombreArchivo) {
 
 async function enviarDocumento(numero, pathArchivo, nombreMostrar) {
   try {
-    const formData = new FormData();
-    // Usamos fs.readFileSync para leer el archivo y enviarlo como un Blob/Buffer
+    // 1. Leemos el archivo del disco
     const fileBuffer = fs.readFileSync(pathArchivo);
-
-    // El FormData nativo prefiere Blobs o Buffers con nombre de archivo
-    formData.append("file", new Blob([fileBuffer]), nombreMostrar);
+    
+    // 2. Creamos el FormData
+    const formData = new FormData();
+    
+    // 🔍 LUPA: Aquí está el truco. Creamos el Blob especificando el TYPE
+    const miArchivoBlob = new Blob([fileBuffer], { type: "application/pdf" });
+    
+    // Agregamos el archivo al form. 
+    // WhatsApp necesita que el campo se llame "file"
+    formData.append("file", miArchivoBlob, nombreMostrar);
     formData.append("messaging_product", "whatsapp");
     formData.append("type", "application/pdf");
 
-    // 1. Subir el archivo a WhatsApp
-    // NOTA: Quitamos ...formData.getHeaders() porque Axios lo hace solo
+    // 3. Subida a los servidores de Meta
     const upload = await axios.post(
       `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/media`,
       formData,
       {
         headers: {
           Authorization: `Bearer ${ACCESS_TOKEN}`,
-          // No es necesario Content-Type, Axios lo detecta al ver el FormData
+          // No pongas Content-Type manual, Axios lo hará por ti
         },
-      },
+      }
     );
 
-    // 2. Enviar el mensaje con el ID del archivo subido
+    // 4. Si la subida fue exitosa, enviamos el mensaje
     if (upload.data && upload.data.id) {
       await axios.post(
         `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
@@ -239,16 +244,13 @@ async function enviarDocumento(numero, pathArchivo, nombreMostrar) {
             filename: nombreMostrar,
           },
         },
-        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } },
+        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } }
       );
-      console.log(`✅ PDF enviado con éxito: ${nombreMostrar}`);
+      console.log(`✅ PDF enviado exitosamente con ID: ${upload.data.id}`);
     }
   } catch (e) {
-    // Usamos un log más detallado para ver qué dice Facebook si falla
-    console.log(
-      "❌ Error enviando PDF:",
-      JSON.stringify(e.response?.data || e.message),
-    );
+    // Log detallado para ver la respuesta de Facebook si vuelve a fallar
+    console.log("❌ Error enviando PDF:", JSON.stringify(e.response?.data || e.message));
   }
 }
 
@@ -921,10 +923,7 @@ app.post("/webhook", async (req, res) => {
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
         // Si el mensaje es texto y estamos esperando el nombre
-        if (
-          msg.type === "text" &&
-          estadosClientes[numeroCliente]?.esperandoNombre
-        ) {
+        if (estadosClientes[numeroCliente]?.esperandoNombre) {
           const nombreProporcionado = msg.text.body.trim();
           const datosRecuperados = estadosClientes[numeroCliente];
 
@@ -1058,23 +1057,6 @@ app.post("/webhook", async (req, res) => {
         const quiereBienvenida = disparadoresBienvenida.some((palabra) =>
           textoCliente.includes(palabra),
         );
-
-        if (estadosClientes[numeroCliente]?.esperandoNombre) {
-          const datos = estadosClientes[numeroCliente];
-
-          //Procesamos con el nombre real que acaba de escribir
-          await procesarPedidoDetallado(
-            textoCliente,
-            numeroCliente,
-            datos.imageId,
-            datos.comentario,
-            datos.ticket,
-          );
-
-          //Limpiamos el estado para que pueda seguir usando el bot normal
-          delete estadosClientes[numeroCliente];
-          return; //Salimos para que no ejecute la lógica de bienvenida
-        }
 
         if (quiereBienvenida) {
           // await escribir(numeroCliente); //El cliente ve escribiendo
