@@ -54,12 +54,12 @@ cloudinary.config({
 const BASE_PATH = path.join(__dirname, "pedidos_clientes");
 fs.ensureDirSync(BASE_PATH); // Crea la carpeta principal si no existe
 
-const dir = './temp';
-if (!fs.existsSync(dir)){
-    fs.mkdirSync(dir);
-    console.log("📂 Carpeta 'temp' creada con éxito");
+const dir = "./temp";
+if (!fs.existsSync(dir)) {
+  fs.mkdirSync(dir);
+  console.log("📂 Carpeta 'temp' creada con éxito");
 } else {
-    console.log("✅ Carpeta 'temp' ya existe, lista para usar");
+  console.log("✅ Carpeta 'temp' ya existe, lista para usar");
 }
 
 const PRECIOS = {
@@ -205,38 +205,50 @@ async function enviarPDF(numero, url, nombreArchivo) {
 async function enviarDocumento(numero, pathArchivo, nombreMostrar) {
   try {
     const formData = new FormData();
-    formData.append("file", fs.createReadStream(pathArchivo));
+    // Usamos fs.readFileSync para leer el archivo y enviarlo como un Blob/Buffer
+    const fileBuffer = fs.readFileSync(pathArchivo);
+
+    // El FormData nativo prefiere Blobs o Buffers con nombre de archivo
+    formData.append("file", new Blob([fileBuffer]), nombreMostrar);
     formData.append("messaging_product", "whatsapp");
     formData.append("type", "application/pdf");
 
     // 1. Subir el archivo a WhatsApp
+    // NOTA: Quitamos ...formData.getHeaders() porque Axios lo hace solo
     const upload = await axios.post(
       `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/media`,
       formData,
       {
         headers: {
-          ...formData.getHeaders(),
           Authorization: `Bearer ${ACCESS_TOKEN}`,
+          // No es necesario Content-Type, Axios lo detecta al ver el FormData
         },
       },
     );
 
     // 2. Enviar el mensaje con el ID del archivo subido
-    await axios.post(
-      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: numero,
-        type: "document",
-        document: {
-          id: upload.data.id,
-          filename: nombreMostrar,
+    if (upload.data && upload.data.id) {
+      await axios.post(
+        `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+        {
+          messaging_product: "whatsapp",
+          to: numero,
+          type: "document",
+          document: {
+            id: upload.data.id,
+            filename: nombreMostrar,
+          },
         },
-      },
-      { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } },
-    );
+        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } },
+      );
+      console.log(`✅ PDF enviado con éxito: ${nombreMostrar}`);
+    }
   } catch (e) {
-    console.log("❌ Error enviando PDF:", e.response?.data || e.message);
+    // Usamos un log más detallado para ver qué dice Facebook si falla
+    console.log(
+      "❌ Error enviando PDF:",
+      JSON.stringify(e.response?.data || e.message),
+    );
   }
 }
 
@@ -778,12 +790,10 @@ app.post("/webhook", async (req, res) => {
         const ticketGenerado = `PED-${Date.now()}`;
         const comentarioImagen = (msg.image?.caption || "").trim();
 
-        //Limpiamos estados previos
-        delete estadosClientes[numeroCliente];
-        const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
-
         //Validacion de material
         const estadoPrevio = estadosClientes[numeroCliente] || {};
+
+        const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
@@ -811,12 +821,26 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
+        // --- CÁLCULO DE PRECIOS PARA EL PDF (IMPORTANTE) ---
+        // Extraer cantidad
+        const cantidadMatch = comentarioImagen.match(/\d+/);
+        const cantidad = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
+        let precioCalculado =
+          estadoPrevio.categoria === "TAZAS Y MDF" &&
+          comentarioImagen.toLowerCase().includes("taza")
+            ? `$${cantidad * 150}`
+            : "Cotización";
+
         //Cliente ya existe en excel
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
+          // Guardamos TODOS los datos necesarios para el PDF
           estadosClientes[numeroCliente] = {
             ...estadosClientes[numeroCliente],
             ticket: ticketGenerado,
+            cantidad: cantidad,
+            precioTotal: precioCalculado,
+            detalles: comentarioImagen,
           };
 
           await procesarPedidoDetallado(
@@ -826,6 +850,7 @@ app.post("/webhook", async (req, res) => {
             comentarioImagen,
             ticketGenerado,
           );
+
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
             : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*.\n En un momento te confirmo los detalles.`;
@@ -837,21 +862,15 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
-        //Cliente nuevo
-        if (estadosClientes[numeroCliente]?.esperandoNombre) {
-          console.log(
-            "Ya estamos esperando el nombre de este cliente, ignorando repetición.",
-          );
-          return;
-        }
-
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         estadosClientes[numeroCliente] = {
           esperandoNombre: true,
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
-          comentario: comentarioImagen,
+          detalles: comentarioImagen,
           categoria: estadoPrevio.categoria,
+          cantidad: cantidad,
+          precioTotal: precioCalculado,
         };
 
         //Confirmación inmediata del cliente
@@ -866,8 +885,64 @@ app.post("/webhook", async (req, res) => {
         return;
       }
 
+      // Si el mensaje es texto y estamos esperando el nombre
+      if (
+        msg.type === "text" &&
+        estadosClientes[numeroCliente]?.esperandoNombre
+      ) {
+        const nombreProporcionado = msg.text.body.trim();
+        const datosRecuperados = estadosClientes[numeroCliente];
+
+        // Actualizamos memoria con el nombre
+        estadosClientes[numeroCliente] = {
+          ...datosRecuperados,
+          nombre: nombreProporcionado,
+          esperandoNombre: false,
+        };
+
+        const mensajeConfirmacion =
+          `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
+          `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
+          `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
+          `¿Los datos son correctos para generar tu Orden en PDF?`;
+
+        await enviarBotones(numeroCliente, mensajeConfirmacion, [
+          "Confirmar Pedido",
+          "Cancelar Pedido",
+        ]);
+        return;
+      }
+
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
+        // Si el mensaje es texto y estamos esperando el nombre
+        if (
+          msg.type === "text" &&
+          estadosClientes[numeroCliente]?.esperandoNombre
+        ) {
+          const nombreProporcionado = msg.text.body.trim();
+          const datosRecuperados = estadosClientes[numeroCliente];
+
+          // Actualizamos memoria con el nombre
+          estadosClientes[numeroCliente] = {
+            ...datosRecuperados,
+            nombre: nombreProporcionado,
+            esperandoNombre: false,
+          };
+
+          const mensajeConfirmacion =
+            `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
+            `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
+            `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
+            `¿Los datos son correctos para generar tu Orden en PDF?`;
+
+          await enviarBotones(numeroCliente, mensajeConfirmacion, [
+            "Confirmar Pedido",
+            "Cancelar Pedido",
+          ]);
+          return;
+        }
+
         //Limpiamos el texto del cliente
         const textoCliente = msg.text.body.toLowerCase().trim();
         const numeroCliente = msg.from;
@@ -1297,38 +1372,50 @@ app.post("/webhook", async (req, res) => {
 
           // COLOCAR DENTRO DE TU SWITCH (resBtn)
           case "Confirmar Pedido":
-    const datosParaPDF = estadosClientes[numeroCliente]; // <--- La memoria
+            const datosParaPDF = estadosClientes[numeroCliente]; // <--- La memoria
 
-    if (datosParaPDF) {
-        const ticketFinal = datosParaPDF.ticket || `PED-${Date.now()}`;
-        
-        const rutaPDF = `./temp/Orden_${ticketFinal}.pdf`;
+            if (datosParaPDF) {
+              const ticketFinal = datosParaPDF.ticket || `PED-${Date.now()}`;
 
-        try {
-            // Pasamos los datos asegurándonos de que NADA sea undefined
-            await generarPDFOrden({
-                ticket: ticketFinal,
-                numero: numeroCliente,
-                categoria: datosParaPDF.categoria || "General", // <--- IMPORTANTE
-                detalles: datosParaPDF.detalles || "Sin descripción",
-                cantidad: datosParaPDF.cantidad || 1,
-                precioTotal: datosParaPDF.precioTotal || "Cotización"
-            }, rutaPDF);
+              const rutaPDF = `./temp/Orden_${ticketFinal}.pdf`;
 
-            await enviarDocumento(numeroCliente, rutaPDF, `Orden_${ticketFinal}.pdf`);
-            
-            await enviarMensaje(numeroCliente, `✅ ¡Orden generada! Tu ticket es *${ticketFinal}*`);
-            
-            // IMPORTANTE: Borra la memoria DESPUÉS de enviar el PDF, no antes.
-            delete estadosClientes[numeroCliente];
+              try {
+                // Pasamos los datos asegurándonos de que NADA sea undefined
+                await generarPDFOrden(
+                  {
+                    ticket: ticketFinal,
+                    numero: numeroCliente,
+                    categoria: datosParaPDF.categoria || "General", // <--- IMPORTANTE
+                    detalles: datosParaPDF.detalles || "Sin descripción",
+                    cantidad: datosParaPDF.cantidad || 1,
+                    precioTotal: datosParaPDF.precioTotal || "Cotización",
+                  },
+                  rutaPDF,
+                );
 
-        } catch (error) {
-            console.log("❌ Error al generar PDF:", error);
-        }
-    } else {
-        await enviarMensaje(numeroCliente, "⚠️ No encontré datos de tu pedido. Por favor intenta de nuevo.");
-    }
-    break;
+                await enviarDocumento(
+                  numeroCliente,
+                  rutaPDF,
+                  `Orden_${ticketFinal}.pdf`,
+                );
+
+                await enviarMensaje(
+                  numeroCliente,
+                  `✅ ¡Orden generada! Tu ticket es *${ticketFinal}*`,
+                );
+
+                // IMPORTANTE: Borra la memoria DESPUÉS de enviar el PDF, no antes.
+                delete estadosClientes[numeroCliente];
+              } catch (error) {
+                console.log("❌ Error al generar PDF:", error);
+              }
+            } else {
+              await enviarMensaje(
+                numeroCliente,
+                "⚠️ No encontré datos de tu pedido. Por favor intenta de nuevo.",
+              );
+            }
+            break;
         }
       }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
