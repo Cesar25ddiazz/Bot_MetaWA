@@ -15,7 +15,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || hora >= 21 || hora < 9;
+  return dia === 0 || hora >= 23 || hora < 9;
 }
 
 //Función retraso
@@ -495,6 +495,7 @@ async function procesarPedidoDetallado(
     await delay(1500);
     await enviarBotones(numeroCliente, despedidaElegante, [
       "Hablar con Asesor",
+      "Inicio",
     ]);
   } catch (error) {
     console.error("✖️ Error en producción:", error);
