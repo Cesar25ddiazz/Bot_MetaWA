@@ -136,10 +136,16 @@ async function escribir(numero) {
 // Enviar botones interactivos
 async function enviarBotones(numero, textoCuerpo, listaBotones) {
   try {
-    const botones = listaBotones.slice(0, 3).map((nombre, i) => ({
-      type: "reply",
-      reply: { id: `btn_${i}`, title: nombre.substring(0, 20) },
-    }));
+    const botones = listaBotones.slice(0, 3).map((boton, i) => {
+      if (typeof boton === "string") {
+        return {
+          type: "reply",
+          reply: { id: `btn_${i}`, title: boton.substring(0, 20) },
+        };
+      }
+      // SI EL BOTON YA ES UN OBJETO (como el que usaremos para reactivar)
+      return boton;
+    });
     await axios({
       method: "POST",
       url: `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
@@ -686,7 +692,10 @@ app.post("/webhook", async (req, res) => {
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
         if (esAdmin) {
-          if (textoCliente.toLowerCase().startsWith("pago ")) {
+          if (
+            textoCliente.toLowerCase().startsWith("pago ") ||
+            textoCliente.toLowerCase().startsWith("pagado ")
+          ) {
             const ticketId = textoCliente.split(" ")[1].trim();
             console.log("Ticket detectado con éxito:", ticketId);
 
@@ -1063,47 +1072,28 @@ app.post("/webhook", async (req, res) => {
                 `--------------------------\n` +
                 `_La fila en el Sheet se ha tachado automáticamente._`;
 
-              // CORRECCIÓN: Definimos el botón con el ID del ticket incluido
-              const botonReactivar = [
+              // Mandamos el objeto directo para que NO le ponga "btn_0"
+              await enviarBotones(process.env.MY_PERSONAL_NUMBER, alertaAdmin, [
                 {
                   type: "reply",
-                  reply: {
-                    id: ticketParaBorrar, // <--- Aquí inyectamos el ticket real
-                    title: "Reactivar Ticket",
-                  },
+                  reply: { id: ticketParaBorrar, title: "Reactivar Ticket" },
                 },
-              ];
-
-              // Enviamos el objeto 'botonReactivar' en lugar de solo texto
-              await enviarBotones(
-                process.env.MY_PERSONAL_NUMBER,
-                alertaAdmin,
-                botonReactivar,
-              );
+              ]);
 
               await enviarMensaje(
                 numeroCliente,
                 `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
               );
               delete estadosClientes[numeroCliente];
-            } else {
-              await enviarMensaje(
-                numeroCliente,
-                "❌ No encontré un pedido reciente para cancelar.",
-              );
             }
             break;
-
           case "Reactivar Ticket":
             if (esAdmin) {
-              // CORRECCIÓN: Ya no usamos 'estadosClientes', leemos el ID del botón
+              // Capturamos el ID del botón que ahora SÍ es el ticket
               const ticketAReactivar = msg.interactive.button_reply.id;
 
-              // Verificamos que el ID no sea "btn_0"
               if (ticketAReactivar && ticketAReactivar !== "btn_0") {
-                console.log(
-                  `🔄 Reactivando ticket desde botón: ${ticketAReactivar}`,
-                );
+                console.log(`✅ Reactivando ticket real: ${ticketAReactivar}`);
 
                 await actualizarEstadoCRM(ticketAReactivar, {
                   Estado_Pago: "Pendiente",
@@ -1112,11 +1102,11 @@ app.post("/webhook", async (req, res) => {
 
                 await enviarMensaje(
                   process.env.MY_PERSONAL_NUMBER,
-                  `✅ Ticket *${ticketAReactivar}* reactivado en el Sheet.`,
+                  `✅ Ticket ${ticketAReactivar} reactivado en el Sheet.`,
                 );
               } else {
                 console.log(
-                  "❌ Error: El botón recibido no tiene un ID de ticket válido.",
+                  "❌ Error: Se recibió btn_0. Revisa la función enviarBotones.",
                 );
               }
             }
