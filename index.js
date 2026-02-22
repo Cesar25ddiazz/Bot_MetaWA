@@ -472,7 +472,7 @@ async function procesarPedidoDetallado(
     const mensajeAdmin =
       `🛠️ *Orden de Producción:* 🛠️\n` +
       `-----------------------------\n` +
-      `🆔 *Ticket:* ${ticket}\n` +
+      `🆔 *Ticket:* \`${ticket}\`\n` +
       `👤 *Cliente:* ${nombreCliente}\n` +
       `📱 *Whatsapp:* wa.me/${numeroCliente}\n` +
       `📦 *CAT:* ${cat}\n` +
@@ -485,7 +485,7 @@ async function procesarPedidoDetallado(
 
     const despedidaElegante =
       `✅ *¡Orden registrada con éxito!*\n\n` +
-      `🆔 \`*Ticket:* ${ticket}\`\n\n` +
+      `🆔 *Ticket:* ${ticket}\n\n` +
       `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
       `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n` +
       `Estamos trabajando para que su proyecto sea único.\n\n` +
@@ -972,7 +972,7 @@ app.post("/webhook", async (req, res) => {
               "-----------------------------\n" +
               "🔎 Si ya tienes un pedido y quieres saber su estatus escribe:\n\n" +
               "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)\n" +
-              "Puedes copiar el numero de tu pedido en tu orden generada.";
+              "Puedes copiar el numero de pedido en tu orden generada.";
             await enviarBotones(numeroCliente, instrucciones, [
               "Textil",
               "Tazas y MDF",
