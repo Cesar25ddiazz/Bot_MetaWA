@@ -17,7 +17,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || hora >= 23 || hora < 9;
+  return dia === 0 || hora >= 24 || hora < 9;
 }
 
 //Función retraso
@@ -206,14 +206,14 @@ async function enviarDocumento(numero, pathArchivo, nombreMostrar) {
   try {
     // 1. Leemos el archivo del disco
     const fileBuffer = fs.readFileSync(pathArchivo);
-    
+
     // 2. Creamos el FormData
     const formData = new FormData();
-    
+
     // 🔍 LUPA: Aquí está el truco. Creamos el Blob especificando el TYPE
     const miArchivoBlob = new Blob([fileBuffer], { type: "application/pdf" });
-    
-    // Agregamos el archivo al form. 
+
+    // Agregamos el archivo al form.
     // WhatsApp necesita que el campo se llame "file"
     formData.append("file", miArchivoBlob, nombreMostrar);
     formData.append("messaging_product", "whatsapp");
@@ -228,7 +228,7 @@ async function enviarDocumento(numero, pathArchivo, nombreMostrar) {
           Authorization: `Bearer ${ACCESS_TOKEN}`,
           // No pongas Content-Type manual, Axios lo hará por ti
         },
-      }
+      },
     );
 
     // 4. Si la subida fue exitosa, enviamos el mensaje
@@ -244,13 +244,16 @@ async function enviarDocumento(numero, pathArchivo, nombreMostrar) {
             filename: nombreMostrar,
           },
         },
-        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } }
+        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } },
       );
       console.log(`✅ PDF enviado exitosamente con ID: ${upload.data.id}`);
     }
   } catch (e) {
     // Log detallado para ver la respuesta de Facebook si vuelve a fallar
-    console.log("❌ Error enviando PDF:", JSON.stringify(e.response?.data || e.message));
+    console.log(
+      "❌ Error enviando PDF:",
+      JSON.stringify(e.response?.data || e.message),
+    );
   }
 }
 
@@ -278,7 +281,7 @@ async function guardarEnCRM(datos) {
       }),
       Ticket: datos.ticket,
       Cliente: datos.nombre,
-      Whatsapp: `wa.me/${datos.numero}`,
+      Whatsapp: datos.numero,
       Producto: datos.categoria || "📦 GENERAL",
       Descripcion: datos.notas,
       Link_Imagen: datos.urlImagen,
@@ -415,25 +418,34 @@ async function buscarNombreEnSheets(whatsapp) {
       const celdaWhatsapp = f.get("Whatsapp") || f.get("whatsapp") || "";
       const telSheet = celdaWhatsapp.toString().replace(/\D/g, "");
 
-      return (
-        telSheet.length > 5 &&
-        (telSheet.includes(telCliente) || telCliente.includes(telSheet))
-      );
+      // Comparamos los últimos 10 dígitos para ignorar prefijos como 52 o 521
+      const match =
+        telSheet.length >= 10 && telCliente.endsWith(telSheet.slice(-10));
+      return match;
     });
 
     if (fila) {
-      // Intentamos obtener el nombre de varias formas por si acaso
+      // 🔍 LUPA: Si encontramos la fila, buscamos el nombre
+      // f.toObject() nos ayuda a ver todas las columnas por si fallan los nombres
+      const datosFila = fila.toObject();
       const nombreEncontrado =
-        fila.get("Nombre") || fila.get("nombre") || fila.get("Cliente");
-      console.log(
-        `✅ ¡Éxito! Nombre recuperado del Sheets: ${nombreEncontrado}`,
-      );
-      return nombreEncontrado;
+        datosFila["Nombre"] ||
+        datosFila["nombre"] ||
+        datosFila["Cliente"] ||
+        datosFila["Nombre Completo"];
+
+      if (nombreEncontrado) {
+        console.log(`✅ Cliente reconocido: ${nombreEncontrado}`);
+        return nombreEncontrado;
+      } else {
+        console.log(
+          "⚠️ Se encontró el teléfono, pero la columna 'Nombre' está vacía en Sheets.",
+        );
+        return null;
+      }
     }
 
-    console.log(
-      "⚠️ El número coincide pero la columna 'Nombre' parece estar vacía o mal escrita.",
-    );
+    console.log(`ℹ️ El número ${telCliente} no está registrado en el Excel.`);
     return null;
   } catch (error) {
     console.error("❌ Error buscando el cliente:", error.message);
@@ -550,9 +562,8 @@ async function procesarPedidoDetallado(
       `✅ *¡Orden registrada con éxito!*\n\n` +
       `🆔 *Ticket:* ${ticket}\n\n` +
       `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
-      `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n` +
-      `Estamos trabajando para que su proyecto sea único.\n\n` +
-      `¡Gracias por su preferencia! ✨ \n\n` +
+      `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n\n` +
+      `Recuerda que si confirmas tu pedido te descargara un PDF con los detalles.\n\n` +
       `¿Desea realizar alguna otra consulta o prefiere hablar con un *Asesor Especializado*?`;
 
     await delay(1500);
@@ -1327,6 +1338,7 @@ app.post("/webhook", async (req, res) => {
               delete estadosClientes[numeroCliente];
             }
             break;
+
           case "Reactivar Ticket":
             if (esAdmin) {
               // Capturamos el ID del botón que ahora SÍ es el ticket
@@ -1354,47 +1366,61 @@ app.post("/webhook", async (req, res) => {
 
           // COLOCAR DENTRO DE TU SWITCH (resBtn)
           case "Confirmar Pedido":
-            const datosParaPDF = estadosClientes[numeroCliente]; // <--- La memoria
+            const datosParaPDF = estadosClientes[numeroCliente];
 
             if (datosParaPDF) {
               const ticketFinal = datosParaPDF.ticket || `PED-${Date.now()}`;
-
               const rutaPDF = `./temp/Orden_${ticketFinal}.pdf`;
 
               try {
-                // Pasamos los datos asegurándonos de que NADA sea undefined
+                // 🔍 LUPA: Guardamos en el CRM con el nombre REAL antes de borrar la memoria
+                await guardarEnCRM({
+                  ticket: ticketFinal,
+                  nombre: datosParaPDF.nombre, // El nombre que el cliente escribió
+                  numero: numeroCliente, // El teléfono del cliente
+                  categoria: datosParaPDF.categoria,
+                  notas: datosParaPDF.detalles,
+                  urlImagen: datosParaPDF.urlImagen || "",
+                  precio: datosParaPDF.precioTotal,
+                });
+
+                // Generamos el PDF
                 await generarPDFOrden(
                   {
                     ticket: ticketFinal,
                     numero: numeroCliente,
-                    categoria: datosParaPDF.categoria || "General", // <--- IMPORTANTE
+                    categoria: datosParaPDF.categoria || "General",
                     detalles: datosParaPDF.detalles || "Sin descripción",
                     cantidad: datosParaPDF.cantidad || 1,
                     precioTotal: datosParaPDF.precioTotal || "Cotización",
+                    nombre: datosParaPDF.nombre,
                   },
                   rutaPDF,
                 );
 
+                // Enviamos el PDF corregido con el Blob
                 await enviarDocumento(
                   numeroCliente,
                   rutaPDF,
                   `Orden_${ticketFinal}.pdf`,
                 );
 
-                await enviarMensaje(
+                await delay(1500);
+                await enviarBotones(
                   numeroCliente,
-                  `✅ ¡Orden generada! Tu ticket es *${ticketFinal}*`,
+                  `✅ ¡Orden registrada y PDF enviado!\n\nTicket: *${ticketFinal}*\nYa no te pediré tu nombre la próxima vez. ✨`,
+                  ["Inicio"],
                 );
 
-                // IMPORTANTE: Borra la memoria DESPUÉS de enviar el PDF, no antes.
+                // Borramos memoria
                 delete estadosClientes[numeroCliente];
               } catch (error) {
-                console.log("❌ Error al generar PDF:", error);
+                console.log("❌ Error en el proceso final:", error);
               }
             } else {
               await enviarMensaje(
                 numeroCliente,
-                "⚠️ No encontré datos de tu pedido. Por favor intenta de nuevo.",
+                "⚠️ No encontré datos de tu pedido.",
               );
             }
             break;
