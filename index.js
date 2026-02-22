@@ -628,7 +628,7 @@ async function generarPDFOrden(datos, pathDestino) {
     const rowY = tableTop + 40;
     doc
       .font("Helvetica")
-      .text(`${datos.categoria.toUpperCase()}`, 60, rowY)
+      .text(`${(datos.categoria || "PRODUCTO").toUpperCase()}`, 60, rowY)
       .text(`${datos.cantidad}`, 350, rowY)
       .text(`${datos.precioTotal}`, 480, rowY);
 
@@ -1297,70 +1297,38 @@ app.post("/webhook", async (req, res) => {
 
           // COLOCAR DENTRO DE TU SWITCH (resBtn)
           case "Confirmar Pedido":
-            // 1. Verificamos que existan datos en la memoria
-            const datosCliente = estadosClientes[numeroCliente];
+    const datosParaPDF = estadosClientes[numeroCliente]; // <--- La memoria
 
-            if (datosCliente && datosCliente.ticket) {
-              // 2. Definimos la ruta donde se guardará el PDF temporalmente
-              // Asegúrate de tener una carpeta llamada 'temp' en tu proyecto
-              const rutaPDF = `./temp/Orden_${datosCliente.ticket}.pdf`;
+    if (datosParaPDF) {
+        const ticketFinal = datosParaPDF.ticket || `PED-${Date.now()}`;
+        
+        const rutaPDF = `./temp/Orden_${ticketFinal}.pdf`;
 
-              try {
-                // 3. Generamos el PDF con el diseño de autoridad
-                // Usamos los datos que ya calculamos (cantidad, precioTotal, etc.)
-                await generarPDFOrden(
-                  {
-                    ticket: datosCliente.ticket,
-                    numero: numeroCliente,
-                    categoria: datosCliente.categoria,
-                    detalles: datosCliente.detalles,
-                    cantidad: datosCliente.cantidad,
-                    precioTotal: datosCliente.precioTotal, // Aquí dirá "$300" o "Cotización"
-                  },
-                  rutaPDF,
-                );
+        try {
+            // Pasamos los datos asegurándonos de que NADA sea undefined
+            await generarPDFOrden({
+                ticket: ticketFinal,
+                numero: numeroCliente,
+                categoria: datosParaPDF.categoria || "General", // <--- IMPORTANTE
+                detalles: datosParaPDF.detalles || "Sin descripción",
+                cantidad: datosParaPDF.cantidad || 1,
+                precioTotal: datosParaPDF.precioTotal || "Cotización"
+            }, rutaPDF);
 
-                // 4. Enviamos el documento al cliente
-                await enviarDocumento(
-                  numeroCliente,
-                  rutaPDF,
-                  `Orden_${datosCliente.ticket}.pdf`,
-                );
+            await enviarDocumento(numeroCliente, rutaPDF, `Orden_${ticketFinal}.pdf`);
+            
+            await enviarMensaje(numeroCliente, `✅ ¡Orden generada! Tu ticket es *${ticketFinal}*`);
+            
+            // IMPORTANTE: Borra la memoria DESPUÉS de enviar el PDF, no antes.
+            delete estadosClientes[numeroCliente];
 
-                // 5. Mensaje de cierre profesional
-                const mensajeCierre =
-                  `✨ *¡ORDEN GENERADA CON ÉXITO!*\n\n` +
-                  `Te he enviado un documento PDF con los detalles de tu pedido, métodos de pago y nuestras redes sociales.\n\n` +
-                  `🆔 *Número de Ticket:* ${datosCliente.ticket}\n\n` +
-                  `_Por favor, descarga el archivo para cualquier aclaración futura. ¡Gracias por tu preferencia!_`;
-
-                await enviarBotones(numeroCliente, mensajeCierre, [
-                  "Nuevo Pedido",
-                  "Inicio",
-                ]);
-
-                // 6. Opcional: Borramos el archivo físico después de enviarlo para no llenar el servidor
-                // fs.unlinkSync(rutaPDF);
-
-                // Limpiamos la memoria del cliente para que pueda hacer un nuevo pedido
-                delete estadosClientes[numeroCliente];
-              } catch (error) {
-                console.log(
-                  "❌ Error en el proceso de Confirmar Pedido:",
-                  error,
-                );
-                await enviarMensaje(
-                  numeroCliente,
-                  "⚠️ Hubo un error al generar tu orden PDF. Pero no te preocupes, un asesor revisará tu pedido manualmente.",
-                );
-              }
-            } else {
-              await enviarMensaje(
-                numeroCliente,
-                "❌ No encontré una sesión activa. Por favor, inicia un pedido en 'Personalizar'.",
-              );
-            }
-            break;
+        } catch (error) {
+            console.log("❌ Error al generar PDF:", error);
+        }
+    } else {
+        await enviarMensaje(numeroCliente, "⚠️ No encontré datos de tu pedido. Por favor intenta de nuevo.");
+    }
+    break;
         }
       }
       // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
