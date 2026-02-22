@@ -607,21 +607,22 @@ app.post("/webhook", async (req, res) => {
 
         if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
+          //Palabras clave
           const tieneMaterial =
             textoAnalizar.includes("taza") ||
             textoAnalizar.includes("mdf") ||
-            textoAnalizar.includes("madera");
+            textoAnalizar.includes("madera") ||
+             textoAnalizar.includes("laser") ||
+              textoAnalizar.includes("grabado") ||
+               textoAnalizar.includes("corte");
 
-          if (
-            !tieneMaterial &&
-            comentarioImagen !== "Sin notas" &&
-            comentarioImagen !== ""
-          ) {
-            await enviarMensaje(
-              numeroCliente,
-              "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripcion.\n\n Por favor, vuelve a enviar la imagen y escribe el material. ✨",
-            );
-            return;
+          if (!tieneMaterial) {
+        await enviarMensaje(
+            numeroCliente,
+            "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\n" +
+            "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨"
+        );
+        return; // Detiene la generación de la orden
           }
         }
 
