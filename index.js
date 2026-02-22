@@ -915,6 +915,11 @@ app.post("/webhook", async (req, res) => {
 
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
+        //Limpiamos el texto del cliente
+        const textoCliente = msg.text.body.toLowerCase().trim();
+        const numeroCliente = msg.from;
+        const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
+
         // Si el mensaje es texto y estamos esperando el nombre
         if (
           msg.type === "text" &&
@@ -942,11 +947,6 @@ app.post("/webhook", async (req, res) => {
           ]);
           return;
         }
-
-        //Limpiamos el texto del cliente
-        const textoCliente = msg.text.body.toLowerCase().trim();
-        const numeroCliente = msg.from;
-        const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
         if (esAdmin) {
           if (
