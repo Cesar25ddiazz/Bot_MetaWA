@@ -7,7 +7,6 @@ const path = require("path");
 const { GoogleSpreadsheet } = require("google-spreadsheet");
 const { JWT } = require("google-auth-library");
 const PDFDocument = require("pdfkit");
-const fs = require("fs");
 const QRCode = require("qrcode");
 
 //Función de horario
@@ -51,8 +50,17 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
 const BASE_PATH = path.join(__dirname, "pedidos_clientes");
 fs.ensureDirSync(BASE_PATH); // Crea la carpeta principal si no existe
+
+const dir = './temp';
+if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir);
+    console.log("📂 Carpeta 'temp' creada con éxito");
+} else {
+    console.log("✅ Carpeta 'temp' ya existe, lista para usar");
+}
 
 const PRECIOS = {
   playera_básica: 250,
