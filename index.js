@@ -540,7 +540,8 @@ async function procesarPedidoDetallado(
         : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
     //Guardar en CRM
-    await guardarEnCRM({
+    estadosClientes[numeroCliente] = {
+      ...estadosClientes[numeroCliente],
       ticket: ticket,
       nombre: nombreCliente,
       numero: numeroCliente,
@@ -548,11 +549,11 @@ async function procesarPedidoDetallado(
       notas: comentario,
       urlImagen: urlPermanente,
       precio: cat.includes("MDF") ? "Cotización" : totalFinal.toString(), //Se guarda el total en la columna
-    });
+    }
 
     //Notidicacion detallada
     const mensajeAdmin =
-      `🛠️ *Orden de Producción:* 🛠️\n` +
+      `🛠️ *PRE-ORDEN-RECIBIDA:* 🛠️\n` +
       `-----------------------------\n` +
       `🆔 *Ticket:* \`${ticket}\`\n` +
       `👤 *Cliente:* ${nombreCliente}\n` +
@@ -608,132 +609,94 @@ async function marcarComoLeido(messageId) {
 
 async function generarPDFOrden(datos, pathDestino) {
   return new Promise(async (resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
-    const stream = fs.createWriteStream(pathDestino);
+    try {
+      // 1. Validar que la carpeta temp existe (Seguridad para Render)
+      const carpeta = path.dirname(pathDestino);
+      if (!fs.existsSync(carpeta)) {
+        fs.mkdirSync(carpeta, { recursive: true });
+      }
 
-    doc.pipe(stream);
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      const stream = fs.createWriteStream(pathDestino);
 
-    // --- DISEÑO DE AUTORIDAD (Encabezado) ---
-    doc.rect(0, 0, 612, 120).fill("#000000"); // Bloque negro sólido
-    doc
-      .fillColor("#ffffff")
-      .fontSize(28)
-      .font("Helvetica-Bold")
-      .text("ORDEN DE TRABAJO", 50, 45);
+      doc.pipe(stream);
 
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(`TICKET DE SEGUIMIENTO: ${datos.ticket}`, 400, 58, {
-        align: "right",
+      // --- ENCABEZADO ---
+      doc.rect(0, 0, 612, 120).fill("#000000"); 
+      doc.fillColor("#ffffff").fontSize(28).font("Helvetica-Bold").text("ORDEN DE TRABAJO", 50, 45);
+      doc.fontSize(10).font("Helvetica").text(`TICKET: ${datos.ticket}`, 400, 58, { align: "right" });
+
+      // --- INFORMACIÓN DEL CLIENTE ---
+      doc.fillColor("#333333").fontSize(14).font("Helvetica-Bold").text("INFORMACIÓN DEL PEDIDO", 50, 150);
+      doc.moveTo(50, 165).lineTo(545, 165).strokeColor("#eeeeee").stroke();
+
+      doc.moveDown();
+      doc.fillColor("#000000").fontSize(11).font("Helvetica")
+        .text(`Cliente: ${datos.nombre || "No registrado"}`)
+        .text(`Fecha: ${new Date().toLocaleDateString()}`)
+        .text(`WhatsApp: ${datos.numero}`);
+
+      // --- TABLA DE PRODUCTOS ---
+      const tableTop = 250;
+      doc.rect(50, tableTop, 495, 25).fill("#f6f6f6");
+      doc.fillColor("#000000").font("Helvetica-Bold")
+        .text("CONCEPTO / MATERIAL", 60, tableTop + 7)
+        .text("CANT.", 350, tableTop + 7)
+        .text("TOTAL", 450, tableTop + 7);
+
+      const rowY = tableTop + 40;
+      doc.font("Helvetica")
+        .text(`${(datos.categoria || "PRODUCTO").toUpperCase()}`, 60, rowY)
+        .text(`${datos.cantidad}`, 350, rowY)
+        .text(`${datos.precioTotal}`, 450, rowY, { width: 120 }); // El desglose "$300 (2 pzs)" entra aquí
+
+      doc.fontSize(9).fillColor("#666666")
+        .text(`Descripción / Notas: ${datos.detalles}`, 60, rowY + 20, { width: 400 });
+
+      // --- QR Y CONTACTO ---
+      const marketingY = 450;
+      doc.rect(50, marketingY, 495, 120).strokeColor("#000000").lineWidth(0.5).stroke();
+      doc.fillColor("#000000").fontSize(12).font("Helvetica-Bold").text("ATENCIÓN AL CLIENTE", 70, marketingY + 15);
+      
+      // QR Dinámico (Asegúrate de tener la librería qrcode instalada)
+      const qrData = `https://wa.me/521XXXXXXXXXX?text=Hola, seguimiento del ticket ${datos.ticket}`;
+      const qrImage = await QRCode.toDataURL(qrData);
+      doc.image(qrImage, 430, marketingY + 10, { width: 100 });
+
+      // --- MEDIOS DE PAGO ---
+      doc.fontSize(12).font("Helvetica-Bold").text("FORMAS DE PAGO ACEPTADAS", 50, 600);
+      doc.fontSize(10).font("Helvetica")
+        .text("• Transferencia Interbancaria (SPEI)", 50, 620)
+        .text("• Depósito en OXXO / 7-Eleven", 50, 635)
+        .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 650);
+
+      // --- MENSAJE DE COTIZACIÓN (Solo si aplica) ---
+      if (datos.precioTotal.includes("Cotización")) {
+        doc.fillColor("red").font("Helvetica-Bold").fontSize(10)
+           .text("⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.", 50, 680);
+      }
+
+      // --- PIE DE PÁGINA ---
+      doc.fillColor("#aaaaaa").fontSize(8)
+        .text("Este es un documento oficial generado automáticamente por nuestro sistema.", 0, 780, { align: "center" });
+
+      // --- FINALIZACIÓN UNIFICADA ---
+      doc.end();
+
+      stream.on("finish", () => {
+        console.log(`✅ PDF generado correctamente: ${datos.ticket}`);
+        resolve();
       });
 
-    // --- CUERPO DEL DOCUMENTO ---
-    doc
-      .fillColor("#333333")
-      .fontSize(14)
-      .font("Helvetica-Bold")
-      .text("INFORMACIÓN DEL PEDIDO", 50, 150);
-    doc.moveTo(50, 165).lineTo(545, 165).strokeColor("#eeeeee").stroke();
-
-    // Datos del cliente y fecha
-    doc.moveDown();
-    doc
-      .fillColor("#000000")
-      .fontSize(11)
-      .font("Helvetica")
-      .text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`)
-      .text(`ID Cliente (WhatsApp): ${datos.numero}`)
-      .text(`Estado Inicial: Pendiente de Revisión`);
-
-    // --- TABLA PROFESIONAL (Detalle del Producto) ---
-    const tableTop = 250;
-    doc.rect(50, tableTop, 495, 25).fill("#f6f6f6"); // Fondo gris claro para encabezado de tabla
-
-    doc
-      .fillColor("#000000")
-      .font("Helvetica-Bold")
-      .text("CONCEPTO / MATERIAL", 60, tableTop + 7)
-      .text("CANT.", 350, tableTop + 7)
-      .text("TOTAL", 480, tableTop + 7);
-
-    const rowY = tableTop + 40;
-    doc
-      .font("Helvetica")
-      .text(`${(datos.categoria || "PRODUCTO").toUpperCase()}`, 60, rowY)
-      .text(`${datos.cantidad}`, 350, rowY)
-      .text(`${datos.precioTotal}`, 480, rowY);
-
-    doc
-      .fontSize(9)
-      .fillColor("#666666")
-      .text(`Notas adicionales: ${datos.detalles}`, 60, rowY + 15, {
-        width: 400,
+      stream.on("error", (err) => {
+        console.error("❌ Error en el stream del PDF:", err);
+        reject(err);
       });
 
-    // --- MARKETING Y QR (Seriedad y Modernidad) ---
-    const marketingY = 450;
-    doc
-      .rect(50, marketingY, 495, 120)
-      .strokeColor("#000000")
-      .lineWidth(0.5)
-      .stroke();
-
-    doc
-      .fillColor("#000000")
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text("• Instagram: @TuNegocioCreativo", 70, marketingY + 40)
-      .text("• TikTok: @TuNegocioOficial", 70, marketingY + 55)
-      .text("• Facebook: fb.com/TuNegocio", 70, marketingY + 70);
-
-    // Generar QR dinámico que apunte a tu WhatsApp de atención
-    const qrData = `https://wa.me/tu_numero?text=Hola, tengo una duda sobre mi ticket ${datos.ticket}`;
-    const qrImage = await QRCode.toDataURL(qrData);
-    doc.image(qrImage, 430, marketingY + 10, { width: 100 });
-
-    // --- MEDIOS DE PAGO ---
-    doc
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text("FORMAS DE PAGO ACEPTADAS", 50, 600);
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text("• Transferencia Interbancaria (SPEI)", 50, 620)
-      .text("• Depósito en OXXO / 7-Eleven", 50, 635)
-      .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 650);
-
-    if (datos.precioTotal === "Cotización") {
-      doc
-        .fillColor("red")
-        .font("Helvetica-Bold")
-        .fontSize(10)
-        .text(
-          "⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.",
-          50,
-          680,
-        );
+    } catch (error) {
+      console.error("❌ Error capturado en generarPDFOrden:", error);
+      reject(error);
     }
-
-    // --- PIE DE PÁGINA ---
-    doc
-      .fillColor("#aaaaaa")
-      .fontSize(8)
-      .text(
-        "Este es un documento oficial generado automáticamente por nuestro sistema de atención.",
-        0,
-        780,
-        { align: "center" },
-      );
-
-    doc.end();
-    stream.on("finish", () => resolve());
-    stream.on("error", (err) => reject(err));
   });
 }
 
@@ -864,13 +827,14 @@ app.post("/webhook", async (req, res) => {
         //Cliente ya existe en excel
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
-          // Guardamos TODOS los datos necesarios para el PDF
           estadosClientes[numeroCliente] = {
             ...estadosClientes[numeroCliente],
+          nombre: nombreRegistrado, // Aseguramos que el nombre esté presente
             ticket: ticketGenerado,
             cantidad: cantidad,
             precioTotal: precioCalculado,
             detalles: comentarioImagen,
+            imageId: idDeLaImagen,
           };
 
           await procesarPedidoDetallado(
@@ -915,23 +879,25 @@ app.post("/webhook", async (req, res) => {
       }
 
       // 1. PRIMERO: Prioridad absoluta al nombre (FUERA del else if)
-      if (
-        msg.type === "text" &&
-        estadosClientes[numeroCliente]?.esperandoNombre
+      if (msg.type === "text" && estadosClientes[numeroCliente]?.esperandoNombre
       ) {
         const nombreProporcionado = msg.text.body.trim();
         const datosRecuperados = estadosClientes[numeroCliente];
 
-        // 🛡️ VALIDACIÓN DE SEGURIDAD
+        if (cuerpoTexto.toUpperCase().includes("PED-") || cuerpoTexto.toLowerCase().includes("estatus")) {
+        // Dejamos que pase al siguiente bloque de código (el else if)
+        console.log("Detectado comando/ticket en lugar de nombre, saltando...");
+    } else {
+        // VALIDACIÓN DE SEGURIDAD
         if (!datosRecuperados || !datosRecuperados.ticket) {
-          console.log("❌ Error: Datos de sesión perdidos. Reiniciando...");
-          delete estadosClientes[numeroCliente];
-          await enviarBotones(
-            numeroCliente,
-            "¡Ups! Hubo un error con tu sesión. Por favor, selecciona la categoría de nuevo para empezar de cero.",
-            ["Catalogo", "Personalizar"],
-          );
-          return;
+            console.log("❌ Error: Datos de sesión perdidos. Reiniciando...");
+            delete estadosClientes[numeroCliente];
+            await enviarBotones(
+                numeroCliente,
+                "¡Ups! Hubo un error con tu sesión. Por favor, selecciona la categoría de nuevo.",
+                ["Catalogo", "Personalizar"],
+            );
+            return;
         }
 
         estadosClientes[numeroCliente].nombre = nombreProporcionado;
@@ -967,6 +933,7 @@ app.post("/webhook", async (req, res) => {
         ]);
         return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
       }
+    }
 
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
@@ -1405,6 +1372,10 @@ app.post("/webhook", async (req, res) => {
                   ? "🌙 Nocturno"
                   : "☀️ Diurno";
 
+                  // 🟢 LÓGICA DE PRECIO: Si es "Cotización", se queda así. 
+            // Si tiene el desglose, lo pasamos tal cual al Sheet.
+            const precioParaSheet = datosParaPDF.precioTotal || "Cotización";
+
                 // 🔍 LUPA 3: Mandar a guardar al CRM con TODOS los datos calculados
                 await guardarEnCRM({
                   ticket: ticketFinal,
@@ -1413,9 +1384,21 @@ app.post("/webhook", async (req, res) => {
                   categoria: datosParaPDF.categoria,
                   notas: datosParaPDF.detalles,
                   urlImagen: linkCloudinary, // Aquí subirá el link de Cloudinary
-                  precio: datosParaPDF.precioTotal, // Aquí subirá el precio ($150, etc) o "Cotización"
+                  precio: precioParaSheet, // Aquí subirá el precio ($150, etc) o "Cotización"
                   origen: origenPedido, // Pasamos el origen detectado
                 });
+
+                // Usamos texto plano para que llegue 100% seguro
+            const avisoAdmin = 
+                `💰 *¡PEDIDO CONFIRMADO!* 💰\n\n` +
+                `👤 *Cliente:* ${datosParaPDF.nombre}\n` +
+                `🆔 *Ticket:* ${ticketFinal}\n` +
+                `📦 *Cat:* ${datosParaPDF.categoria}\n` +
+                `💵 *Precio:* ${precioParaSheet}\n` +
+                `📍 *Horario:* ${origenPedido}\n` +
+                `📱 *WhatsApp:* wa.me/${numeroCliente}`;
+
+            await enviarMensaje(process.env.MY_PERSONAL_NUMBER, avisoAdmin);
 
                 // Generar PDF
                 await generarPDFOrden(
@@ -1425,7 +1408,7 @@ app.post("/webhook", async (req, res) => {
                     categoria: datosParaPDF.categoria,
                     detalles: datosParaPDF.detalles,
                     cantidad: datosParaPDF.cantidad,
-                    precioTotal: datosParaPDF.precioTotal,
+                    precioTotal: precioParaSheet,
                     nombre: datosParaPDF.nombre,
                   },
                   rutaPDF,
