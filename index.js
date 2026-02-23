@@ -810,12 +810,13 @@ app.post("/webhook", async (req, res) => {
         const comentarioImagen = (msg.image?.caption || "").trim();
 
         // 🟢 CAMBIO: Solo tomamos la categoría, si no hay, forzamos a que elija una
-        const estadoActual = estadosClientes[numeroCliente] || {};
+        const estadoPrevio = estadosClientes[numeroCliente] || {};
 
-        if (!estadoActual.categoria) {
+        // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
+        if (!estadoPrevio.categoria) {
           await enviarMensaje(
             numeroCliente,
-            "⚠️ Por favor, primero selecciona una categoría (Textil o Tazas) antes de enviar la imagen.",
+            "⚠️ Por favor, primero selecciona una categoría (Textil o Tazas).",
           );
           return;
         }
@@ -921,11 +922,14 @@ app.post("/webhook", async (req, res) => {
         const nombreProporcionado = msg.text.body.trim();
         const datosRecuperados = estadosClientes[numeroCliente];
 
-        if (!datos.ticket || !datos.imageId) {
+        // 🛡️ VALIDACIÓN DE SEGURIDAD
+        if (!datosRecuperados || !datosRecuperados.ticket) {
+          console.log("❌ Error: Datos de sesión perdidos. Reiniciando...");
           delete estadosClientes[numeroCliente];
-          await enviarMensaje(
+          await enviarBotones(
             numeroCliente,
-            "Hubo un pequeño error técnico. Por favor, selecciona la categoría de nuevo.",
+            "¡Ups! Hubo un error con tu sesión. Por favor, selecciona la categoría de nuevo para empezar de cero.",
+            ["Catalogo", "Personalizar"],
           );
           return;
         }
@@ -1084,6 +1088,7 @@ app.post("/webhook", async (req, res) => {
         if (quiereBienvenida) {
           // await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
+          delete estadosClientes[numeroCliente];
           await enviarBotones(
             numeroCliente,
             `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
