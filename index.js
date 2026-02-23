@@ -919,47 +919,49 @@ app.post("/webhook", async (req, res) => {
         estadosClientes[numeroCliente]?.esperandoNombre
       ) {
         const nombreProporcionado = msg.text.body.trim();
+        const datosRecuperados = estadosClientes[numeroCliente];
 
-        if (textoEntrante.toUpperCase().includes("PED-")) {
-          // No hacemos nada aquí, dejamos que el código siga hacia abajo
-          // para que lo detecte la lógica de consulta de tickets.
-        } else {
-          const nombreProporcionado = textoEntrante;
-          const datosRecuperados = estadosClientes[numeroCliente];
-
-          estadosClientes[numeroCliente].nombre = nombreProporcionado;
-          estadosClientes[numeroCliente].esperandoNombre = false;
-
-          // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
-          await procesarPedidoDetallado(
-            nombreProporcionado,
+        if (!datos.ticket || !datos.imageId) {
+          delete estadosClientes[numeroCliente];
+          await enviarMensaje(
             numeroCliente,
-            datosRecuperados.imageId,
-            datosRecuperados.detalles,
-            datosRecuperados.ticket,
+            "Hubo un pequeño error técnico. Por favor, selecciona la categoría de nuevo.",
           );
-
-          // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
-          const mensajeAdmin =
-            `👤 *NUEVO CLIENTE REGISTRADO*\n` +
-            `Nombre: ${nombreProporcionado}\n` +
-            `Ticket: ${datosRecuperados.ticket}\n` +
-            `WhatsApp: wa.me/${numeroCliente}`;
-          await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
-          await delay(1500);
-
-          const mensajeConfirmacion =
-            `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
-            `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
-            `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
-            `¿Los datos son correctos para generar tu Orden en PDF?`;
-
-          await enviarBotones(numeroCliente, mensajeConfirmacion, [
-            "Confirmar Pedido",
-            "Cancelar Pedido",
-          ]);
-          return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
+          return;
         }
+
+        estadosClientes[numeroCliente].nombre = nombreProporcionado;
+        estadosClientes[numeroCliente].esperandoNombre = false;
+
+        // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
+        await procesarPedidoDetallado(
+          nombreProporcionado,
+          numeroCliente,
+          datosRecuperados.imageId,
+          datosRecuperados.detalles,
+          datosRecuperados.ticket,
+        );
+
+        // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
+        const mensajeAdmin =
+          `👤 *NUEVO CLIENTE REGISTRADO*\n` +
+          `Nombre: ${nombreProporcionado}\n` +
+          `Ticket: ${datosRecuperados.ticket}\n` +
+          `WhatsApp: wa.me/${numeroCliente}`;
+        await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
+        await delay(1500);
+
+        const mensajeConfirmacion =
+          `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
+          `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
+          `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
+          `¿Los datos son correctos para generar tu Orden en PDF?`;
+
+        await enviarBotones(numeroCliente, mensajeConfirmacion, [
+          "Confirmar Pedido",
+          "Cancelar Pedido",
+        ]);
+        return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
       }
 
       // B. SI ENVÍAN TEXTO
