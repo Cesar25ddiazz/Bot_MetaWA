@@ -807,13 +807,8 @@ app.post("/webhook", async (req, res) => {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
-        const ticketGenerado = `PED-${Date.now()}`;
         const comentarioImagen = (msg.image?.caption || "").trim();
-
-        //Validacion de material
         const estadoPrevio = estadosClientes[numeroCliente] || {};
-
-        const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
@@ -845,11 +840,15 @@ app.post("/webhook", async (req, res) => {
         // Extraer cantidad
         const cantidadMatch = comentarioImagen.match(/\d+/);
         const cantidad = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
+        const ticketGenerado = `PED-${Date.now()}`;
+
         let precioCalculado =
           estadoPrevio.categoria === "TAZAS Y MDF" &&
           comentarioImagen.toLowerCase().includes("taza")
             ? `$${cantidad * 150}`
             : "Cotización";
+
+        const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         //Cliente ya existe en excel
         if (nombreRegistrado) {
@@ -893,15 +892,6 @@ app.post("/webhook", async (req, res) => {
           precioTotal: precioCalculado,
         };
 
-        // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
-        await procesarPedidoDetallado(
-          "Cliente Nuevo",
-          numeroCliente,
-          idDeLaImagen,
-          comentarioImagen,
-          ticketGenerado,
-        );
-
         //Confirmación inmediata del cliente
         await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
         await delay(1000);
@@ -922,12 +912,14 @@ app.post("/webhook", async (req, res) => {
         const nombreProporcionado = msg.text.body.trim();
         const datosRecuperados = estadosClientes[numeroCliente];
 
-        // Actualizamos memoria
-        estadosClientes[numeroCliente] = {
-          ...datosRecuperados,
-          nombre: nombreProporcionado,
-          esperandoNombre: false,
-        };
+         // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
+        await procesarPedidoDetallado(
+          nombreProporcionado,
+          numeroCliente,
+          datosRecuperados.imageId,
+        datosRecuperados.detalles,
+        datosRecuperados.ticket
+        );
 
         // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
         const mensajeAdmin =
