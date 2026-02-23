@@ -880,7 +880,6 @@ app.post("/webhook", async (req, res) => {
           );
           return;
         }
-
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         estadosClientes[numeroCliente] = {
           esperandoNombre: true,
@@ -912,13 +911,16 @@ app.post("/webhook", async (req, res) => {
         const nombreProporcionado = msg.text.body.trim();
         const datosRecuperados = estadosClientes[numeroCliente];
 
-         // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
+        estadosClientes[numeroCliente].nombre = nombreProporcionado;
+        estadosClientes[numeroCliente].esperandoNombre = false;
+
+        // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
         await procesarPedidoDetallado(
           nombreProporcionado,
           numeroCliente,
           datosRecuperados.imageId,
-        datosRecuperados.detalles,
-        datosRecuperados.ticket
+          datosRecuperados.detalles,
+          datosRecuperados.ticket,
         );
 
         // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
