@@ -888,10 +888,19 @@ app.post("/webhook", async (req, res) => {
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
           detalles: comentarioImagen,
-          categoria: estadoPrevio.categoria,
+          categoria: estadoPrevio.categoria || "📦 GENERAL",
           cantidad: cantidad,
           precioTotal: precioCalculado,
         };
+
+        // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
+        await procesarPedidoDetallado(
+          "Cliente Nuevo",
+          numeroCliente,
+          idDeLaImagen,
+          comentarioImagen,
+          ticketGenerado,
+        );
 
         //Confirmación inmediata del cliente
         await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
@@ -905,7 +914,7 @@ app.post("/webhook", async (req, res) => {
         return;
       }
 
-      // Si el mensaje es texto y estamos esperando el nombre
+      // 1. PRIMERO: Prioridad absoluta al nombre (FUERA del else if)
       if (
         msg.type === "text" &&
         estadosClientes[numeroCliente]?.esperandoNombre
@@ -913,12 +922,20 @@ app.post("/webhook", async (req, res) => {
         const nombreProporcionado = msg.text.body.trim();
         const datosRecuperados = estadosClientes[numeroCliente];
 
-        // Actualizamos memoria con el nombre
+        // Actualizamos memoria
         estadosClientes[numeroCliente] = {
           ...datosRecuperados,
           nombre: nombreProporcionado,
           esperandoNombre: false,
         };
+
+        // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
+        const mensajeAdmin =
+          `👤 *NUEVO CLIENTE REGISTRADO*\n` +
+          `Nombre: ${nombreProporcionado}\n` +
+          `Ticket: ${datosRecuperados.ticket}\n` +
+          `WhatsApp: wa.me/${numeroCliente}`;
+        await enviarMensaje(MI_NUMERO, mensajeAdmin);
 
         const mensajeConfirmacion =
           `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
@@ -930,40 +947,14 @@ app.post("/webhook", async (req, res) => {
           "Confirmar Pedido",
           "Cancelar Pedido",
         ]);
-        return;
+        return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
       }
 
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
         //Limpiamos el texto del cliente
         const textoCliente = msg.text.body.toLowerCase().trim();
-        const numeroCliente = msg.from;
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
-
-        // Si el mensaje es texto y estamos esperando el nombre
-        if (estadosClientes[numeroCliente]?.esperandoNombre) {
-          const nombreProporcionado = msg.text.body.trim();
-          const datosRecuperados = estadosClientes[numeroCliente];
-
-          // Actualizamos memoria con el nombre
-          estadosClientes[numeroCliente] = {
-            ...datosRecuperados,
-            nombre: nombreProporcionado,
-            esperandoNombre: false,
-          };
-
-          const mensajeConfirmacion =
-            `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
-            `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
-            `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
-            `¿Los datos son correctos para generar tu Orden en PDF?`;
-
-          await enviarBotones(numeroCliente, mensajeConfirmacion, [
-            "Confirmar Pedido",
-            "Cancelar Pedido",
-          ]);
-          return;
-        }
 
         if (esAdmin) {
           if (
