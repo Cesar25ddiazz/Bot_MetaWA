@@ -884,17 +884,17 @@ app.post("/webhook", async (req, res) => {
         const nombreProporcionado = msg.text.body.trim();
         const datosRecuperados = estadosClientes[numeroCliente];
 
-        if (cuerpoTexto.toUpperCase().includes("PED-") || cuerpoTexto.toLowerCase().includes("estatus")) {
-        // Dejamos que pase al siguiente bloque de código (el else if)
-        console.log("Detectado comando/ticket en lugar de nombre, saltando...");
+        // 🛡️ FILTRO: Si el usuario escribe un ticket o la palabra estatus, NO lo guardamos como nombre
+    if (nombreProporcionado.toUpperCase().includes("PED-") || nombreProporcionado.toLowerCase().includes("estatus")) {
+        console.log("Detectado ticket/estatus, saltando guardado de nombre...");
+        // No ponemos 'return' para que el código baje al siguiente 'else if' y procese el ticket
     } else {
         // VALIDACIÓN DE SEGURIDAD
         if (!datosRecuperados || !datosRecuperados.ticket) {
-            console.log("❌ Error: Datos de sesión perdidos. Reiniciando...");
             delete estadosClientes[numeroCliente];
             await enviarBotones(
                 numeroCliente,
-                "¡Ups! Hubo un error con tu sesión. Por favor, selecciona la categoría de nuevo.",
+                "¡Ups! Sesión expirada. Por favor, selecciona la categoría de nuevo.",
                 ["Catalogo", "Personalizar"],
             );
             return;
