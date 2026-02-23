@@ -273,7 +273,7 @@ async function guardarEnCRM(datos) {
     const hoy = new Date();
     const entrega = new Date();
     entrega.setDate(hoy.getDate() + 3); //Suma 3 dias por defecto
-    const origen = estaFueraDeHorario() ? "🌙 Nocturno" : "☀️ Diurno";
+    const origen = origen;
 
     await sheet.addRow({
       Fecha: hoy.toLocaleString("es-MX", {
@@ -290,7 +290,7 @@ async function guardarEnCRM(datos) {
       Estado_Pago: "Pendiente",
       Total_a_Pagar: datos.precio,
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
-      Origen: origen || estaFueraDeHorario() ? "🌙 Nocturno" : "☀️ Diurno",
+      Origen: origen 
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
