@@ -929,7 +929,7 @@ app.post("/webhook", async (req, res) => {
           `Nombre: ${nombreProporcionado}\n` +
           `Ticket: ${datosRecuperados.ticket}\n` +
           `WhatsApp: wa.me/${numeroCliente}`;
-        await enviarMensaje(MI_NUMERO, mensajeAdmin);
+        await enviarMensaje(MY_PERSONAL_NUMBER, mensajeAdmin);
 
         const mensajeConfirmacion =
           `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
