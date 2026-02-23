@@ -273,7 +273,7 @@ async function guardarEnCRM(datos) {
     const hoy = new Date();
     const entrega = new Date();
     entrega.setDate(hoy.getDate() + 3); //Suma 3 dias por defecto
-    const origen = origen;
+    const origen = estaFueraDeHorario() ? "🌙 Nocturno" : "☀️ Diurno";
 
     await sheet.addRow({
       Fecha: hoy.toLocaleString("es-MX", {
