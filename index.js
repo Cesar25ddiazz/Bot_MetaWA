@@ -290,7 +290,7 @@ async function guardarEnCRM(datos) {
       Estado_Pago: "Pendiente",
       Total_a_Pagar: datos.precio,
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
-      Origen: origen 
+      Origen: origen,
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
@@ -808,14 +808,17 @@ app.post("/webhook", async (req, res) => {
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
         const comentarioImagen = (msg.image?.caption || "").trim();
-        
+
         // 🟢 CAMBIO: Solo tomamos la categoría, si no hay, forzamos a que elija una
-    const estadoActual = estadosClientes[numeroCliente] || {};
-    
-    if (!estadoActual.categoria) {
-        await enviarMensaje(numeroCliente, "⚠️ Por favor, primero selecciona una categoría (Textil o Tazas) antes de enviar la imagen.");
-        return;
-    }
+        const estadoActual = estadosClientes[numeroCliente] || {};
+
+        if (!estadoActual.categoria) {
+          await enviarMensaje(
+            numeroCliente,
+            "⚠️ Por favor, primero selecciona una categoría (Textil o Tazas) antes de enviar la imagen.",
+          );
+          return;
+        }
 
         if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
@@ -916,40 +919,47 @@ app.post("/webhook", async (req, res) => {
         estadosClientes[numeroCliente]?.esperandoNombre
       ) {
         const nombreProporcionado = msg.text.body.trim();
-        const datosRecuperados = estadosClientes[numeroCliente];
 
-        estadosClientes[numeroCliente].nombre = nombreProporcionado;
-        estadosClientes[numeroCliente].esperandoNombre = false;
+        if (textoEntrante.toUpperCase().includes("PED-")) {
+          // No hacemos nada aquí, dejamos que el código siga hacia abajo
+          // para que lo detecte la lógica de consulta de tickets.
+        } else {
+          const nombreProporcionado = textoEntrante;
+          const datosRecuperados = estadosClientes[numeroCliente];
 
-        // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
-        await procesarPedidoDetallado(
-          nombreProporcionado,
-          numeroCliente,
-          datosRecuperados.imageId,
-          datosRecuperados.detalles,
-          datosRecuperados.ticket,
-        );
+          estadosClientes[numeroCliente].nombre = nombreProporcionado;
+          estadosClientes[numeroCliente].esperandoNombre = false;
 
-        // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
-        const mensajeAdmin =
-          `👤 *NUEVO CLIENTE REGISTRADO*\n` +
-          `Nombre: ${nombreProporcionado}\n` +
-          `Ticket: ${datosRecuperados.ticket}\n` +
-          `WhatsApp: wa.me/${numeroCliente}`;
-        await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
-        await delay(1500);
+          // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
+          await procesarPedidoDetallado(
+            nombreProporcionado,
+            numeroCliente,
+            datosRecuperados.imageId,
+            datosRecuperados.detalles,
+            datosRecuperados.ticket,
+          );
 
-        const mensajeConfirmacion =
-          `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
-          `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
-          `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
-          `¿Los datos son correctos para generar tu Orden en PDF?`;
+          // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
+          const mensajeAdmin =
+            `👤 *NUEVO CLIENTE REGISTRADO*\n` +
+            `Nombre: ${nombreProporcionado}\n` +
+            `Ticket: ${datosRecuperados.ticket}\n` +
+            `WhatsApp: wa.me/${numeroCliente}`;
+          await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
+          await delay(1500);
 
-        await enviarBotones(numeroCliente, mensajeConfirmacion, [
-          "Confirmar Pedido",
-          "Cancelar Pedido",
-        ]);
-        return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
+          const mensajeConfirmacion =
+            `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
+            `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
+            `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
+            `¿Los datos son correctos para generar tu Orden en PDF?`;
+
+          await enviarBotones(numeroCliente, mensajeConfirmacion, [
+            "Confirmar Pedido",
+            "Cancelar Pedido",
+          ]);
+          return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
+        }
       }
 
       // B. SI ENVÍAN TEXTO
