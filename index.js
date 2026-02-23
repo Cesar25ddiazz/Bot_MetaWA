@@ -808,7 +808,14 @@ app.post("/webhook", async (req, res) => {
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
         const comentarioImagen = (msg.image?.caption || "").trim();
-        const estadoPrevio = estadosClientes[numeroCliente] || {};
+        
+        // 🟢 CAMBIO: Solo tomamos la categoría, si no hay, forzamos a que elija una
+    const estadoActual = estadosClientes[numeroCliente] || {};
+    
+    if (!estadoActual.categoria) {
+        await enviarMensaje(numeroCliente, "⚠️ Por favor, primero selecciona una categoría (Textil o Tazas) antes de enviar la imagen.");
+        return;
+    }
 
         if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
@@ -1227,6 +1234,8 @@ app.post("/webhook", async (req, res) => {
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             console.log("iniciando busqueda para:", numeroCliente);
+            delete estadosClientes[numeroCliente];
+
             estadosClientes[numeroCliente] = {
               nombre: nombreRegistrado || null,
               esperandoNombre: !nombreRegistrado,
@@ -1241,6 +1250,8 @@ app.post("/webhook", async (req, res) => {
           case "Tazas y MDF":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            delete estadosClientes[numeroCliente];
+
             estadosClientes[numeroCliente] = {
               nombre: nombreRegistrado || null,
               esperandoNombre: !nombreRegistrado,
@@ -1255,6 +1266,8 @@ app.post("/webhook", async (req, res) => {
           case "Etiquetas":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            delete estadosClientes[numeroCliente];
+
             estadosClientes[numeroCliente] = {
               nombre: nombreRegistrado || null,
               esperandoNombre: !nombreRegistrado,
