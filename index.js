@@ -929,7 +929,8 @@ app.post("/webhook", async (req, res) => {
           `Nombre: ${nombreProporcionado}\n` +
           `Ticket: ${datosRecuperados.ticket}\n` +
           `WhatsApp: wa.me/${numeroCliente}`;
-        await enviarMensaje(MY_PERSONAL_NUMBER, mensajeAdmin);
+        await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
+        await delay(1500);
 
         const mensajeConfirmacion =
           `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
