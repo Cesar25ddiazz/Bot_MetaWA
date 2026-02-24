@@ -1452,12 +1452,20 @@ app.post("/webhook", async (req, res) => {
 
           case "Reactivar Ticket":
             if (esAdmin) {
-              // Capturamos el ID del botón que ahora SÍ es el ticket
-              const ticketAReactivar = msg.interactive.button_reply.id;
+              // 1. Capturamos el ID completo (ej: "REACTIVAR_PED-1771...")
+              const idBotonOriginal = msg.interactive.button_reply.id;
 
-              if (ticketAReactivar && ticketAReactivar !== "btn_0") {
+              if (idBotonOriginal && idBotonOriginal !== "btn_0") {
+                // 2. Limpiamos el ID para dejar solo el ticket real
+                // Esto quita "REACTIVAR_" y deja solo "PED-XXXX"
+                const ticketAReactivar = idBotonOriginal.replace(
+                  "REACTIVAR_",
+                  "",
+                );
+
                 console.log(`✅ Reactivando ticket real: ${ticketAReactivar}`);
 
+                // 3. Ahora sí, la función buscará el ticket correcto en el Sheet
                 await actualizarEstadoCRM(ticketAReactivar, {
                   Estado_Pago: "Pendiente",
                   Estado_Produccion: "En Espera",
