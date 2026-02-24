@@ -1373,58 +1373,81 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-            const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+            // 1. Intentamos obtener el ticket de la memoria
+            let ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+
+            // 2. Si no está en memoria (caso manual o sesión expirada), lo buscamos en el texto del mensaje
+            if (!ticketParaBorrar) {
+              const matchManual = msg.text?.body?.match(/PED-\d+/i);
+              if (matchManual) {
+                ticketParaBorrar = matchManual[0].toUpperCase();
+              }
+            }
 
             if (ticketParaBorrar) {
               try {
-                // 1. Actualizamos el CRM primero
-                await actualizarEstadoCRM(ticketParaBorrar, {
-                  Estado_Pago: "Cancelado",
-                  Estado_Produccion: "Cancelado",
-                });
+                // Notificamos inicio de proceso para que no parezca que no hace nada
+                console.log(
+                  `Iniciando cancelación para ticket: ${ticketParaBorrar}`,
+                );
 
-                const alertaAdmin =
-                  `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
-                  `🆔 *Ticket:* ${ticketParaBorrar}\n` +
-                  `👤 *Cliente:* ${numeroCliente}\n` +
-                  `--------------------------\n` +
-                  `_La fila en el Sheet se ha actualizado a Cancelado._`;
+                // ACTUALIZACIÓN EN SHEETS
+                // Usamos tu función con tus variables exactas
+                const actualizado = await actualizarEstadoCRM(
+                  ticketParaBorrar,
+                  {
+                    Estado_Pago: "Cancelado",
+                    Estado_Produccion: "Cancelado",
+                  },
+                );
 
-                // 2. Notificamos al ADMIN (simplificado para evitar errores de envío)
-                // Si tu función enviarBotones falla aquí, el try/catch evitará que el cliente se quede en visto
-                try {
+                if (actualizado) {
+                  const alertaAdmin =
+                    `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
+                    `🆔 *Ticket:* ${ticketParaBorrar}\n` +
+                    `👤 *Cliente:* ${numeroCliente}\n` +
+                    `--------------------------\n` +
+                    `_La fila en el Sheet se ha actualizado a Cancelado._`;
+
+                  // Notificamos al ADMIN
+                  try {
+                    await enviarMensaje(
+                      process.env.MY_PERSONAL_NUMBER,
+                      alertaAdmin,
+                    );
+                  } catch (e) {
+                    console.log("Error avisando al admin, pero seguimos...");
+                  }
+
+                  // Notificamos al CLIENTE
                   await enviarMensaje(
-                    process.env.MY_PERSONAL_NUMBER,
-                    alertaAdmin,
+                    numeroCliente,
+                    `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
                   );
-                } catch (e) {
-                  console.log(
-                    "Error avisando al admin, pero seguimos con el cliente...",
+                } else {
+                  // Si actualizarEstadoCRM devolvió false (no encontró el ticket en el Excel)
+                  await enviarMensaje(
+                    numeroCliente,
+                    `⚠️ No logré encontrar el ticket *${ticketParaBorrar}* en nuestro sistema para cancelarlo.`,
                   );
                 }
 
-                // 3. Notificamos al CLIENTE (Esto es lo más importante)
-                await enviarMensaje(
-                  numeroCliente,
-                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente. Si fue un error, puedes iniciar un nuevo pedido en el menú principal.`,
-                );
-
-                // 4. Limpiamos la memoria DESPUÉS de enviar los mensajes
-                delete estadosClientes[numeroCliente];
+                // Limpieza final
+                if (estadosClientes[numeroCliente]) {
+                  delete estadosClientes[numeroCliente];
+                }
               } catch (error) {
                 console.error("❌ Error en el proceso de cancelación:", error);
-                // Si algo falla, al menos intentamos avisar al cliente
                 await enviarMensaje(
                   numeroCliente,
-                  "Tu pedido ha sido cancelado.",
+                  "Hubo un error al intentar cancelar. Por favor contacta a un asesor.",
                 );
-                delete estadosClientes[numeroCliente];
               }
             } else {
-              // Si no hay ticket en memoria, avisamos al cliente para que no se quede en visto
+              // Si después de buscar en memoria y en texto no hay nada
               await enviarMensaje(
                 numeroCliente,
-                "No se encontró un pedido activo para cancelar.",
+                "❌ No detecto un número de pedido activo. Por favor escribe: *Cancelar* seguido de tu ticket (Ej: Cancelar PED-1234)",
               );
             }
             break;
