@@ -744,14 +744,14 @@ async function generarPDFOrden(datos, pathDestino) {
       ) {
         doc
           .fillColor("#FF0000")
-          .font("Helvetica-Bold")
+          .font("Helvetica-Bold" )
           .fontSize(10)
           .text(
             "⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.",
             50,
             685,
             { align: "center", width: 500 },
-          );
+          ); 
       } else {
         // Si no incluye la palabra cotización en el precio, igual ponemos la advertencia al centro abajo
         doc
