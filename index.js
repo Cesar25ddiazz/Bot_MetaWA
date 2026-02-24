@@ -1373,71 +1373,79 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-            // 1. Intentamos obtener el ticket de la memoria normal
             let ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
 
-            // 2. 🟢 NUEVO: Si no hay memoria, lo rescatamos del ID del botón
+            // Rescate de ticket si es por ID de botón
             if (!ticketParaBorrar && msg.type === "interactive") {
               const idBoton = msg.interactive?.button_reply?.id || "";
-              if (idBoton.startsWith("CANCEL_")) {
+              if (idBoton.startsWith("CANCEL_"))
                 ticketParaBorrar = idBoton.replace("CANCEL_", "");
-                console.log(
-                  "Ticket rescatado del ID del botón:",
-                  ticketParaBorrar,
-                );
-              }
-            }
-
-            // 3. Si sigue vacío (caso manual), buscamos en el texto
-            if (!ticketParaBorrar) {
-              const textoCuerpo = msg.text?.body || "";
-              const matchManual = textoCuerpo.match(/PED-\d+/i);
-              if (matchManual) ticketParaBorrar = matchManual[0].toUpperCase();
             }
 
             if (ticketParaBorrar) {
               try {
-                // ACTUALIZACIÓN EN SHEETS (Usando tus columnas exactas)
-                const actualizado = await actualizarEstadoCRM(
-                  ticketParaBorrar,
-                  {
-                    Estado_Pago: "Cancelado",
-                    Estado_Produccion: "Cancelado",
-                  },
-                );
+                // 1. Extraemos datos antes de borrar la memoria para el reporte Admin
+                const categoriaArticulo =
+                  estadosClientes[numeroCliente]?.categoria ||
+                  "No especificado";
+                const nombreDelCliente =
+                  estadosClientes[numeroCliente]?.nombre || "Cliente";
 
-                if (actualizado) {
-                  // Notificación al ADMIN
+                // 2. Actualizamos el Sheet
+                await actualizarEstadoCRM(ticketParaBorrar, {
+                  Estado_Pago: "Cancelado",
+                  Estado_Produccion: "Cancelado",
+                });
+
+                // 3. MENSAJE AL ADMIN CON BOTÓN DE REACTIVAR
+                const alertaAdmin =
+                  `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
+                  `🆔 *Ticket:* ${ticketParaBorrar}\n` +
+                  `👤 *Cliente:* ${nombreDelCliente}\n` +
+                  `📱 *WhatsApp:* wa.me/${numeroCliente}\n` +
+                  `📦 *Artículo:* ${categoriaArticulo}\n` +
+                  `--------------------------\n` +
+                  `_¿Deseas reactivar este pedido?_`;
+
+                try {
+                  // Enviamos botones al Admin
+                  await enviarBotones(
+                    process.env.MY_PERSONAL_NUMBER,
+                    alertaAdmin,
+                    [
+                      {
+                        type: "reply",
+                        reply: {
+                          id: `REACTIVAR_${ticketParaBorrar}`,
+                          title: "Reactivar Ticket",
+                        },
+                      },
+                    ],
+                  );
+                } catch (e) {
+                  // Si fallan los botones, enviamos texto simple para no perder el aviso
                   await enviarMensaje(
                     process.env.MY_PERSONAL_NUMBER,
-                    `🚫 *PEDIDO CANCELADO*\nTicket: ${ticketParaBorrar}`,
-                  );
-
-                  // Notificación al CLIENTE
-                  await enviarMensaje(
-                    numeroCliente,
-                    `🚫 El pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
-                  );
-                } else {
-                  await enviarMensaje(
-                    numeroCliente,
-                    `⚠️ No encontré el ticket *${ticketParaBorrar}* en el sistema.`,
+                    alertaAdmin,
                   );
                 }
 
+                // 4. MENSAJE AL CLIENTE
+                await enviarMensaje(
+                  numeroCliente,
+                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
+                );
+
+                // 5. Borramos memoria
                 if (estadosClientes[numeroCliente])
                   delete estadosClientes[numeroCliente];
               } catch (error) {
-                console.error("❌ Error en cancelación:", error);
-                await enviarMensaje(
-                  numeroCliente,
-                  "Hubo un error al cancelar.",
-                );
+                console.error("❌ Error en proceso cancelación:", error);
               }
             } else {
               await enviarMensaje(
                 numeroCliente,
-                "❌ No detecto un pedido activo. Escribe: *Cancelar PED-XXXX*",
+                "❌ No detecto un pedido activo para cancelar.",
               );
             }
             break;
