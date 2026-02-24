@@ -916,7 +916,7 @@ app.post("/webhook", async (req, res) => {
       type: "reply", 
       reply: { 
         // 🚩 CLAVE: El ID ahora guarda el ticket (Ej: CANCEL_PED-123)
-        id: `CANCEL_${datosRecuperados.ticket}`, 
+        id: `CANCEL_${ticket}`, 
         title: "Cancelar Pedido" 
       } 
     }, "Inicio"],
