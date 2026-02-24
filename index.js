@@ -912,7 +912,14 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(
             numeroCliente,
             saludo + "\n\n¿Deseas realizar otra acción?",
-            ["Confirmar Pedido", "Inicio"],
+            ["Confirmar Pedido", { 
+      type: "reply", 
+      reply: { 
+        // 🚩 CLAVE: El ID ahora guarda el ticket (Ej: CANCEL_PED-123)
+        id: `CANCEL_${datosRecuperados.ticket}`, 
+        title: "Cancelar Pedido" 
+      } 
+    }, "Inicio"],
           );
           return;
         }
@@ -1373,84 +1380,59 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-            // 1. Intentamos obtener el ticket de la memoria
-            let ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+    // 1. Intentamos obtener el ticket de la memoria normal
+    let ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
 
-            // 2. Si no está en memoria (caso manual o sesión expirada), lo buscamos en el texto del mensaje
-            if (!ticketParaBorrar) {
-              const matchManual = msg.text?.body?.match(/PED-\d+/i);
-              if (matchManual) {
-                ticketParaBorrar = matchManual[0].toUpperCase();
-              }
-            }
+    // 2. 🟢 NUEVO: Si no hay memoria, lo rescatamos del ID del botón
+    if (!ticketParaBorrar && msg.type === "interactive") {
+        const idBoton = msg.interactive?.button_reply?.id || "";
+        if (idBoton.startsWith("CANCEL_")) {
+            ticketParaBorrar = idBoton.replace("CANCEL_", "");
+            console.log("Ticket rescatado del ID del botón:", ticketParaBorrar);
+        }
+    }
 
-            if (ticketParaBorrar) {
-              try {
-                // Notificamos inicio de proceso para que no parezca que no hace nada
-                console.log(
-                  `Iniciando cancelación para ticket: ${ticketParaBorrar}`,
-                );
+    // 3. Si sigue vacío (caso manual), buscamos en el texto
+    if (!ticketParaBorrar) {
+        const textoCuerpo = msg.text?.body || "";
+        const matchManual = textoCuerpo.match(/PED-\d+/i);
+        if (matchManual) ticketParaBorrar = matchManual[0].toUpperCase();
+    }
 
-                // ACTUALIZACIÓN EN SHEETS
-                // Usamos tu función con tus variables exactas
-                const actualizado = await actualizarEstadoCRM(
-                  ticketParaBorrar,
-                  {
-                    Estado_Pago: "Cancelado",
-                    Estado_Produccion: "Cancelado",
-                  },
-                );
+    if (ticketParaBorrar) {
+        try {
+            // ACTUALIZACIÓN EN SHEETS (Usando tus columnas exactas)
+            const actualizado = await actualizarEstadoCRM(ticketParaBorrar, {
+                Estado_Pago: "Cancelado",
+                Estado_Produccion: "Cancelado",
+            });
 
-                if (actualizado) {
-                  const alertaAdmin =
-                    `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
-                    `🆔 *Ticket:* ${ticketParaBorrar}\n` +
-                    `👤 *Cliente:* ${numeroCliente}\n` +
-                    `--------------------------\n` +
-                    `_La fila en el Sheet se ha actualizado a Cancelado._`;
-
-                  // Notificamos al ADMIN
-                  try {
-                    await enviarMensaje(
-                      process.env.MY_PERSONAL_NUMBER,
-                      alertaAdmin,
-                    );
-                  } catch (e) {
-                    console.log("Error avisando al admin, pero seguimos...");
-                  }
-
-                  // Notificamos al CLIENTE
-                  await enviarMensaje(
-                    numeroCliente,
-                    `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
-                  );
-                } else {
-                  // Si actualizarEstadoCRM devolvió false (no encontró el ticket en el Excel)
-                  await enviarMensaje(
-                    numeroCliente,
-                    `⚠️ No logré encontrar el ticket *${ticketParaBorrar}* en nuestro sistema para cancelarlo.`,
-                  );
-                }
-
-                // Limpieza final
-                if (estadosClientes[numeroCliente]) {
-                  delete estadosClientes[numeroCliente];
-                }
-              } catch (error) {
-                console.error("❌ Error en el proceso de cancelación:", error);
+            if (actualizado) {
+                // Notificación al ADMIN
                 await enviarMensaje(
-                  numeroCliente,
-                  "Hubo un error al intentar cancelar. Por favor contacta a un asesor.",
+                    process.env.MY_PERSONAL_NUMBER, 
+                    `🚫 *PEDIDO CANCELADO*\nTicket: ${ticketParaBorrar}`
                 );
-              }
+
+                // Notificación al CLIENTE
+                await enviarMensaje(
+                    numeroCliente, 
+                    `🚫 El pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`
+                );
             } else {
-              // Si después de buscar en memoria y en texto no hay nada
-              await enviarMensaje(
-                numeroCliente,
-                "❌ No detecto un número de pedido activo. Por favor escribe: *Cancelar* seguido de tu ticket (Ej: Cancelar PED-1234)",
-              );
+                await enviarMensaje(numeroCliente, `⚠️ No encontré el ticket *${ticketParaBorrar}* en el sistema.`);
             }
-            break;
+
+            if (estadosClientes[numeroCliente]) delete estadosClientes[numeroCliente];
+
+        } catch (error) {
+            console.error("❌ Error en cancelación:", error);
+            await enviarMensaje(numeroCliente, "Hubo un error al cancelar.");
+        }
+    } else {
+        await enviarMensaje(numeroCliente, "❌ No detecto un pedido activo. Escribe: *Cancelar PED-XXXX*");
+    }
+    break;
 
           case "Reactivar Ticket":
             if (esAdmin) {
