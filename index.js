@@ -1256,9 +1256,17 @@ app.post("/webhook", async (req, res) => {
           case "Catalogo":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            const Catalogos = {textil: "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
+              tazas_y_regalos:"https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
+              grabado_y_corte: "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf"
+            };
             await enviarMensaje(
               numeroCliente,
-              "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf]\n\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
+              `📂 *Nuestros Catálogos*\n\n`
+              `👕 *Textil:* ${Catalogos.textil, "Catalogo TEXTIL"}\n\n`
+              `☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n`
+              `🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n`
+              `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`
             );
             await delay(2000);
             await enviarBotones(
