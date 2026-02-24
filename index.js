@@ -716,11 +716,11 @@ async function generarPDFOrden(datos, pathDestino) {
       doc
         .fontSize(10)
         .font("Helvetica")
-        .text("• Instagram: @TuNegocioCreativo", 70, marketingY + 40)
-        .text("• TikTok: @TuNegocioOficial", 70, marketingY + 55)
-        .text("• Facebook: fb.com/TuNegocio", 70, marketingY + 70);
+        .text("• Instagram: @lyn_shop1", 70, marketingY + 40)
+        //.text("• TikTok: @", 70, marketingY + 55)
+        .text("• Facebook: facebook.com/lyn_shopp.39", 70, marketingY + 70);
 
-      const qrData = `https://wa.me/521XXXXXXXXXX?text=Hola, seguimiento del ticket ${datos.ticket}`;
+      const qrData = `https://wa.me/5212482492723?text=Hola, quisiera informes de los productos`;
       const qrImage = await QRCode.toDataURL(qrData);
       doc.image(qrImage, 430, marketingY + 10, { width: 100 });
 
@@ -733,9 +733,10 @@ async function generarPDFOrden(datos, pathDestino) {
       doc
         .fontSize(10)
         .font("Helvetica")
-        .text("• Transferencia Interbancaria (SPEI)", 50, 620)
-        .text("• Depósito en OXXO / 7-Eleven", 50, 635)
-        .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 650);
+        .text("• Efectivo", 50, 620)
+        .text("• Transferencia Interbancaria (SPEI)", 50, 635)
+        .text("• Depósito en OXXO / 7-Eleven", 50, 650)
+        .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 665);
 
       // --- MENSAJE DE COTIZACIÓN (Centrado y corregido) ---
       if (
@@ -1256,17 +1257,21 @@ app.post("/webhook", async (req, res) => {
           case "Catalogo":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
-            const Catalogos = {textil: "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-              tazas_y_regalos:"https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-              grabado_y_corte: "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf"
+            const Catalogos = {
+              textil:
+                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
+              tazas_y_regalos:
+                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
+              grabado_y_corte:
+                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
             };
             await enviarMensaje(
               numeroCliente,
               `📂 *Nuestros Catálogos*\n\n` +
-              `👕 *Textil:* ${Catalogos.textil}\n\n` +
-              `☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
-              `🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
-              `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`
+                `👕 *Textil:* ${Catalogos.textil}\n\n` +
+                `☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
+                `🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
+                `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`,
             );
             await delay(2000);
             await enviarBotones(
