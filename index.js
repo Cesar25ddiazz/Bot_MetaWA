@@ -1262,10 +1262,10 @@ app.post("/webhook", async (req, res) => {
             };
             await enviarMensaje(
               numeroCliente,
-              `📂 *Nuestros Catálogos*\n\n`
-              `👕 *Textil:* ${Catalogos.textil, "Catalogo TEXTIL"}\n\n`
-              `☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n`
-              `🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n`
+              `📂 *Nuestros Catálogos*\n\n` +
+              `👕 *Textil:* ${Catalogos.textil, "Catalogo TEXTIL"}\n\n` +
+              `☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
+              `🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
               `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`
             );
             await delay(2000);
