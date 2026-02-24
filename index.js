@@ -382,14 +382,14 @@ async function consultarStatusCRM(ticket) {
     const nombre = fila.get("Nombre") || "Cliente";
     const pago = fila.get("Estado_Pago") || "Pendiente";
     const produccion = fila.get("Estado_Produccion") || "En espera";
-    const concepto = fila.get("Categoría") || "Pedido General";
+    const concepto = fila.get("Descripcion") || "Pedido General";
 
     // 🟢 ESTE ES EL TEXTO QUE SE ENVÍA AL CLIENTE
-      const respuesta =
+    const respuesta =
       `🔍 *Estado de tu Pedido* 🔍\n\n` +
       `👤 *Cliente:* ${nombre}\n` +
       `🆔 *Ticket:* ${ticket}\n` +
-      `📦 *Concepto:* ${concepto}\n` +
+      `📦 *Descripcion:* ${concepto}\n` +
       `-----------------------------\n` +
       `💰 *Pago:* ${pago}\n` +
       `🛠️ *Producción:* ${produccion}\n` +
@@ -1376,31 +1376,56 @@ app.post("/webhook", async (req, res) => {
             const ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
 
             if (ticketParaBorrar) {
-              await actualizarEstadoCRM(ticketParaBorrar, {
-                Estado_Pago: "Cancelado",
-                Estado_Produccion: "Cancelado",
-              });
+              try {
+                // 1. Actualizamos el CRM primero
+                await actualizarEstadoCRM(ticketParaBorrar, {
+                  Estado_Pago: "Cancelado",
+                  Estado_Produccion: "Cancelado",
+                });
 
-              const alertaAdmin =
-                `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
-                `🆔 *Ticket:* ${ticketParaBorrar}\n` +
-                `👤 *Cliente:* ${numeroCliente}\n` +
-                `--------------------------\n` +
-                `_La fila en el Sheet se ha tachado automáticamente._`;
+                const alertaAdmin =
+                  `🚫 *PEDIDO CANCELADO POR CLIENTE*\n\n` +
+                  `🆔 *Ticket:* ${ticketParaBorrar}\n` +
+                  `👤 *Cliente:* ${numeroCliente}\n` +
+                  `--------------------------\n` +
+                  `_La fila en el Sheet se ha actualizado a Cancelado._`;
 
-              // Mandamos el objeto directo para que NO le ponga "btn_0"
-              await enviarBotones(process.env.MY_PERSONAL_NUMBER, alertaAdmin, [
-                {
-                  type: "reply",
-                  reply: { id: ticketParaBorrar, title: "Reactivar Ticket" },
-                },
-              ]);
+                // 2. Notificamos al ADMIN (simplificado para evitar errores de envío)
+                // Si tu función enviarBotones falla aquí, el try/catch evitará que el cliente se quede en visto
+                try {
+                  await enviarMensaje(
+                    process.env.MY_PERSONAL_NUMBER,
+                    alertaAdmin,
+                  );
+                } catch (e) {
+                  console.log(
+                    "Error avisando al admin, pero seguimos con el cliente...",
+                  );
+                }
 
+                // 3. Notificamos al CLIENTE (Esto es lo más importante)
+                await enviarMensaje(
+                  numeroCliente,
+                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente. Si fue un error, puedes iniciar un nuevo pedido en el menú principal.`,
+                );
+
+                // 4. Limpiamos la memoria DESPUÉS de enviar los mensajes
+                delete estadosClientes[numeroCliente];
+              } catch (error) {
+                console.error("❌ Error en el proceso de cancelación:", error);
+                // Si algo falla, al menos intentamos avisar al cliente
+                await enviarMensaje(
+                  numeroCliente,
+                  "Tu pedido ha sido cancelado.",
+                );
+                delete estadosClientes[numeroCliente];
+              }
+            } else {
+              // Si no hay ticket en memoria, avisamos al cliente para que no se quede en visto
               await enviarMensaje(
                 numeroCliente,
-                `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
+                "No se encontró un pedido activo para cancelar.",
               );
-              delete estadosClientes[numeroCliente];
             }
             break;
 
