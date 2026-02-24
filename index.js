@@ -616,7 +616,7 @@ async function marcarComoLeido(messageId) {
 async function generarPDFOrden(datos, pathDestino) {
   return new Promise(async (resolve, reject) => {
     try {
-      // 1. Validar que la carpeta temp existe (Seguridad para Render)
+      // 1. Validar que la carpeta temp existe
       const carpeta = path.dirname(pathDestino);
       if (!fs.existsSync(carpeta)) {
         fs.mkdirSync(carpeta, { recursive: true });
@@ -627,29 +627,36 @@ async function generarPDFOrden(datos, pathDestino) {
 
       doc.pipe(stream);
 
+      // --- COLORES ELEGANTES ---
+      const colorNegro = "#1a1a1a";
+      const colorRosaPastel = "#F8C8DC"; // Rosa pastel elegante
+      const colorGrisClaro = "#f6f6f6";
+      const colorGrisTexto = "#666666";
+
       // --- ENCABEZADO ---
-      doc.rect(0, 0, 612, 120).fill("#000000");
+      doc.rect(0, 0, 612, 120).fill(colorNegro);
       doc
-        .fillColor("#ffffff")
+        .fillColor(colorRosaPastel)
         .fontSize(28)
         .font("Helvetica-Bold")
         .text("ORDEN DE TRABAJO", 50, 45);
       doc
+        .fillColor("#ffffff")
         .fontSize(10)
         .font("Helvetica")
         .text(`TICKET: ${datos.ticket}`, 400, 58, { align: "right" });
 
       // --- INFORMACIÓN DEL CLIENTE ---
       doc
-        .fillColor("#333333")
+        .fillColor(colorNegro)
         .fontSize(14)
         .font("Helvetica-Bold")
         .text("INFORMACIÓN DEL PEDIDO", 50, 150);
-      doc.moveTo(50, 165).lineTo(545, 165).strokeColor("#eeeeee").stroke();
+      doc.moveTo(50, 165).lineTo(545, 165).strokeColor(colorGrisClaro).stroke();
 
       doc.moveDown();
       doc
-        .fillColor("#000000")
+        .fillColor(colorNegro)
         .fontSize(11)
         .font("Helvetica")
         .text(`Cliente: ${datos.nombre || "No registrado"}`)
@@ -658,38 +665,51 @@ async function generarPDFOrden(datos, pathDestino) {
 
       // --- TABLA DE PRODUCTOS ---
       const tableTop = 250;
-      doc.rect(50, tableTop, 495, 25).fill("#f6f6f6");
+      doc.rect(50, tableTop, 495, 25).fill(colorRosaPastel); // Fondo rosa pastel para el encabezado de tabla
+
       doc
-        .fillColor("#000000")
+        .fillColor(colorNegro)
         .font("Helvetica-Bold")
+        .fontSize(10)
         .text("CONCEPTO / MATERIAL", 60, tableTop + 7)
-        .text("CANT.", 350, tableTop + 7)
-        .text("TOTAL", 450, tableTop + 7);
+        .text("CANT.", 340, tableTop + 7, { width: 50, align: "center" }) // Centrado manual
+        .text("TOTAL", 440, tableTop + 7, { width: 100, align: "center" });
 
       const rowY = tableTop + 40;
+
+      // LIMPIEZA DE CARACTERES EXTRAÑOS (TEXTIL)
+      const categoriaLimpia = (datos.categoria || "PRODUCTO")
+        .replace(/[^\x20-\x7E]/g, "")
+        .replace("=", "")
+        .toUpperCase();
+
       doc
         .font("Helvetica")
-        .text(`${(datos.categoria || "PRODUCTO").toUpperCase()}`, 60, rowY)
-        .text(`${datos.cantidad}`, 350, rowY)
-        .text(`${datos.precioTotal}`, 450, rowY, { width: 120 });
+        .fillColor(colorNegro)
+        .text(categoriaLimpia, 60, rowY)
+        .text(`${datos.cantidad}`, 340, rowY, { width: 50, align: "center" }) // Alineado con el título
+        .text(`${datos.precioTotal}`, 440, rowY, {
+          width: 100,
+          align: "center",
+        });
 
       doc
         .fontSize(9)
-        .fillColor("#666666")
-        .text(`Descripción / Notas: ${datos.detalles}`, 60, rowY + 20, {
+        .fillColor(colorGrisTexto)
+        .text(`Descripción / Notas: ${datos.detalles}`, 60, rowY + 25, {
           width: 400,
         });
 
-      // --- MARKETING Y QR (Recuperando tus Redes Sociales) ---
+      // --- MARKETING Y QR ---
       const marketingY = 450;
       doc
         .rect(50, marketingY, 495, 120)
-        .strokeColor("#000000")
+        .strokeColor(colorNegro)
         .lineWidth(0.5)
         .stroke();
 
       doc
-        .fillColor("#000000")
+        .fillColor(colorNegro)
         .fontSize(12)
         .font("Helvetica-Bold")
         .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
@@ -700,7 +720,6 @@ async function generarPDFOrden(datos, pathDestino) {
         .text("• TikTok: @TuNegocioOficial", 70, marketingY + 55)
         .text("• Facebook: fb.com/TuNegocio", 70, marketingY + 70);
 
-      // QR Dinámico (Asegúrate de tener la librería qrcode instalada)
       const qrData = `https://wa.me/521XXXXXXXXXX?text=Hola, seguimiento del ticket ${datos.ticket}`;
       const qrImage = await QRCode.toDataURL(qrData);
       doc.image(qrImage, 430, marketingY + 10, { width: 100 });
@@ -708,6 +727,7 @@ async function generarPDFOrden(datos, pathDestino) {
       // --- MEDIOS DE PAGO ---
       doc
         .fontSize(12)
+        .fillColor(colorNegro)
         .font("Helvetica-Bold")
         .text("FORMAS DE PAGO ACEPTADAS", 50, 600);
       doc
@@ -717,16 +737,32 @@ async function generarPDFOrden(datos, pathDestino) {
         .text("• Depósito en OXXO / 7-Eleven", 50, 635)
         .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 650);
 
-      // --- MENSAJE DE COTIZACIÓN (Solo si aplica) ---
-      if (datos.precioTotal.includes("Cotización")) {
+      // --- MENSAJE DE COTIZACIÓN (Centrado y corregido) ---
+      if (
+        datos.precioTotal.includes("Cotización") ||
+        datos.precioTotal.includes("Cotizacion")
+      ) {
         doc
-          .fillColor("red")
+          .fillColor("#FF0000")
           .font("Helvetica-Bold")
           .fontSize(10)
           .text(
             "⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.",
             50,
-            680,
+            685,
+            { align: "center", width: 500 },
+          );
+      } else {
+        // Si no incluye la palabra cotización en el precio, igual ponemos la advertencia al centro abajo
+        doc
+          .fillColor("#FF0000")
+          .font("Helvetica-Bold")
+          .fontSize(10)
+          .text(
+            "Atención: Al ser una cotización, el precio final será validado por un asesor.",
+            50,
+            700,
+            { align: "center", width: 500 },
           );
       }
 
@@ -741,7 +777,6 @@ async function generarPDFOrden(datos, pathDestino) {
           { align: "center" },
         );
 
-      // --- FINALIZACIÓN UNIFICADA ---
       doc.end();
 
       stream.on("finish", () => {
@@ -1223,7 +1258,7 @@ app.post("/webhook", async (req, res) => {
             //await delay(1500);
             await enviarMensaje(
               numeroCliente,
-              "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
+              "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://github.com/user-attachments/files/25506264/Catalogo.de.Productos.Imprenta.Moderna.pdf]\n\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
             );
             await delay(2000);
             await enviarBotones(
