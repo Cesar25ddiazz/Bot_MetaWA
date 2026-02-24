@@ -743,15 +743,15 @@ async function generarPDFOrden(datos, pathDestino) {
         datos.precioTotal.includes("Cotizacion")
       ) {
         doc
-          .fillColor("#FF0000" )
-          .font("Helvetica-Bold" )
+          .fillColor("#FF0000")
+          .font("Helvetica-Bold")
           .fontSize(10)
           .text(
             "⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.",
             50,
             685,
-            { align: "center", width: 500},
-          ); 
+            { align: "center", width: 500 },
+          );
       } else {
         // Si no incluye la palabra cotización en el precio, igual ponemos la advertencia al centro abajo
         doc
@@ -1258,7 +1258,7 @@ app.post("/webhook", async (req, res) => {
             //await delay(1500);
             await enviarMensaje(
               numeroCliente,
-              "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://github.com/user-attachments/files/25506264/Catalogo.de.Productos.Imprenta.Moderna.pdf]\n\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
+              "📂 *Nuestros Catálogos*\n\n👕 *Textil:* [https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf]\n\n☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n_Echa un vistazo y cuando estés listo presiona 'Personalizar'_",
             );
             await delay(2000);
             await enviarBotones(
