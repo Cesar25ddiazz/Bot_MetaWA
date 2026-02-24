@@ -373,26 +373,33 @@ async function consultarStatusCRM(ticket) {
 
     if (!fila) {
       console.log(`⚠️ No se encontró el ticket: ${ticket}`);
-      return;
+      return `⚠️ Lo siento, no encontré información para el ticket *${ticket}*. Por favor, verifica que esté bien escrito o contacta a un asesor.`;
     }
 
     console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
 
-    // 2. Actualización Dinámica
-    // Si mandas nuevosDatos.Estado_Pago, se guarda ese valor exacto
-    if (nuevosDatos.Estado_Pago !== undefined) {
-      fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
-    }
+    // Extraemos los datos de la fila
+    const nombre = fila.get("Nombre") || "Cliente";
+    const pago = fila.get("Estado_Pago") || "Pendiente";
+    const produccion = fila.get("Estado_Produccion") || "En espera";
+    const concepto = fila.get("Categoría") || "Pedido General";
 
-    if (nuevosDatos.Estado_Produccion !== undefined) {
-      fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
-    }
+    // 🟢 ESTE ES EL TEXTO QUE SE ENVÍA AL CLIENTE
+      const respuesta =
+      `🔍 *Estado de tu Pedido* 🔍\n\n` +
+      `👤 *Cliente:* ${nombre}\n` +
+      `🆔 *Ticket:* ${ticket}\n` +
+      `📦 *Concepto:* ${concepto}\n` +
+      `-----------------------------\n` +
+      `💰 *Pago:* ${pago}\n` +
+      `🛠️ *Producción:* ${produccion}\n` +
+      `-----------------------------\n` +
+      `Si tienes dudas, puedes hablar con un asesor.`;
 
-    // 3. Guardado Crítico
-    await fila.save();
-    console.log("💾 ¡Hoja de cálculo actualizada con éxito!");
+    return respuesta;
   } catch (error) {
-    console.error("❌ Error al guardar en Sheets:", error.message);
+    console.error("❌ Error al consultar en Sheets:", error.message);
+    return "❌ Hubo un error al consultar tu ticket. Por favor, intenta más tarde.";
   }
 }
 
@@ -547,9 +554,11 @@ async function procesarPedidoDetallado(
       numero: numeroCliente,
       categoria: cat,
       notas: comentario,
+      detalles: comentario,
       urlImagen: urlPermanente,
-      precio: cat.includes("MDF") ? "Cotización" : totalFinal.toString(), //Se guarda el total en la columna
-    }
+      precio: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
+      precioTotal: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
+    };
 
     //Notidicacion detallada
     const mensajeAdmin =
@@ -570,14 +579,11 @@ async function procesarPedidoDetallado(
       `✅ *¡Orden registrada con éxito!*\n\n` +
       `🆔 *Ticket:* ${ticket}\n\n` +
       `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
-      `Estimado cliente, su solicitud ha sido enviada a nuestro taller.\n\n` +
-      `Recuerda que si confirmas tu pedido te descargara un PDF con los detalles.\n\n` +
       `¿Desea realizar alguna otra consulta o prefiere hablar con un *Asesor Especializado*?`;
 
     await delay(1500);
     await enviarBotones(numeroCliente, despedidaElegante, [
       "Hablar con Asesor",
-      "Inicio",
     ]);
   } catch (error) {
     console.error("✖️ Error en producción:", error);
@@ -622,16 +628,30 @@ async function generarPDFOrden(datos, pathDestino) {
       doc.pipe(stream);
 
       // --- ENCABEZADO ---
-      doc.rect(0, 0, 612, 120).fill("#000000"); 
-      doc.fillColor("#ffffff").fontSize(28).font("Helvetica-Bold").text("ORDEN DE TRABAJO", 50, 45);
-      doc.fontSize(10).font("Helvetica").text(`TICKET: ${datos.ticket}`, 400, 58, { align: "right" });
+      doc.rect(0, 0, 612, 120).fill("#000000");
+      doc
+        .fillColor("#ffffff")
+        .fontSize(28)
+        .font("Helvetica-Bold")
+        .text("ORDEN DE TRABAJO", 50, 45);
+      doc
+        .fontSize(10)
+        .font("Helvetica")
+        .text(`TICKET: ${datos.ticket}`, 400, 58, { align: "right" });
 
       // --- INFORMACIÓN DEL CLIENTE ---
-      doc.fillColor("#333333").fontSize(14).font("Helvetica-Bold").text("INFORMACIÓN DEL PEDIDO", 50, 150);
+      doc
+        .fillColor("#333333")
+        .fontSize(14)
+        .font("Helvetica-Bold")
+        .text("INFORMACIÓN DEL PEDIDO", 50, 150);
       doc.moveTo(50, 165).lineTo(545, 165).strokeColor("#eeeeee").stroke();
 
       doc.moveDown();
-      doc.fillColor("#000000").fontSize(11).font("Helvetica")
+      doc
+        .fillColor("#000000")
+        .fontSize(11)
+        .font("Helvetica")
         .text(`Cliente: ${datos.nombre || "No registrado"}`)
         .text(`Fecha: ${new Date().toLocaleDateString()}`)
         .text(`WhatsApp: ${datos.numero}`);
@@ -639,46 +659,87 @@ async function generarPDFOrden(datos, pathDestino) {
       // --- TABLA DE PRODUCTOS ---
       const tableTop = 250;
       doc.rect(50, tableTop, 495, 25).fill("#f6f6f6");
-      doc.fillColor("#000000").font("Helvetica-Bold")
+      doc
+        .fillColor("#000000")
+        .font("Helvetica-Bold")
         .text("CONCEPTO / MATERIAL", 60, tableTop + 7)
         .text("CANT.", 350, tableTop + 7)
         .text("TOTAL", 450, tableTop + 7);
 
       const rowY = tableTop + 40;
-      doc.font("Helvetica")
+      doc
+        .font("Helvetica")
         .text(`${(datos.categoria || "PRODUCTO").toUpperCase()}`, 60, rowY)
         .text(`${datos.cantidad}`, 350, rowY)
-        .text(`${datos.precioTotal}`, 450, rowY, { width: 120 }); // El desglose "$300 (2 pzs)" entra aquí
+        .text(`${datos.precioTotal}`, 450, rowY, { width: 120 });
 
-      doc.fontSize(9).fillColor("#666666")
-        .text(`Descripción / Notas: ${datos.detalles}`, 60, rowY + 20, { width: 400 });
+      doc
+        .fontSize(9)
+        .fillColor("#666666")
+        .text(`Descripción / Notas: ${datos.detalles}`, 60, rowY + 20, {
+          width: 400,
+        });
 
-      // --- QR Y CONTACTO ---
+      // --- MARKETING Y QR (Recuperando tus Redes Sociales) ---
       const marketingY = 450;
-      doc.rect(50, marketingY, 495, 120).strokeColor("#000000").lineWidth(0.5).stroke();
-      doc.fillColor("#000000").fontSize(12).font("Helvetica-Bold").text("ATENCIÓN AL CLIENTE", 70, marketingY + 15);
-      
+      doc
+        .rect(50, marketingY, 495, 120)
+        .strokeColor("#000000")
+        .lineWidth(0.5)
+        .stroke();
+
+      doc
+        .fillColor("#000000")
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
+      doc
+        .fontSize(10)
+        .font("Helvetica")
+        .text("• Instagram: @TuNegocioCreativo", 70, marketingY + 40)
+        .text("• TikTok: @TuNegocioOficial", 70, marketingY + 55)
+        .text("• Facebook: fb.com/TuNegocio", 70, marketingY + 70);
+
       // QR Dinámico (Asegúrate de tener la librería qrcode instalada)
       const qrData = `https://wa.me/521XXXXXXXXXX?text=Hola, seguimiento del ticket ${datos.ticket}`;
       const qrImage = await QRCode.toDataURL(qrData);
       doc.image(qrImage, 430, marketingY + 10, { width: 100 });
 
       // --- MEDIOS DE PAGO ---
-      doc.fontSize(12).font("Helvetica-Bold").text("FORMAS DE PAGO ACEPTADAS", 50, 600);
-      doc.fontSize(10).font("Helvetica")
+      doc
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .text("FORMAS DE PAGO ACEPTADAS", 50, 600);
+      doc
+        .fontSize(10)
+        .font("Helvetica")
         .text("• Transferencia Interbancaria (SPEI)", 50, 620)
         .text("• Depósito en OXXO / 7-Eleven", 50, 635)
         .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 650);
 
       // --- MENSAJE DE COTIZACIÓN (Solo si aplica) ---
       if (datos.precioTotal.includes("Cotización")) {
-        doc.fillColor("red").font("Helvetica-Bold").fontSize(10)
-           .text("⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.", 50, 680);
+        doc
+          .fillColor("red")
+          .font("Helvetica-Bold")
+          .fontSize(10)
+          .text(
+            "⚠️ ATENCIÓN: Al ser una Cotización, el precio final será validado por un asesor.",
+            50,
+            680,
+          );
       }
 
       // --- PIE DE PÁGINA ---
-      doc.fillColor("#aaaaaa").fontSize(8)
-        .text("Este es un documento oficial generado automáticamente por nuestro sistema.", 0, 780, { align: "center" });
+      doc
+        .fillColor("#aaaaaa")
+        .fontSize(8)
+        .text(
+          "Este es un documento oficial generado automáticamente por nuestro sistema.",
+          0,
+          780,
+          { align: "center" },
+        );
 
       // --- FINALIZACIÓN UNIFICADA ---
       doc.end();
@@ -692,7 +753,6 @@ async function generarPDFOrden(datos, pathDestino) {
         console.error("❌ Error en el stream del PDF:", err);
         reject(err);
       });
-
     } catch (error) {
       console.error("❌ Error capturado en generarPDFOrden:", error);
       reject(error);
@@ -829,7 +889,7 @@ app.post("/webhook", async (req, res) => {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
           estadosClientes[numeroCliente] = {
             ...estadosClientes[numeroCliente],
-          nombre: nombreRegistrado, // Aseguramos que el nombre esté presente
+            nombre: nombreRegistrado, // Aseguramos que el nombre esté presente
             ticket: ticketGenerado,
             cantidad: cantidad,
             precioTotal: precioCalculado,
@@ -847,11 +907,12 @@ app.post("/webhook", async (req, res) => {
 
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
-            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*.\n En un momento te confirmo los detalles.`;
+            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*.\n\n` +
+              `Recuerda que debes confirmar tu pedido para generar la orden y te mande los detalles de tu compra.`;
           await enviarBotones(
             numeroCliente,
             saludo + "\n\n¿Deseas realizar otra acción?",
-            ["Confirmar Pedido", "Cancelar Pedido", "Inicio"],
+            ["Confirmar Pedido", "Inicio"],
           );
           return;
         }
@@ -879,61 +940,67 @@ app.post("/webhook", async (req, res) => {
       }
 
       // 1. PRIMERO: Prioridad absoluta al nombre (FUERA del else if)
-      if (msg.type === "text" && estadosClientes[numeroCliente]?.esperandoNombre
+      if (
+        msg.type === "text" &&
+        estadosClientes[numeroCliente]?.esperandoNombre
       ) {
         const nombreProporcionado = msg.text.body.trim();
         const datosRecuperados = estadosClientes[numeroCliente];
 
         // 🛡️ FILTRO: Si el usuario escribe un ticket o la palabra estatus, NO lo guardamos como nombre
-    if (nombreProporcionado.toUpperCase().includes("PED-") || nombreProporcionado.toLowerCase().includes("estatus")) {
-        console.log("Detectado ticket/estatus, saltando guardado de nombre...");
-        // No ponemos 'return' para que el código baje al siguiente 'else if' y procese el ticket
-    } else {
-        // VALIDACIÓN DE SEGURIDAD
-        if (!datosRecuperados || !datosRecuperados.ticket) {
+        if (
+          nombreProporcionado.toUpperCase().includes("PED-") ||
+          nombreProporcionado.toLowerCase().includes("estatus")
+        ) {
+          console.log(
+            "Detectado ticket/estatus, saltando guardado de nombre...",
+          );
+          // No ponemos 'return' para que el código baje al siguiente 'else if' y procese el ticket
+        } else {
+          // VALIDACIÓN DE SEGURIDAD
+          if (!datosRecuperados || !datosRecuperados.ticket) {
             delete estadosClientes[numeroCliente];
             await enviarBotones(
-                numeroCliente,
-                "¡Ups! Sesión expirada. Por favor, selecciona la categoría de nuevo.",
-                ["Catalogo", "Personalizar"],
+              numeroCliente,
+              "¡Ups! Sesión expirada. Por favor, selecciona la categoría de nuevo.",
+              ["Catalogo", "Personalizar"],
             );
             return;
+          }
+
+          estadosClientes[numeroCliente].nombre = nombreProporcionado;
+          estadosClientes[numeroCliente].esperandoNombre = false;
+
+          // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
+          await procesarPedidoDetallado(
+            nombreProporcionado,
+            numeroCliente,
+            datosRecuperados.imageId,
+            datosRecuperados.detalles,
+            datosRecuperados.ticket,
+          );
+
+          // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
+          const mensajeAdmin =
+            `👤 *NUEVO CLIENTE REGISTRADO*\n` +
+            `Nombre: ${nombreProporcionado}\n` +
+            `Ticket: ${datosRecuperados.ticket}\n` +
+            `WhatsApp: wa.me/${numeroCliente}`;
+          await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
+          await delay(1500);
+
+          const mensajeConfirmacion =
+            `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
+            `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
+            `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
+            `¿Los datos son correctos para generar tu Orden en PDF?`;
+
+          await enviarBotones(numeroCliente, mensajeConfirmacion, [
+            "Confirmar Pedido",
+          ]);
+          return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
         }
-
-        estadosClientes[numeroCliente].nombre = nombreProporcionado;
-        estadosClientes[numeroCliente].esperandoNombre = false;
-
-        // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
-        await procesarPedidoDetallado(
-          nombreProporcionado,
-          numeroCliente,
-          datosRecuperados.imageId,
-          datosRecuperados.detalles,
-          datosRecuperados.ticket,
-        );
-
-        // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
-        const mensajeAdmin =
-          `👤 *NUEVO CLIENTE REGISTRADO*\n` +
-          `Nombre: ${nombreProporcionado}\n` +
-          `Ticket: ${datosRecuperados.ticket}\n` +
-          `WhatsApp: wa.me/${numeroCliente}`;
-        await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
-        await delay(1500);
-
-        const mensajeConfirmacion =
-          `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
-          `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
-          `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
-          `¿Los datos son correctos para generar tu Orden en PDF?`;
-
-        await enviarBotones(numeroCliente, mensajeConfirmacion, [
-          "Confirmar Pedido",
-          "Cancelar Pedido",
-        ]);
-        return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
       }
-    }
 
       // B. SI ENVÍAN TEXTO
       else if (msg.type === "text") {
@@ -1106,8 +1173,16 @@ app.post("/webhook", async (req, res) => {
         if (matchTicket) {
           const ticketBusqueda = matchTicket[0].toUpperCase();
           console.log("Ticket detectado con exito:", ticketBusqueda);
-          const resultado = await consultarStatusCRM(ticketBusqueda);
-          await enviarMensaje(numeroCliente, resultado);
+          try {
+            const resultado = await consultarStatusCRM(ticketBusqueda);
+            await enviarMensaje(numeroCliente, resultado);
+          } catch (error) {
+            console.error("❌ Error al procesar la consulta de ticket:", error);
+            await enviarMensaje(
+              numeroCliente,
+              "Hubo un problema técnico al consultar tu ticket. Por favor, intenta de nuevo en unos minutos.",
+            );
+          }
           return;
         }
 
@@ -1372,33 +1447,34 @@ app.post("/webhook", async (req, res) => {
                   ? "🌙 Nocturno"
                   : "☀️ Diurno";
 
-                  // 🟢 LÓGICA DE PRECIO: Si es "Cotización", se queda así. 
-            // Si tiene el desglose, lo pasamos tal cual al Sheet.
-            const precioParaSheet = datosParaPDF.precioTotal || "Cotización";
+                // 🟢 LÓGICA DE PRECIO: Si es "Cotización", se queda así.
+                // Si tiene el desglose, lo pasamos tal cual al Sheet.
+                const precioParaSheet =
+                  datosParaPDF.precioTotal || "Cotización";
 
                 // 🔍 LUPA 3: Mandar a guardar al CRM con TODOS los datos calculados
                 await guardarEnCRM({
-                  ticket: ticketFinal,
+                  ticket: datosParaPDF.ticket,
                   nombre: datosParaPDF.nombre,
                   numero: numeroCliente,
                   categoria: datosParaPDF.categoria,
-                  notas: datosParaPDF.detalles,
-                  urlImagen: linkCloudinary, // Aquí subirá el link de Cloudinary
-                  precio: precioParaSheet, // Aquí subirá el precio ($150, etc) o "Cotización"
-                  origen: origenPedido, // Pasamos el origen detectado
+                  notas: datosParaPDF.notas, // o datosParaPDF.detalles
+                  urlImagen: datosParaPDF.urlImagen,
+                  precio: datosParaPDF.precioTotal, // 👈 Ahora esto tendrá el desglose
+                  origen: origenPedido,
                 });
 
                 // Usamos texto plano para que llegue 100% seguro
-            const avisoAdmin = 
-                `💰 *¡PEDIDO CONFIRMADO!* 💰\n\n` +
-                `👤 *Cliente:* ${datosParaPDF.nombre}\n` +
-                `🆔 *Ticket:* ${ticketFinal}\n` +
-                `📦 *Cat:* ${datosParaPDF.categoria}\n` +
-                `💵 *Precio:* ${precioParaSheet}\n` +
-                `📍 *Horario:* ${origenPedido}\n` +
-                `📱 *WhatsApp:* wa.me/${numeroCliente}`;
+                const avisoAdmin =
+                  `💰 *¡PEDIDO CONFIRMADO!* 💰\n\n` +
+                  `👤 *Cliente:* ${datosParaPDF.nombre}\n` +
+                  `🆔 *Ticket:* ${ticketFinal}\n` +
+                  `📦 *Cat:* ${datosParaPDF.categoria}\n` +
+                  `💵 *Precio:* ${precioParaSheet}\n` +
+                  `📍 *Horario:* ${origenPedido}\n` +
+                  `📱 *WhatsApp:* wa.me/${numeroCliente}`;
 
-            await enviarMensaje(process.env.MY_PERSONAL_NUMBER, avisoAdmin);
+                await enviarMensaje(process.env.MY_PERSONAL_NUMBER, avisoAdmin);
 
                 // Generar PDF
                 await generarPDFOrden(
@@ -1422,8 +1498,8 @@ app.post("/webhook", async (req, res) => {
 
                 await enviarBotones(
                   numeroCliente,
-                  "✅ ¡Pedido Confirmado! Tu orden ha sido registrada.",
-                  ["Inicio"],
+                  "✅ ¡Pedido Confirmado! Tu orden ha sido registrada. Si tienes dudas puedes cancelar tu compra",
+                  ["Cancelar Pedido", "Inicio"],
                 );
 
                 delete estadosClientes[numeroCliente];
