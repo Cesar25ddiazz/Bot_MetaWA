@@ -912,14 +912,7 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(
             numeroCliente,
             saludo + "\n\n¿Deseas realizar otra acción?",
-            ["Confirmar Pedido", { 
-      type: "reply", 
-      reply: { 
-        // 🚩 CLAVE: El ID ahora guarda el ticket (Ej: CANCEL_PED-123)
-        id: `CANCEL_${estadosClientes[numeroCliente]?.ticket}`, 
-        title: "Cancelar Pedido" 
-      } 
-    }, "Inicio"],
+            ["Confirmar Pedido", "Inicio"],
           );
           return;
         }
@@ -1380,59 +1373,74 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-    // 1. Intentamos obtener el ticket de la memoria normal
-    let ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+            // 1. Intentamos obtener el ticket de la memoria normal
+            let ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
 
-    // 2. 🟢 NUEVO: Si no hay memoria, lo rescatamos del ID del botón
-    if (!ticketParaBorrar && msg.type === "interactive") {
-        const idBoton = msg.interactive?.button_reply?.id || "";
-        if (idBoton.startsWith("CANCEL_")) {
-            ticketParaBorrar = idBoton.replace("CANCEL_", "");
-            console.log("Ticket rescatado del ID del botón:", ticketParaBorrar);
-        }
-    }
-
-    // 3. Si sigue vacío (caso manual), buscamos en el texto
-    if (!ticketParaBorrar) {
-        const textoCuerpo = msg.text?.body || "";
-        const matchManual = textoCuerpo.match(/PED-\d+/i);
-        if (matchManual) ticketParaBorrar = matchManual[0].toUpperCase();
-    }
-
-    if (ticketParaBorrar) {
-        try {
-            // ACTUALIZACIÓN EN SHEETS (Usando tus columnas exactas)
-            const actualizado = await actualizarEstadoCRM(ticketParaBorrar, {
-                Estado_Pago: "Cancelado",
-                Estado_Produccion: "Cancelado",
-            });
-
-            if (actualizado) {
-                // Notificación al ADMIN
-                await enviarMensaje(
-                    process.env.MY_PERSONAL_NUMBER, 
-                    `🚫 *PEDIDO CANCELADO*\nTicket: ${ticketParaBorrar}`
+            // 2. 🟢 NUEVO: Si no hay memoria, lo rescatamos del ID del botón
+            if (!ticketParaBorrar && msg.type === "interactive") {
+              const idBoton = msg.interactive?.button_reply?.id || "";
+              if (idBoton.startsWith("CANCEL_")) {
+                ticketParaBorrar = idBoton.replace("CANCEL_", "");
+                console.log(
+                  "Ticket rescatado del ID del botón:",
+                  ticketParaBorrar,
                 );
-
-                // Notificación al CLIENTE
-                await enviarMensaje(
-                    numeroCliente, 
-                    `🚫 El pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`
-                );
-            } else {
-                await enviarMensaje(numeroCliente, `⚠️ No encontré el ticket *${ticketParaBorrar}* en el sistema.`);
+              }
             }
 
-            if (estadosClientes[numeroCliente]) delete estadosClientes[numeroCliente];
+            // 3. Si sigue vacío (caso manual), buscamos en el texto
+            if (!ticketParaBorrar) {
+              const textoCuerpo = msg.text?.body || "";
+              const matchManual = textoCuerpo.match(/PED-\d+/i);
+              if (matchManual) ticketParaBorrar = matchManual[0].toUpperCase();
+            }
 
-        } catch (error) {
-            console.error("❌ Error en cancelación:", error);
-            await enviarMensaje(numeroCliente, "Hubo un error al cancelar.");
-        }
-    } else {
-        await enviarMensaje(numeroCliente, "❌ No detecto un pedido activo. Escribe: *Cancelar PED-XXXX*");
-    }
-    break;
+            if (ticketParaBorrar) {
+              try {
+                // ACTUALIZACIÓN EN SHEETS (Usando tus columnas exactas)
+                const actualizado = await actualizarEstadoCRM(
+                  ticketParaBorrar,
+                  {
+                    Estado_Pago: "Cancelado",
+                    Estado_Produccion: "Cancelado",
+                  },
+                );
+
+                if (actualizado) {
+                  // Notificación al ADMIN
+                  await enviarMensaje(
+                    process.env.MY_PERSONAL_NUMBER,
+                    `🚫 *PEDIDO CANCELADO*\nTicket: ${ticketParaBorrar}`,
+                  );
+
+                  // Notificación al CLIENTE
+                  await enviarMensaje(
+                    numeroCliente,
+                    `🚫 El pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
+                  );
+                } else {
+                  await enviarMensaje(
+                    numeroCliente,
+                    `⚠️ No encontré el ticket *${ticketParaBorrar}* en el sistema.`,
+                  );
+                }
+
+                if (estadosClientes[numeroCliente])
+                  delete estadosClientes[numeroCliente];
+              } catch (error) {
+                console.error("❌ Error en cancelación:", error);
+                await enviarMensaje(
+                  numeroCliente,
+                  "Hubo un error al cancelar.",
+                );
+              }
+            } else {
+              await enviarMensaje(
+                numeroCliente,
+                "❌ No detecto un pedido activo. Escribe: *Cancelar PED-XXXX*",
+              );
+            }
+            break;
 
           case "Reactivar Ticket":
             if (esAdmin) {
@@ -1529,7 +1537,17 @@ app.post("/webhook", async (req, res) => {
                 await enviarBotones(
                   numeroCliente,
                   "✅ ¡Pedido Confirmado! Tu orden ha sido registrada. Si tienes dudas puedes cancelar tu compra",
-                  ["Cancelar Pedido", "Inicio"],
+                  [
+                    {
+                      type: "reply",
+                      reply: {
+                        // 🚩 CLAVE: El ID ahora guarda el ticket (Ej: CANCEL_PED-123)
+                        id: `CANCEL_${estadosClientes[numeroCliente]?.ticket}`,
+                        title: "Cancelar Pedido",
+                      },
+                    },
+                    "Inicio",
+                  ],
                 );
 
                 delete estadosClientes[numeroCliente];
