@@ -518,15 +518,16 @@ async function procesarPedidoDetallado(
     if (c.includes("taza")) cat = "☕ TAZA";
     else if (c.includes("mdf")) cat = "🪵 MDF";
     else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
-    else if (c.includes("playera") || c.includes("sudadera")) cat = "👕 TEXTIL";
+    else if (c.includes("playera")) cat = "👕 PLAYERA BASICA";
+    else if (c.includes("sudadera")) cat = "🧥 SUDADERA";
     else if (c.includes("gorra")) cat = "🧢 GORRA";
 
     let precioUnitario = 0;
     if (cat === "👕 TEXTIL") precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "☕ TAZA")
-      precioUnitario = Number(PRECIOS.taza_personalizada);
+    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
+    else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
 
     //Intenta detectar cantidad
     const numerosEnTexto = comentario.match(/\d+/);
@@ -1237,6 +1238,7 @@ app.post("/webhook", async (req, res) => {
             `👕 *Playera personalizada:* ${PRECIOS.playera_básica}\n` +
             `🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}\n` +
             `🧢 *Gorra estampada:* ${PRECIOS.gorra}\n` +
+            `☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n` +
             `✨ *Diseño extra:* ${PRECIOS.personalización_extra}\n\n` +
             `_Precios sujetos a cambios según la complejidad del diseño._\n` +
             `¿Te gustaría iniciar un pedido ahora? Presiona el botón *Personalizar*.`;
