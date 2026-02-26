@@ -9,6 +9,11 @@ const { JWT } = require("google-auth-library");
 const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 
+  app.get("/keep-alive", (req, res) => {
+    console.log("Ping recibido: Manteniendo el bot despierto...");
+    res.status(200).send("OK");
+  });
+
 //Función de horario
 function estaFueraDeHorario() {
   const ahora = new Date();
@@ -573,15 +578,14 @@ async function procesarPedidoDetallado(
       `🖼️ *Link:* ${result.secure_url}\n` +
       `-----------------------------\n` +
       `⏰ ${fechaHora}`;
-      setTimeout(async () => {
-        try {
-          await enviarMensaje(MI_NUMERO, mensajeAdmin);
-          console.log("Notificacion enviada al admin")
-        }catch (e){
-          console.log("Error al enviar notificacion:", e.message);
-        }
-      }, 2500);
-    
+    setTimeout(async () => {
+      try {
+        await enviarMensaje(MI_NUMERO, mensajeAdmin);
+        console.log("Notificacion enviada al admin");
+      } catch (e) {
+        console.log("Error al enviar notificacion:", e.message);
+      }
+    }, 2500);
 
     const despedidaElegante =
       `✅ *¡Orden registrada con éxito!*\n\n` +
@@ -939,6 +943,7 @@ app.post("/webhook", async (req, res) => {
             precioTotal: precioCalculado,
             detalles: comentarioImagen,
             imageId: idDeLaImagen,
+            esperandoDetallesExtra: true,
           };
 
           await procesarPedidoDetallado(
@@ -963,6 +968,7 @@ app.post("/webhook", async (req, res) => {
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         estadosClientes[numeroCliente] = {
           esperandoNombre: true,
+          esperandoDetallesExtra: true,
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
           detalles: comentarioImagen,
@@ -1051,6 +1057,48 @@ app.post("/webhook", async (req, res) => {
         //Limpiamos el texto del cliente
         const textoCliente = msg.text.body.toLowerCase().trim();
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
+
+        // 🎯 LÓGICA DE CONCATENACIÓN ELEGANTE
+        if (
+          estadosClientes[numeroCliente]?.esperandoDetallesExtra &&
+          !estadosClientes[numeroCliente]?.esperandoNombre
+        ) {
+          // Lista de botones para no concatenar comandos por error
+          const esBoton = [
+            "inicio",
+            "catalogo",
+            "personalizar",
+            "confirmar pedido",
+            "tallas",
+            "precios",
+          ].includes(textoCliente);
+
+          if (!esBoton) {
+            // Validación: Si por alguna razón 'detalles' es undefined, lo inicializamos vacío
+            if (estadosClientes[numeroCliente].detalles === undefined) {
+              estadosClientes[numeroCliente].detalles = "";
+            }
+
+            const notaExtra = msg.text.body.trim();
+            estadosClientes[numeroCliente].detalles += " " + notaExtra;
+
+            console.log(
+              "📝 Nota extra añadida al ticket:",
+              estadosClientes[numeroCliente].ticket,
+            );
+
+            await enviarMensaje(
+              numeroCliente,
+              `✅ *Anotado:* "${notaExtra}"\n\n¿Deseas agregar algo más o confirmamos el pedido?`,
+            );
+
+            // Re-enviamos el botón de confirmar para que siempre lo tenga a la mano
+            await enviarBotones(numeroCliente, "¿Todo listo?", [
+              "Confirmar Pedido",
+            ]);
+            return;
+          }
+        }
 
         if (esAdmin) {
           if (
@@ -1606,6 +1654,11 @@ app.post("/webhook", async (req, res) => {
                   `Orden_${ticketFinal}.pdf`,
                 );
 
+                // 🚩 APAGADO DE BANDERAS: Lo hacemos justo antes del delete para asegurar limpieza
+                if (estadosClientes[numeroCliente]) {
+                  estadosClientes[numeroCliente].esperandoDetallesExtra = false;
+                }
+
                 await enviarBotones(
                   numeroCliente,
                   "✅ ¡Pedido Confirmado! Tu orden ha sido registrada. Si tienes dudas puedes cancelar tu compra",
@@ -1622,11 +1675,41 @@ app.post("/webhook", async (req, res) => {
                   ],
                 );
 
+                // 🧹 LIMPIEZA TOTAL: Esto apaga 'esperandoDetallesExtra' y libera la memoria
                 delete estadosClientes[numeroCliente];
               } catch (error) {
                 console.error("❌ Error en Confirmar Pedido:", error);
               }
             }
+            break;
+
+          case "ESPERANDO_DETALLES":
+            // 1. Limpiamos el texto nuevo
+            const textoExtra = msg.text?.body || "";
+
+            // 2. Si ya tiene detalles, le ponemos una coma o un espacio para que no se peguen las palabras
+            if (estadosClientes[numeroCliente].detalles) {
+              estadosClientes[numeroCliente].detalles += " " + textoExtra;
+            } else {
+              estadosClientes[numeroCliente].detalles = textoExtra;
+            }
+
+            console.log(
+              `📝 Nota añadida al ticket ${estadosClientes[numeroCliente].ticket}: ${textoExtra}`,
+            );
+
+            // 3. Opcional: Confirmar al cliente que lo escuchaste
+            await enviarMensaje(
+              numeroCliente,
+              "✅ *Anotado.* ¿Deseas agregar algo más o ya podemos generar tu orden?",
+            );
+
+            // Aquí puedes volver a enviar los botones de "Confirmar Pedido" para que el flujo no se detenga
+            await enviarBotones(
+              numeroCliente,
+              "¿Confirmamos los datos actuales?",
+              ["Confirmar Pedido", "Inicio"],
+            );
             break;
         }
       }
@@ -1643,9 +1726,6 @@ app.post("/webhook", async (req, res) => {
     }
   }
 
-  app.get('/keep-alive', (req, res) => {
-  console.log("Ping recibido: Manteniendo el bot despierto...");
-});
 });
 
 // ==========================================
