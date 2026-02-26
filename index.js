@@ -1024,6 +1024,9 @@ app.post("/webhook", async (req, res) => {
           estadosClientes[numeroCliente].nombre = nombreProporcionado;
           estadosClientes[numeroCliente].esperandoNombre = false;
 
+          // IMPORTANTE: Aquí activamos la escucha de notas extras para que el siguiente mensaje sea nota
+      estadosClientes[numeroCliente].esperandoDetallesExtra = true;
+
           // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
           await procesarPedidoDetallado(
             nombreProporcionado,
@@ -1061,47 +1064,20 @@ app.post("/webhook", async (req, res) => {
         const textoCliente = msg.text.body.toLowerCase().trim();
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
-        // 🎯 LÓGICA DE CONCATENACIÓN ELEGANTE
-        if (
-          estadosClientes[numeroCliente]?.esperandoDetallesExtra &&
-          !estadosClientes[numeroCliente]?.esperandoNombre
-        ) {
-          // Lista de botones para no concatenar comandos por error
-          const esBoton = [
-            "inicio",
-            "catalogo",
-            "personalizar",
-            "confirmar pedido",
-            "tallas",
-            "precios",
-          ].includes(textoCliente);
+      // 🎯 LÓGICA DE CONCATENACIÓN (Solo si NO estamos esperando nombre)
+  if (estadosClientes[numeroCliente]?.esperandoDetallesExtra && !estadosClientes[numeroCliente]?.esperandoNombre) {
+      const esBoton = ["inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios"].includes(textoCliente);
 
-          if (!esBoton) {
-            // Validación: Si por alguna razón 'detalles' es undefined, lo inicializamos vacío
-            if (estadosClientes[numeroCliente].detalles === undefined) {
-              estadosClientes[numeroCliente].detalles = "";
-            }
-
-            const notaExtra = msg.text.body.trim();
-            estadosClientes[numeroCliente].detalles += " " + notaExtra;
-
-            console.log(
-              "📝 Nota extra añadida al ticket:",
-              estadosClientes[numeroCliente].ticket,
-            );
-
-            await enviarMensaje(
-              numeroCliente,
-              `✅ *Anotado:* "${notaExtra}"\n\n¿Deseas agregar algo más o confirmamos el pedido?`,
-            );
-
-            // Re-enviamos el botón de confirmar para que siempre lo tenga a la mano
-            await enviarBotones(numeroCliente, "¿Todo listo?", [
-              "Confirmar Pedido",
-            ]);
-            return;
-          }
-        }
+      if (!esBoton) {
+          // Si el cliente escribe "Hola" o cualquier cosa, se guarda como nota del pedido
+          estadosClientes[numeroCliente].detalles = (estadosClientes[numeroCliente].detalles || "") + " " + msg.text.body.trim();
+          
+          await enviarMensaje(numeroCliente, `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Algo más o confirmamos?`);
+          await enviarBotones(numeroCliente, "¿Todo listo?", ["Confirmar Pedido"]);
+          
+          return; // ⛔ OBLIGATORIO: Detiene el flujo para que no llegue a la bienvenida ni cree usuarios nuevos.
+      }
+  }
 
         if (esAdmin) {
           if (
