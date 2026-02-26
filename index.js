@@ -36,9 +36,9 @@ const app = express();
 app.use(express.json());
 
 app.get("/keep-alive", (req, res) => {
-    console.log("Ping recibido: Manteniendo el bot despierto...");
-    res.status(200).send("OK");
-  });
+  console.log("Ping recibido: Manteniendo el bot despierto...");
+  res.status(200).send("OK");
+});
 
 // ==========================================
 // 1. CONFIGURACIÓN PLUG AND PLAY
@@ -523,8 +523,10 @@ async function procesarPedidoDetallado(
     else if (c.includes("gorra")) cat = "🧢 GORRA";
 
     let precioUnitario = 0;
-    if (cat === "👕 TEXTIL") precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+    if (cat === "👕 PLAYERA BASICA")
+      precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "☕ TAZA")
+      precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
@@ -1213,8 +1215,20 @@ app.post("/webhook", async (req, res) => {
         );
 
         if (quiereBienvenida) {
-          // await escribir(numeroCliente); //El cliente ve escribiendo
-          //await delay(1500);
+          // ⚠️ Si el cliente ya tiene un ticket activo, NO borramos el estado ni saludamos de nuevo
+          if (estadosClientes[numeroCliente]?.ticket) {
+            await enviarMensaje(
+              numeroCliente,
+              "¡Hola! Sigo esperando la confirmación de tu pedido actual. 😊",
+            );
+            await enviarBotones(
+              numeroCliente,
+              "¿Deseas confirmar o necesitas ayuda?",
+              ["Confirmar Pedido", "Ayuda"],
+            );
+            return;
+          }
+
           delete estadosClientes[numeroCliente];
           await enviarBotones(
             numeroCliente,
@@ -1277,6 +1291,15 @@ app.post("/webhook", async (req, res) => {
               "Hubo un problema técnico al consultar tu ticket. Por favor, intenta de nuevo en unos minutos.",
             );
           }
+          return;
+        }
+
+        // 9. MENSAJE NO RECONOCIDO (Si llegó hasta aquí y tiene un ticket, le pedimos confirmar)
+        if (estadosClientes[numeroCliente]?.ticket) {
+          await enviarMensaje(
+            numeroCliente,
+            `He anotado: "${msg.text.body}".\n\n¿Quieres agregar algo más o ya podemos *Confirmar Pedido*?`,
+          );
           return;
         }
 
@@ -1727,7 +1750,6 @@ app.post("/webhook", async (req, res) => {
       console.error("❌ Error procesando flujo:", err.message);
     }
   }
-
 });
 
 // ==========================================
