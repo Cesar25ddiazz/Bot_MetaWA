@@ -573,7 +573,15 @@ async function procesarPedidoDetallado(
       `🖼️ *Link:* ${result.secure_url}\n` +
       `-----------------------------\n` +
       `⏰ ${fechaHora}`;
-    await enviarMensaje(MI_NUMERO, mensajeAdmin);
+      setTimeout(async () => {
+        try {
+          await enviarMensaje(MI_NUMERO, mensajeAdmin);
+          console.log("Notificacion enviada al admin")
+        }catch (e){
+          console.log("Error al enviar notificacion:", e.message);
+        }
+      }, 2500);
+    
 
     const despedidaElegante =
       `✅ *¡Orden registrada con éxito!*\n\n` +
@@ -1634,6 +1642,10 @@ app.post("/webhook", async (req, res) => {
       console.error("❌ Error procesando flujo:", err.message);
     }
   }
+
+  app.get('/keep-alive', (req, res) => {
+  console.log("Ping recibido: Manteniendo el bot despierto...");
+});
 });
 
 // ==========================================
