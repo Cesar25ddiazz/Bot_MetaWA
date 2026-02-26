@@ -9,11 +9,6 @@ const { JWT } = require("google-auth-library");
 const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 
-  app.get("/keep-alive", (req, res) => {
-    console.log("Ping recibido: Manteniendo el bot despierto...");
-    res.status(200).send("OK");
-  });
-
 //Función de horario
 function estaFueraDeHorario() {
   const ahora = new Date();
@@ -39,6 +34,11 @@ process.on(`uncaughtException`, (err) => {
 
 const app = express();
 app.use(express.json());
+
+app.get("/keep-alive", (req, res) => {
+    console.log("Ping recibido: Manteniendo el bot despierto...");
+    res.status(200).send("OK");
+  });
 
 // ==========================================
 // 1. CONFIGURACIÓN PLUG AND PLAY
