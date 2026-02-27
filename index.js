@@ -881,7 +881,7 @@ app.post("/webhook", async (req, res) => {
       // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
-        const comentarioImagen = (msg.image?.caption || "").trim();
+        const comentarioImagen = msg.image.caption ? msg.image.caption.toLowerCase().trim() : "";
 
         // 🟢 CAMBIO: Solo tomamos la categoría, si no hay, forzamos a que elija una
         const estadoPrevio = estadosClientes[numeroCliente] || {};
@@ -939,7 +939,7 @@ app.post("/webhook", async (req, res) => {
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
           estadosClientes[numeroCliente] = {
-            ...estadosClientes[numeroCliente],
+            ...estadosClientes,
             nombre: nombreRegistrado, // Aseguramos que el nombre esté presente
             ticket: ticketGenerado,
             cantidad: cantidad,
@@ -947,6 +947,7 @@ app.post("/webhook", async (req, res) => {
             detalles: comentarioImagen,
             imageId: idDeLaImagen,
             esperandoDetallesExtra: true,
+            esperandoNombre: false,
           };
 
           await procesarPedidoDetallado(
@@ -963,13 +964,14 @@ app.post("/webhook", async (req, res) => {
               `Recuerda que debes confirmar tu pedido para generar la orden y te mande los detalles de tu compra.`;
           await enviarBotones(
             numeroCliente,
-            saludo + "\n\n¿Deseas realizar otra acción?",
-            ["Confirmar Pedido", "Inicio"],
+            saludo + "\n\n¿Deseas agregar más detalles por texto o prefieres confirmar el pedido ahora?",
+            ["Confirmar Pedido", "Personalizar"],
           );
           return;
         }
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         estadosClientes[numeroCliente] = {
+          ...estadoPrevio,
           esperandoNombre: true,
           esperandoDetallesExtra: true,
           ticket: ticketGenerado,
@@ -1536,9 +1538,9 @@ app.post("/webhook", async (req, res) => {
                 }
 
                 // 4. MENSAJE AL CLIENTE
-                await enviarMensaje(
+                await enviarBotones(
                   numeroCliente,
-                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
+                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`, ["Inicio"]
                 );
 
                 // 5. Borramos memoria
