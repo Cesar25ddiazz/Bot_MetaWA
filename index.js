@@ -467,37 +467,29 @@ async function buscarNombreEnSheets(whatsapp) {
 }
 
 // Obtener la URL de descarga de una imagen desde Meta
-async function procesarPedidoDetallado(
-  nombreCliente,
-  numeroCliente,
-  imageId,
-  comentario,
-  ticket,
-) {
+async function procesarPedidoDetallado(nombreCliente, numeroCliente, imageId, comentario, ticket) {
   try {
-    const fechaHora = new Date().toLocaleString("es-MX", {
-      timeZone: "America/Mexico_City",
-    });
-    console.log("Iniciando proceso de imagen para:", ticket);
+    console.log(`--- 🛠️ Iniciando procesarPedidoDetallado para: ${ticket} ---`);
+    const fechaHora = new Date().toLocaleString("es-MX", { timeZone: "America/Mexico_City" });
+
     if (!imageId || imageId === "Undefined") {
       throw new Error("El ID de la imagen es invalido antes de la peticion");
     }
-    const responseMeta = await axios.get(
-      `https://graph.facebook.com/v18.0/${imageId}`,
-      { headers: { Authorization: `Bearer ${process.env.ACCESS_TOKEN}` } },
-    );
+
+    // 1. Obtener URL de Meta
+    const responseMeta = await axios.get(`https://graph.facebook.com/v18.0/${imageId}`, {
+      headers: { Authorization: `Bearer ${process.env.ACCESS_TOKEN}` }
+    });
     const urlDescarga = responseMeta.data.url;
 
-    //Descarga de imagen como buffer
+    // 2. Descarga de imagen
     const imagenResponse = await axios.get(urlDescarga, {
       headers: { Authorization: `Bearer ${process.env.ACCESS_TOKEN}` },
       responseType: "arraybuffer",
     });
 
-    //Convertir en formato Base64 para cloudinary
+    // 3. Subir a Cloudinary
     const base64Image = `data:image/jpeg;base64,${Buffer.from(imagenResponse.data).toString("base64")}`;
-
-    //SUbir a cloudinary
     const result = await cloudinary.uploader.upload(base64Image, {
       folder: "SISTEMA_PRODUCCIÓN",
       public_id: ticket,
@@ -506,13 +498,13 @@ async function procesarPedidoDetallado(
     const urlPermanente = result.secure_url;
     console.log("Imagen en cloudinary:", urlPermanente);
 
-    estadosClientes[numeroCliente] = {
-      ...estadosClientes[numeroCliente], // Conservamos categoría, ticket, etc.
-      urlImagen: urlPermanente, // <--- GUARDAMOS EL LINK AQUÍ
-      esperandoNombre: true, // Seguimos con el flujo del nombre
-    };
+    // --- 🛡️ CORRECCIÓN CRÍTICA: Usar Object.assign para no romper el bloqueo ---
+    Object.assign(estadosClientes[numeroCliente], {
+      urlImagen: urlPermanente,
+      esperandoNombre: true
+    });
 
-    // Determinar categoria para la notificacion
+    // Lógica de categorías y precios (Tu lógica actual está bien)
     let cat = "📦 GENERAL";
     const c = comentario.toLowerCase();
     if (c.includes("taza")) cat = "☕ TAZA";
@@ -523,87 +515,50 @@ async function procesarPedidoDetallado(
     else if (c.includes("gorra")) cat = "🧢 GORRA";
 
     let precioUnitario = 0;
-    if (cat === "👕 PLAYERA BASICA")
-      precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "☕ TAZA")
-      precioUnitario = Number(PRECIOS.taza_personalizada);
+    if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
 
-    //Intenta detectar cantidad
-    const numerosEnTexto = comentario.match(/\d+/);
-    let cantidadDetectada = numerosEnTexto ? parseInt(numerosEnTexto[0]) : 1; //Si no se encuentra asume 1
+    const cantidadMatch = comentario.match(/\d+/);
+    let cantidadDetectada = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
 
-    //Logica para etiquetas
-    let totalFinal = 0;
-    let precioBase = Number(PRECIOS.etiquetas);
-
-    if (cat && cat.includes("ETIQUETAS")) {
-      //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
-      //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes
-      totalFinal = (cantidadDetectada / 100) * precioBase;
-    } else {
-      totalFinal = Number(precioUnitario) * cantidadDetectada;
-    }
+    let totalFinal = (cat.includes("ETIQUETAS")) 
+        ? (cantidadDetectada / 100) * Number(PRECIOS.etiquetas)
+        : precioUnitario * cantidadDetectada;
+    
     totalFinal = Math.round(totalFinal * 100) / 100;
 
-    //Calculo total
-    let textoPresupuesto =
-      (cat && cat.includes("MDF")) || c.includes("mdf") || c.includes("madera")
-        ? "Sujeto a cotización según diseño"
+    let textoPresupuesto = (cat.includes("MDF")) 
+        ? "Sujeto a cotización según diseño" 
         : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
-    //Guardar en CRM
-    estadosClientes[numeroCliente] = {
-      ...estadosClientes[numeroCliente],
+    // --- 🛡️ SEGUNDA CORRECCIÓN: Object.assign de nuevo ---
+    Object.assign(estadosClientes[numeroCliente], {
       ticket: ticket,
       nombre: nombreCliente,
-      numero: numeroCliente,
       categoria: cat,
       notas: comentario,
-      detalles: comentario,
-      urlImagen: urlPermanente,
-      precio: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
-      precioTotal: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
-    };
+      precioTotal: textoPresupuesto
+    });
 
-    //Notidicacion detallada
-    const mensajeAdmin =
-      `🛠️ *PRE-ORDEN-RECIBIDA:* 🛠️\n` +
-      `-----------------------------\n` +
-      `🆔 *Ticket:* \`${ticket}\`\n` +
-      `👤 *Cliente:* ${nombreCliente}\n` +
-      `📱 *Whatsapp:* wa.me/${numeroCliente}\n` +
-      `📦 *CAT:* ${cat}\n` +
-      `📝 *Notas:* ${comentario}\n` +
-      `💵 *Total:* ${textoPresupuesto}\n` +
-      `🖼️ *Link:* ${result.secure_url}\n` +
-      `-----------------------------\n` +
-      `⏰ ${fechaHora}`;
+    // Notificación al admin (con tu setTimeout está bien)
+    const mensajeAdmin = `🛠️ *PRE-ORDEN-RECIBIDA:* 🛠️\n🆔 *Ticket:* \`${ticket}\`\n👤 *Cliente:* ${nombreCliente}\n📦 *CAT:* ${cat}\n💵 *Total:* ${textoPresupuesto}\n🖼️ *Link:* ${urlPermanente}`;
+    
     setTimeout(async () => {
-      try {
-        await enviarMensaje(MI_NUMERO, mensajeAdmin);
-        console.log("Notificacion enviada al admin");
-      } catch (e) {
-        console.log("Error al enviar notificacion:", e.message);
-      }
+      try { await enviarMensaje(MI_NUMERO, mensajeAdmin); } catch (e) { console.log("Error Admin:", e.message); }
     }, 2500);
 
-    const despedidaElegante =
-      `✅ *¡Orden registrada con éxito!*\n\n` +
-      `🆔 *Ticket:* ${ticket}\n\n` +
-      `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
-      `¿Desea realizar alguna otra consulta o prefiere hablar con un *Asesor Especializado*?`;
+    const despedidaElegante = `✅ *¡Orden registrada con éxito!*\n\n🆔 *Ticket:* ${ticket}\n💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n¿Desea realizar alguna otra consulta?`;
 
-    await delay(1500);
-    await enviarBotones(numeroCliente, despedidaElegante, [
-      "Hablar con Asesor",
-    ]);
+    await delay(1000);
+    await enviarBotones(numeroCliente, despedidaElegante, ["Hablar con Asesor"]);
+
   } catch (error) {
     console.error("✖️ Error en producción:", error);
+    // IMPORTANTE: Si algo falla aquí, el Webhook padre se encargará de liberar el bloqueo.
   }
-  return;
 }
 
 async function marcarComoLeido(messageId) {
@@ -841,17 +796,34 @@ app.post("/webhook", async (req, res) => {
 
   if (entry && entry.messages && entry.messages[0]) {
     const msg = entry.messages[0];
+    const numeroCliente = msg.from;
+    // --- 🛡️ SISTEMA DE BLOQUEO ATÓMICO ---
+    // Si el mensaje actual ya se está procesando (por ID de mensaje) o el cliente está bloqueado
+    if (estadosClientes[numeroCliente]?.mensajeEnCurso === msg.id || estadosClientes[numeroCliente]?.bloqueado) {
+      console.log(`⛔ BLOQUEO: Ignorando duplicado de ${numeroCliente}`);
+      return;
+    }
+
+    // Inicialización inmediata (Síncrona)
+    if (!estadosClientes[numeroCliente]) {
+      estadosClientes[numeroCliente] = {};
+    }
+
+    // Ponemos el candado ANTES de cualquier 'await'
+    estadosClientes[numeroCliente].bloqueado = true;
+    estadosClientes[numeroCliente].mensajeEnCurso = msg.id;
+    // -------------------------------------
+
     const timestampMsg = parseInt(msg.timestamp);
     const ahora = Math.floor(Date.now() / 1000);
 
-    //Evita reintentos y mensajes viejos
-    if (ahora - timestampMsg > 120) return;
+    if (ahora - timestampMsg > 120) {
+       estadosClientes[numeroCliente].bloqueado = false;
+       return;
+    }
 
-    await marcarComoLeido(msg.id);
-    const numeroCliente = msg.from;
     const nombreCliente = (
-      entry.contacts?.[0]?.profile?.name || "Cliente"
-    ).replace(/\s+/g, "_");
+      entry.contacts?.[0]?.profile?.name || "Cliente").replace(/\s+/g, "_");
 
     // Filtro: Solo procesar si es texto, botón o imagen (ignorar estados read/delivered)
     if (
@@ -861,9 +833,10 @@ app.post("/webhook", async (req, res) => {
       !msg.video &&
       !msg.audio &&
       !msg.document &&
-      !msg.sticker
-    )
-      return;
+      !msg.sticker ){
+        estadosClientes[numeroCliente].bloqueado = false;
+        return;
+      }
 
     //Validar horario
     if (estaFueraDeHorario() && msg.type === "text") {
