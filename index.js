@@ -826,8 +826,16 @@ app.get("/webhook", (req, res) => {
 
 // Recepción de mensajes
 app.post("/webhook", async (req, res) => {
-  // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
-  res.status(200).send("EVENT_RECEIVED");
+
+  // 2. VERIFICACIÓN DE CRON / MONITOR
+    // Si Meta o un servicio de monitoreo solo pregunta si el server vive
+    if (body.object === "check_status") { 
+        return res.status(200).send("OK"); // El 'return' es vital para que NO siga ejecutando lo de abajo
+    }
+
+    // 3. RESPUESTA INMEDIATA PARA META (Solo si es un mensaje real)
+    // Esto detiene los duplicados de raíz.
+    res.status(200).send("EVENT_RECEIVED");
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
@@ -878,43 +886,47 @@ app.post("/webhook", async (req, res) => {
     }
 
     try {
-      // A. SI ENVÍAN UNA IMAGEN (Lo que sí procesamos)
+      // A. SI ENVÍAN UNA IMAGEN 
       if (msg.type === "image") {
         const numeroCliente = msg.from;
+        const logId = Math.random().toString(36).substring(7); // ID único de ejecución
+    
+    console.log(`[${logId}] 📥 Recibida imagen de ${numeroCliente}`);
 
-        // 🛡️ ESTA DEBE SER LA LÍNEA 1, 2 Y 3. NADA DEBE IR ANTES.
-  if (estadosClientes[numeroCliente]?.bloqueado) {
-    console.log(`⛔ BLOQUEO DE DUPLICADO ACTIVADO PARA: ${numeroCliente}`);
-    return; // Si ya hay un proceso, matamos este segundo intento aquí mismo.
-  }
+        // 2. 🛡️ EL FILTRO DE SEGURIDAD (Debe ser lo primero después de recibir el número)
+        if (estadosClientes[numeroCliente]?.bloqueado || estadosClientes[numeroCliente]?.procesando) {
+          console.log(`⛔ BLOQUEO: Ignorando mensaje duplicado de ${numeroCliente}`);
+          return; // Matamos el proceso duplicado aquí.
+        }
 
-        // 🛡️ Candados de seguridad contra el bucle de 3 segundos
-  if (estadosClientes[numeroCliente]?.procesando || estadosClientes[numeroCliente]?.bloqueado) return;
+        // 2. Si no está bloqueado, lo bloqueamos e inicializamos de inmediato
+    if (!estadosClientes[numeroCliente]) {
+        estadosClientes[numeroCliente] = {};
+    }
+    estadosClientes[numeroCliente].bloqueado = true;
+    estadosClientes[numeroCliente].procesando = true;
 
-        // Marcamos que estamos ocupados
-        if (!estadosClientes[numeroCliente])
-          estadosClientes[numeroCliente] = {};
-        estadosClientes[numeroCliente].procesando = true;
-        estadosClientes[numeroCliente].bloqueado = true;
         try {
+          // Ahora sí, después de bloquear, podemos hacer el marcado de lectura
+          await marcarComoLeido(msg.id); 
+
           const idDeLaImagen = msg.image?.id || msg.id;
           const comentarioImagen = msg.image.caption ? msg.image.caption.toLowerCase().trim() : "";
           const estadoPrevio = {...estadosClientes[numeroCliente] };
 
-          // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
+          // Si el cliente mandó imagen sin haber elegido categoría antes
           if (!estadoPrevio.categoria) {
             await enviarBotones(
               numeroCliente,
               "⚠️ Por favor, primero selecciona una categoría (Textil, Tazas o Etiquetas).", ["Textil", "Tazas y MDF", "Etiquetas"],
             );
             estadosClientes[numeroCliente].procesando = false;
-      estadosClientes[numeroCliente].bloqueado = false;
+            estadosClientes[numeroCliente].bloqueado = false;
             return;
           }
 
           if (estadoPrevio.categoria === "TAZAS Y MDF") {
             const textoAnalizar = comentarioImagen.toLowerCase();
-            //Palabras clave
             const tieneMaterial =
               textoAnalizar.includes("taza") ||
               textoAnalizar.includes("mdf") ||
@@ -927,23 +939,25 @@ app.post("/webhook", async (req, res) => {
               await enviarMensaje(
                 numeroCliente,
                 "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\n" +
-                  "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨",
+                "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨",
               );
               estadosClientes[numeroCliente].procesando = false;
-        estadosClientes[numeroCliente].bloqueado = false;
-              return; // Detiene la generación de la orden
+              estadosClientes[numeroCliente].bloqueado = false;
+              return;
             }
           }
 
           if (!idDeLaImagen) {
             console.error("No se pudo obtener el ID de la imagen");
+            estadosClientes[numeroCliente].bloqueado = false; // Liberar en caso de error
             return;
           }
 
-          // --- CÁLCULO DE PRECIOS PARA EL PDF (IMPORTANTE) ---
-          // Extraer cantidad
+          // --- CÁLCULO DE PRECIOS PARA EL PDF ---
           const cantidadMatch = comentarioImagen.match(/\d+/);
           const cantidad = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
+          
+          // Nota: El await aquí ya no es peligroso porque ya bloqueamos arriba
           const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
           const ticketGenerado = `PED-${Date.now()}`;
 
@@ -953,8 +967,8 @@ app.post("/webhook", async (req, res) => {
               ? `$${cantidad * 150}`
               : "Cotización";
 
-           //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
-          estadosClientes[numeroCliente] = {
+          // Actualizamos el estado con los nuevos datos
+          Object.assign(estadosClientes[numeroCliente], {
             ...estadoPrevio,
             ticket: ticketGenerado,
             imageId: idDeLaImagen,
@@ -964,12 +978,11 @@ app.post("/webhook", async (req, res) => {
             precioTotal: precioCalculado,
             esperandoDetallesExtra: true,
             nombre: nombreRegistrado || null,
-            esperandoNombre: !nombreRegistrado, // Si no hay nombre, lo esperamos
-            procesando: true, // Liberamos para que el texto extra pueda entrar
+            esperandoNombre: !nombreRegistrado,
+            procesando: true,
             bloqueado: true
-          };
+          });
 
-          //Cliente ya existe en excel
           if (nombreRegistrado) {
             console.log(`Cliente reconocido: ${nombreRegistrado}`);
 
@@ -985,33 +998,36 @@ app.post("/webhook", async (req, res) => {
               ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
               : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*.\n\n` +
                 `Recuerda que debes confirmar tu pedido para generar la orden y te mande los detalles de tu compra.`;
+
             await enviarBotones(
               numeroCliente,
-              saludo +
-                "\n\n¿Deseas agregar más detalles por texto o prefieres confirmar el pedido ahora?",
-              ["Confirmar Pedido", "Personalizar"]);
-              // ✅ LIBERAMOS ANTES DEL RETURN
+              saludo + "\n\n¿Deseas agregar más detalles por texto o prefieres confirmar el pedido ahora?",
+              ["Confirmar Pedido", "Personalizar"]
+            );
+            
+            // LIBERAMOS
             estadosClientes[numeroCliente].bloqueado = false;
             estadosClientes[numeroCliente].procesando = false;
             return;
 
-          }else {
-      await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
-      await delay(500);
-      await enviarMensaje(numeroCliente, `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`);
-      estadosClientes[numeroCliente].bloqueado = false;
-      estadosClientes[numeroCliente].procesando = false;
+          } else {
+            await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
+            await delay(500);
+            await enviarMensaje(numeroCliente, `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`);
+            
+            // LIBERAMOS
+            estadosClientes[numeroCliente].bloqueado = false;
+            estadosClientes[numeroCliente].procesando = false;
+          }
 
-       }
-
-  } catch (error) {
-    console.error("❌ Error imagen:", error);
-    if (estadosClientes[numeroCliente]) {
-      estadosClientes[numeroCliente].procesando = false;
-      estadosClientes[numeroCliente].bloqueado = false;
-    }
-  }
-}
+        } catch (error) {
+          console.error("❌ Error imagen:", error);
+          if (estadosClientes[numeroCliente]) {
+            estadosClientes[numeroCliente].procesando = false;
+            estadosClientes[numeroCliente].bloqueado = false;
+          }
+        }
+      }
 
       // 1. PRIMERO: Prioridad absoluta al nombre (FUERA del else if)
       if (msg.type === "text" && estadosClientes[numeroCliente]?.esperandoNombre) {
