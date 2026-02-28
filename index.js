@@ -826,6 +826,7 @@ app.get("/webhook", (req, res) => {
 
 // Recepción de mensajes
 app.post("/webhook", async (req, res) => {
+  const body = req.body;
     // 2. LUEGO el cron (si lo usas para mantener vivo el server)
     // Asegúrate de usar 'return' para que se detenga aquí si es un ping de cron
     if (body.object === "cron" || body.type === "ping") {
@@ -835,7 +836,7 @@ app.post("/webhook", async (req, res) => {
     // Esto detiene los duplicados de raíz.
     res.status(200).send("EVENT_RECEIVED");
 
-  const body = req.body;
+  
   const entry = body.entry?.[0]?.changes?.[0]?.value;
 
   if (entry && entry.messages && entry.messages[0]) {
