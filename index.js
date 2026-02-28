@@ -827,13 +827,6 @@ app.get("/webhook", (req, res) => {
 // Recepción de mensajes
 app.post("/webhook", async (req, res) => {
 
-  // 2. VERIFICACIÓN DE CRON / MONITOR
-    // Si Meta o un servicio de monitoreo solo pregunta si el server vive
-    if (body.object === "check_status") { 
-        return res.status(200).send("OK"); // El 'return' es vital para que NO siga ejecutando lo de abajo
-    }
-
-    // 3. RESPUESTA INMEDIATA PARA META (Solo si es un mensaje real)
     // Esto detiene los duplicados de raíz.
     res.status(200).send("EVENT_RECEIVED");
 
