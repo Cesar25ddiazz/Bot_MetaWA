@@ -958,10 +958,13 @@ app.post("/webhook", async (req, res) => {
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
            const estadoPrevioRegistrado = await getEstado(numeroCliente);
-           if (estadoPrevioRegistrado?.ticket === ticketGenerado) {
+           const lockKey = `lock:${ticketGenerado}`;
+  const yaEnProceso = await redis.get(lockKey);
+  if (yaEnProceso) {
     console.log("Duplicado detectado, ignorando...");
     return;
   }
+  await redis.set(lockKey, "1", { ex: 30 });
            await setEstado(numeroCliente, {
     ...estadoPrevioRegistrado,
     nombre: nombreRegistrado,
