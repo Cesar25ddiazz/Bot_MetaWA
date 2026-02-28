@@ -946,7 +946,7 @@ app.post("/webhook", async (req, res) => {
             precioTotal: precioCalculado,
             detalles: comentarioImagen,
             imageId: idDeLaImagen,
-            esperandoDetallesExtra: true,
+            esperandoDetallesExtra: false,
           };
 
           await procesarPedidoDetallado(
@@ -956,6 +956,11 @@ app.post("/webhook", async (req, res) => {
             comentarioImagen,
             ticketGenerado,
           );
+
+          // ✅ Solo se activa DESPUÉS de que procesarPedidoDetallado terminó
+  if (estadosClientes[numeroCliente]) {
+    estadosClientes[numeroCliente].esperandoDetallesExtra = true;
+  }
 
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
@@ -1064,19 +1069,19 @@ app.post("/webhook", async (req, res) => {
         const textoCliente = msg.text.body.toLowerCase().trim();
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
-      // 🎯 LÓGICA DE CONCATENACIÓN (Solo si NO estamos esperando nombre)
+        // 🎯 PRIORIDAD MÁXIMA: Si hay pedido activo, capturamos el mensaje ANTES que cualquier otro check
   if (estadosClientes[numeroCliente]?.esperandoDetallesExtra && !estadosClientes[numeroCliente]?.esperandoNombre) {
-      const esBoton = ["inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios"].includes(textoCliente);
+    const esComando = [
+      "inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios"
+    ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
-      if (!esBoton) {
-          // Si el cliente escribe "Hola" o cualquier cosa, se guarda como nota del pedido
-          estadosClientes[numeroCliente].detalles = (estadosClientes[numeroCliente].detalles || "") + " " + msg.text.body.trim();
-          
-          await enviarMensaje(numeroCliente, `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Algo más o confirmamos?`);
-          await enviarBotones(numeroCliente, "¿Todo listo?", ["Confirmar Pedido"]);
-          
-          return; // ⛔ OBLIGATORIO: Detiene el flujo para que no llegue a la bienvenida ni cree usuarios nuevos.
-      }
+    if (!esComando) {
+      estadosClientes[numeroCliente].detalles = (estadosClientes[numeroCliente].detalles || "") + " " + msg.text.body.trim();
+      await enviarMensaje(numeroCliente, `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Algo más o confirmamos?`);
+      await enviarBotones(numeroCliente, "¿Todo listo?", ["Confirmar Pedido"]);
+      return;
+    }
+    // Si es un comando, cae a la lógica normal de abajo
   }
 
         if (esAdmin) {
