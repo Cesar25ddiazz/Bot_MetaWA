@@ -880,6 +880,14 @@ app.post("/webhook", async (req, res) => {
   estadosClientes[numeroCliente].bloqueado = true;
   estadosClientes[numeroCliente].procesando = true;
 
+  // Creamos una función de liberación para usarla en los returns
+  const liberar = () => {
+    if (estadosClientes[numeroCliente]) {
+      estadosClientes[numeroCliente].bloqueado = false;
+      estadosClientes[numeroCliente].procesando = false;
+    }
+  };
+
   try {
     // Marcado de lectura
     await marcarComoLeido(msg.id);
@@ -902,6 +910,7 @@ app.post("/webhook", async (req, res) => {
       // Liberar antes de salir
       estadosClientes[numeroCliente].bloqueado = false;
       estadosClientes[numeroCliente].procesando = false;
+      liberar();
       return;
     }
 
@@ -918,6 +927,7 @@ app.post("/webhook", async (req, res) => {
         // Liberar antes de salir
         estadosClientes[numeroCliente].bloqueado = false;
         estadosClientes[numeroCliente].procesando = false;
+        liberar();
         return;
       }
     }
@@ -926,6 +936,7 @@ app.post("/webhook", async (req, res) => {
       console.error("No se pudo obtener el ID de la imagen");
       estadosClientes[numeroCliente].bloqueado = false;
       estadosClientes[numeroCliente].procesando = false;
+      liberar();
       return;
     }
 
