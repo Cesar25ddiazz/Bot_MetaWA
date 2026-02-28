@@ -863,6 +863,7 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN 
       if (msg.type === "image") {
+        await marcarComoLeido(msg.id);
   const numeroCliente = msg.from;
   const logId = Math.random().toString(36).substring(7);
 
@@ -873,15 +874,6 @@ app.post("/webhook", async (req, res) => {
   if (!estadosClientes[numeroCliente]) {
     estadosClientes[numeroCliente] = { bloqueado: false, procesando: false };
   }
-
-  if (estadosClientes[numeroCliente].bloqueado || estadosClientes[numeroCliente].procesando) {
-    console.log(`⛔ BLOQUEO: Ignorando duplicado de ${numeroCliente}`);
-    return;
-  }
-
-  // 2. 🔐 CERRAMOS LA PUERTA DE INMEDIATO (Síncrono)
-  estadosClientes[numeroCliente].bloqueado = true;
-  estadosClientes[numeroCliente].procesando = true;
 
   // Creamos una función de liberación para usarla en los returns
   const liberar = () => {
