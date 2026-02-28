@@ -860,146 +860,132 @@ app.post("/webhook", async (req, res) => {
     try {
       // A. SI ENVÍAN UNA IMAGEN 
       if (msg.type === "image") {
-        const numeroCliente = msg.from;
-        const logId = Math.random().toString(36).substring(7); // ID único de ejecución
+  const numeroCliente = msg.from;
+  const logId = Math.random().toString(36).substring(7);
+
+  console.log(`[${logId}] 📥 Recibida imagen de ${numeroCliente}`);
+
+  // 1. 🛡️ FILTRO DE SEGURIDAD MEJORADO
+  // Si no existe el objeto, lo creamos. Si ya está bloqueado, salimos.
+  if (!estadosClientes[numeroCliente]) {
+    estadosClientes[numeroCliente] = { bloqueado: false, procesando: false };
+  }
+
+  if (estadosClientes[numeroCliente].bloqueado || estadosClientes[numeroCliente].procesando) {
+    console.log(`⛔ BLOQUEO: Ignorando duplicado de ${numeroCliente}`);
+    return;
+  }
+
+  // 2. 🔐 CERRAMOS LA PUERTA DE INMEDIATO (Síncrono)
+  estadosClientes[numeroCliente].bloqueado = true;
+  estadosClientes[numeroCliente].procesando = true;
+
+  try {
+    // Marcado de lectura
+    await marcarComoLeido(msg.id);
+
+    const idDeLaImagen = msg.image?.id || msg.id;
+    const comentarioImagen = msg.image.caption ? msg.image.caption.toLowerCase().trim() : "";
     
-    console.log(`[${logId}] 📥 Recibida imagen de ${numeroCliente}`);
+    // IMPORTANTE: Usamos el estado actual para no perder datos
+    const estadoPrevio = { ...estadosClientes[numeroCliente] };
 
-        // 2. 🛡️ EL FILTRO DE SEGURIDAD (Debe ser lo primero después de recibir el número)
-        if (estadosClientes[numeroCliente]?.bloqueado || estadosClientes[numeroCliente]?.procesando) {
-          console.log(`⛔ BLOQUEO: Ignorando mensaje duplicado de ${numeroCliente}`);
-          return; // Matamos el proceso duplicado aquí.
-        }
+    // --- VALIDACIONES CON DESBLOQUEO ---
 
-        // 2. Si no está bloqueado, lo bloqueamos e inicializamos de inmediato
-    if (!estadosClientes[numeroCliente]) {
-        estadosClientes[numeroCliente] = {};
+    // A. Sin categoría previa
+    if (!estadoPrevio.categoria) {
+      await enviarBotones(
+        numeroCliente,
+        "⚠️ Por favor, primero selecciona una categoría (Textil, Tazas o Etiquetas).", 
+        ["Textil", "Tazas y MDF", "Etiquetas"]
+      );
+      // Liberar antes de salir
+      estadosClientes[numeroCliente].bloqueado = false;
+      estadosClientes[numeroCliente].procesando = false;
+      return;
     }
-    estadosClientes[numeroCliente].bloqueado = true;
-    estadosClientes[numeroCliente].procesando = true;
 
-        try {
-          // Ahora sí, después de bloquear, podemos hacer el marcado de lectura
-          await marcarComoLeido(msg.id); 
+    // B. Validación Tazas y MDF
+    if (estadoPrevio.categoria === "TAZAS Y MDF") {
+      const textoAnalizar = comentarioImagen.toLowerCase();
+      const tieneMaterial = ["taza", "mdf", "madera", "laser", "grabado", "corte"].some(palabra => textoAnalizar.includes(palabra));
 
-          const idDeLaImagen = msg.image?.id || msg.id;
-          const comentarioImagen = msg.image.caption ? msg.image.caption.toLowerCase().trim() : "";
-          const estadoPrevio = {...estadosClientes[numeroCliente] };
-
-          // Si el cliente mandó imagen sin haber elegido categoría antes
-          if (!estadoPrevio.categoria) {
-            await enviarBotones(
-              numeroCliente,
-              "⚠️ Por favor, primero selecciona una categoría (Textil, Tazas o Etiquetas).", ["Textil", "Tazas y MDF", "Etiquetas"],
-            );
-            estadosClientes[numeroCliente].procesando = false;
-            estadosClientes[numeroCliente].bloqueado = false;
-            return;
-          }
-
-          if (estadoPrevio.categoria === "TAZAS Y MDF") {
-            const textoAnalizar = comentarioImagen.toLowerCase();
-            const tieneMaterial =
-              textoAnalizar.includes("taza") ||
-              textoAnalizar.includes("mdf") ||
-              textoAnalizar.includes("madera") ||
-              textoAnalizar.includes("laser") ||
-              textoAnalizar.includes("grabado") ||
-              textoAnalizar.includes("corte");
-
-            if (!tieneMaterial) {
-              await enviarMensaje(
-                numeroCliente,
-                "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\n" +
-                "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨",
-              );
-              estadosClientes[numeroCliente].procesando = false;
-              estadosClientes[numeroCliente].bloqueado = false;
-              return;
-            }
-          }
-
-          if (!idDeLaImagen) {
-            console.error("No se pudo obtener el ID de la imagen");
-            estadosClientes[numeroCliente].bloqueado = false; // Liberar en caso de error
-            return;
-          }
-
-          // --- CÁLCULO DE PRECIOS PARA EL PDF ---
-          const cantidadMatch = comentarioImagen.match(/\d+/);
-          const cantidad = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
-          
-          // Nota: El await aquí ya no es peligroso porque ya bloqueamos arriba
-          const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
-          const ticketGenerado = `PED-${Date.now()}`;
-
-          let precioCalculado =
-            estadoPrevio.categoria === "TAZAS Y MDF" &&
-            comentarioImagen.toLowerCase().includes("taza")
-              ? `$${cantidad * 150}`
-              : "Cotización";
-
-          // Actualizamos el estado con los nuevos datos
-          Object.assign(estadosClientes[numeroCliente], {
-            ...estadoPrevio,
-            ticket: ticketGenerado,
-            imageId: idDeLaImagen,
-            detalles: comentarioImagen,
-            categoria: estadoPrevio.categoria || "📦 GENERAL",
-            cantidad: cantidad,
-            precioTotal: precioCalculado,
-            esperandoDetallesExtra: true,
-            nombre: nombreRegistrado || null,
-            esperandoNombre: !nombreRegistrado,
-            procesando: true,
-            bloqueado: true
-          });
-
-          if (nombreRegistrado) {
-            console.log(`Cliente reconocido: ${nombreRegistrado}`);
-
-            await procesarPedidoDetallado(
-              nombreRegistrado,
-              numeroCliente,
-              idDeLaImagen,
-              comentarioImagen,
-              ticketGenerado,
-            );
-
-            const saludo = estaFueraDeHorario()
-              ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
-              : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*.\n\n` +
-                `Recuerda que debes confirmar tu pedido para generar la orden y te mande los detalles de tu compra.`;
-
-            await enviarBotones(
-              numeroCliente,
-              saludo + "\n\n¿Deseas agregar más detalles por texto o prefieres confirmar el pedido ahora?",
-              ["Confirmar Pedido", "Personalizar"]
-            );
-            
-            // LIBERAMOS
-            estadosClientes[numeroCliente].bloqueado = false;
-            estadosClientes[numeroCliente].procesando = false;
-            return;
-
-          } else {
-            await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
-            await delay(500);
-            await enviarMensaje(numeroCliente, `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`);
-            
-            // LIBERAMOS
-            estadosClientes[numeroCliente].bloqueado = false;
-            estadosClientes[numeroCliente].procesando = false;
-          }
-
-        } catch (error) {
-          console.error("❌ Error imagen:", error);
-          if (estadosClientes[numeroCliente]) {
-            estadosClientes[numeroCliente].procesando = false;
-            estadosClientes[numeroCliente].bloqueado = false;
-          }
-        }
+      if (!tieneMaterial) {
+        await enviarMensaje(
+          numeroCliente,
+          "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF*..."
+        );
+        // Liberar antes de salir
+        estadosClientes[numeroCliente].bloqueado = false;
+        estadosClientes[numeroCliente].procesando = false;
+        return;
       }
+    }
+
+    if (!idDeLaImagen) {
+      console.error("No se pudo obtener el ID de la imagen");
+      estadosClientes[numeroCliente].bloqueado = false;
+      estadosClientes[numeroCliente].procesando = false;
+      return;
+    }
+
+    // --- CÁLCULO Y PROCESO ---
+    const cantidadMatch = comentarioImagen.match(/\d+/);
+    const cantidad = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
+    const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
+    const ticketGenerado = `PED-${Date.now()}`;
+
+    let precioCalculado = (estadoPrevio.categoria === "TAZAS Y MDF" && comentarioImagen.includes("taza"))
+      ? `$${cantidad * 150}`
+      : "Cotización";
+
+    // Actualizamos el estado usando Object.assign para no romper la estructura
+    Object.assign(estadosClientes[numeroCliente], {
+      ticket: ticketGenerado,
+      imageId: idDeLaImagen,
+      detalles: comentarioImagen,
+      categoria: estadoPrevio.categoria || "📦 GENERAL",
+      cantidad: cantidad,
+      precioTotal: precioCalculado,
+      esperandoDetallesExtra: true,
+      nombre: nombreRegistrado || null,
+      esperandoNombre: !nombreRegistrado
+    });
+
+    if (nombreRegistrado) {
+      console.log(`Cliente reconocido: ${nombreRegistrado}`);
+
+      await procesarPedidoDetallado(
+        nombreRegistrado,
+        numeroCliente,
+        idDeLaImagen,
+        comentarioImagen,
+        ticketGenerado
+      );
+
+      const saludo = estaFueraDeHorario()
+        ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño... Ticket: *${ticketGenerado}*`
+        : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño... Ticket: *${ticketGenerado}*`;
+
+      await enviarBotones(numeroCliente, saludo + "\n\n¿Deseas agregar más detalles...?", ["Confirmar Pedido", "Personalizar"]);
+
+    } else {
+      await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
+      await delay(500);
+      await enviarMensaje(numeroCliente, `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`);
+    }
+
+  } catch (error) {
+    console.error("❌ Error imagen:", error);
+  } finally {
+    // 🔓 EL SEGURO DE VIDA: Pase lo que pase, liberamos al cliente al final
+    if (estadosClientes[numeroCliente]) {
+      estadosClientes[numeroCliente].bloqueado = false;
+      estadosClientes[numeroCliente].procesando = false;
+      console.log(`[${logId}] 🔓 Estado liberado para ${numeroCliente}`);
+    }
+  }
+}
 
       // 1. PRIMERO: Prioridad absoluta al nombre (FUERA del else if)
       if (msg.type === "text" && estadosClientes[numeroCliente]?.esperandoNombre) {
