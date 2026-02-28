@@ -1739,22 +1739,22 @@ app.post("/webhook", async (req, res) => {
               ["Confirmar Pedido", "Inicio"],
             );
             break;
-        }
-      }
-      // D. CUALQUIER OTRA COSA (Video, Sticker, Audio, Documento)
-      else {
-        console.log(`⚠️ Tipo de mensaje no soportado: ${msg.type}`);
-        await enviarMensaje(
-          numeroCliente,
-          ` Lo siento *${nombreCliente}*, recibí tu ${msg.type}, pero por ahora solo puedo recibir imágenes para los diseños personalizados. 👕\n\nPor favor, envíame una foto.`,
-        );
-      }
-    } catch (err) {
-      console.error("❌ Error procesando flujo:", err.message);
-    }
-  }
-});
+        } // <--- 1. CIERRA EL SWITCH (resBtn)
+      } // <--- 2. CIERRA EL "else if (msg.type === 'interactive')"
 
+      // --- AQUÍ SE CONECTA CON EL CATCH DEL TRY QUE ABRISTE EN LA LÍNEA 36 ---
+    } catch (errMaestro) { 
+      console.error("❌ Error Crítico:", errMaestro.message);
+    } finally {
+      if (estadosClientes[numeroCliente]) {
+        estadosClientes[numeroCliente].bloqueado = false;
+        estadosClientes[numeroCliente].procesando = false;
+        console.log(`🔓 Puerta abierta para ${numeroCliente}`);
+      }
+    } // <--- 3. AQUÍ CIERRA EL BLOQUE TRY/CATCH/FINALLY COMPLETO
+
+  } // <--- 4. AQUÍ CIERRA EL "if (entry && entry.messages...)"
+}); // <--- 5. CIERRE FINAL DEL "app.post"
 // ==========================================
 // 4. INICIO DEL SERVIDOR
 // ==========================================
