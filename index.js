@@ -893,7 +893,7 @@ app.post("/webhook", async (req, res) => {
         try {
           const idDeLaImagen = msg.image?.id || msg.id;
           const comentarioImagen = msg.image.caption ? msg.image.caption.toLowerCase().trim() : "";
-          const estadoPrevio = estadosClientes[numeroCliente] || {};
+          const estadoPrevio = {...estadosClientes[numeroCliente] };
 
           // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
           if (!estadoPrevio.categoria) {
@@ -938,6 +938,7 @@ app.post("/webhook", async (req, res) => {
           // Extraer cantidad
           const cantidadMatch = comentarioImagen.match(/\d+/);
           const cantidad = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
+          const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
           const ticketGenerado = `PED-${Date.now()}`;
 
           let precioCalculado =
@@ -945,8 +946,6 @@ app.post("/webhook", async (req, res) => {
             comentarioImagen.toLowerCase().includes("taza")
               ? `$${cantidad * 150}`
               : "Cotización";
-
-          const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
            //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
           estadosClientes[numeroCliente] = {
@@ -958,15 +957,15 @@ app.post("/webhook", async (req, res) => {
             cantidad: cantidad,
             precioTotal: precioCalculado,
             esperandoDetallesExtra: true,
+            nombre: nombreRegistrado || null,
             esperandoNombre: !nombreRegistrado, // Si no hay nombre, lo esperamos
-            procesando: false, // Liberamos para que el texto extra pueda entrar
-            bloqueado: false
+            procesando: true, // Liberamos para que el texto extra pueda entrar
+            bloqueado: true
           };
 
           //Cliente ya existe en excel
           if (nombreRegistrado) {
             console.log(`Cliente reconocido: ${nombreRegistrado}`);
-            estadosClientes[numeroCliente].nombre = nombreRegistrado;
 
             await procesarPedidoDetallado(
               nombreRegistrado,
@@ -985,13 +984,19 @@ app.post("/webhook", async (req, res) => {
               saludo +
                 "\n\n¿Deseas agregar más detalles por texto o prefieres confirmar el pedido ahora?",
               ["Confirmar Pedido", "Personalizar"]);
+              // ✅ LIBERAMOS ANTES DEL RETURN
+            estadosClientes[numeroCliente].bloqueado = false;
+            estadosClientes[numeroCliente].procesando = false;
             return;
 
           }else {
       await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
       await delay(500);
       await enviarMensaje(numeroCliente, `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`);
-    }
+      estadosClientes[numeroCliente].bloqueado = false;
+      estadosClientes[numeroCliente].procesando = false;
+
+       }
 
   } catch (error) {
     console.error("❌ Error imagen:", error);
@@ -1070,7 +1075,16 @@ app.post("/webhook", async (req, res) => {
         const estadoActivo = estadosClientes[numeroCliente];
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
-        if (estadoActivo?.procesando || estadoActivo?.bloqueado) return;
+        if (estadoActivo?.procesando || estadoActivo?.bloqueado){
+         console.log(`esperando texto de ${numeroCliente}, BOT OCUPADO`);
+         return;
+        } 
+
+        // SI EL BOT ESTÁ SUBIENDO LA IMAGEN, NO DEJES QUE EL TEXTO HAGA NADA
+    if (estadoActivo?.bloqueado) {
+        console.log("Esperando a que termine de procesar la imagen...");
+        return; 
+    }
 
         // Solo si tiene un ticket, NO estamos esperando nombre y NO es un comando de botón
     if (estadoActivo?.ticket && !estadoActivo?.esperandoNombre) {
