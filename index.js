@@ -978,11 +978,11 @@ app.post("/webhook", async (req, res) => {
   } catch (error) {
     console.error("❌ Error imagen:", error);
   } finally {
-    // 🔓 EL SEGURO DE VIDA: Pase lo que pase, liberamos al cliente al final
-    if (estadosClientes[numeroCliente]) {
-      estadosClientes[numeroCliente].bloqueado = false;
-      estadosClientes[numeroCliente].procesando = false;
-      console.log(`[${logId}] 🔓 Estado liberado para ${numeroCliente}`);
+    // 4. 🔓 EL SEGURO TOTAL: Siempre abrimos la puerta al terminar o al fallar
+        if (estadosClientes[numeroCliente]) {
+            estadosClientes[numeroCliente].bloqueado = false;
+            estadosClientes[numeroCliente].procesando = false;
+            console.log(`🔓 [${logId}] Puerta abierta para ${numeroCliente}`);
     }
   }
 }
