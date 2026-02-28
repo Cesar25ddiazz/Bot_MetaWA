@@ -812,13 +812,6 @@ app.post("/webhook", async (req, res) => {
             estadosClientes[numeroCliente] = { bloqueado: false, procesando: false };
         }
 
-    // --- 🛡️ SISTEMA DE BLOQUEO ATÓMICO ---
-    // Si el mensaje actual ya se está procesando (por ID de mensaje) o el cliente está bloqueado
-    if (estadosClientes[numeroCliente]?.mensajeEnCurso === msg.id || estadosClientes[numeroCliente]?.bloqueado) {
-      console.log(`⛔ BLOQUEO: Ignorando duplicado de ${numeroCliente}`);
-      return;
-    }
-
     // Inicialización inmediata (Síncrona)
     if (!estadosClientes[numeroCliente]) {
       estadosClientes[numeroCliente] = {};
