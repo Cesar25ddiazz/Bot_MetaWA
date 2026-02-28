@@ -1,4 +1,5 @@
 require("dotenv").config();
+const { Redis } = require("@upstash/redis");
 const express = require("express");
 const axios = require("axios");
 const cloudinary = require("cloudinary").v2;
@@ -40,6 +41,24 @@ app.get("/keep-alive", (req, res) => {
   res.status(200).send("OK");
 });
 
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+async function getEstado(numero) {
+  const data = await redis.get(`cliente:${numero}`);
+  return data || null;
+}
+
+async function setEstado(numero, datos) {
+  await redis.set(`cliente:${numero}`, datos, { ex: 3600 });
+}
+
+async function delEstado(numero) {
+  await redis.del(`cliente:${numero}`);
+}
+
 // ==========================================
 // 1. CONFIGURACIÓN PLUG AND PLAY
 // ==========================================
@@ -47,7 +66,6 @@ const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN;
 const MI_NUMERO = process.env.MY_PERSONAL_NUMBER;
-const estadosClientes = {};
 
 //Configuración de Cloudinary
 cloudinary.config({
@@ -884,7 +902,7 @@ app.post("/webhook", async (req, res) => {
         const comentarioImagen = (msg.image?.caption || "").trim();
 
         // 🟢 CAMBIO: Solo tomamos la categoría, si no hay, forzamos a que elija una
-        const estadoPrevio = estadosClientes[numeroCliente] || {};
+        const estadoPrevio = await getEstado(numeroCliente) || {};
 
         // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
         if (!estadoPrevio.categoria) {
@@ -938,16 +956,17 @@ app.post("/webhook", async (req, res) => {
         //Cliente ya existe en excel
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
-          estadosClientes[numeroCliente] = {
-            ...estadosClientes[numeroCliente],
-            nombre: nombreRegistrado, // Aseguramos que el nombre esté presente
-            ticket: ticketGenerado,
-            cantidad: cantidad,
-            precioTotal: precioCalculado,
-            detalles: comentarioImagen,
-            imageId: idDeLaImagen,
-            esperandoDetallesExtra: false,
-          };
+           const estadoPrevioRegistrado = await getEstado(numeroCliente);
+           await setEstado(numeroCliente, {
+    ...estadoPrevioRegistrado,
+    nombre: nombreRegistrado,
+    ticket: ticketGenerado,
+    cantidad: cantidad,
+    precioTotal: precioCalculado,
+    detalles: comentarioImagen,
+    imageId: idDeLaImagen,
+    esperandoDetallesExtra: false,
+  });
 
           await procesarPedidoDetallado(
             nombreRegistrado,
@@ -957,9 +976,12 @@ app.post("/webhook", async (req, res) => {
             ticketGenerado,
           );
 
-          // ✅ Solo se activa DESPUÉS de que procesarPedidoDetallado terminó
-  if (estadosClientes[numeroCliente]) {
-    estadosClientes[numeroCliente].esperandoDetallesExtra = true;
+          const estadoActual = await getEstado(numeroCliente);
+  if (estadoActual) {
+    await setEstado(numeroCliente, {
+      ...estadoActual,
+      esperandoDetallesExtra: true,
+    });
   }
 
           const saludo = estaFueraDeHorario()
@@ -974,7 +996,7 @@ app.post("/webhook", async (req, res) => {
           return;
         }
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
-        estadosClientes[numeroCliente] = {
+        await setEstado(numeroCliente, {
           esperandoNombre: true,
           esperandoDetallesExtra: true,
           ticket: ticketGenerado,
@@ -983,7 +1005,7 @@ app.post("/webhook", async (req, res) => {
           categoria: estadoPrevio.categoria || "📦 GENERAL",
           cantidad: cantidad,
           precioTotal: precioCalculado,
-        };
+        });
 
         //Confirmación inmediata del cliente
         await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
@@ -998,12 +1020,13 @@ app.post("/webhook", async (req, res) => {
       }
 
       // 1. PRIMERO: Prioridad absoluta al nombre (FUERA del else if)
+      const estadoNombre = await getEstado(numeroCliente);
       if (
         msg.type === "text" &&
-        estadosClientes[numeroCliente]?.esperandoNombre
+        estadoNombre?.esperandoNombre
       ) {
         const nombreProporcionado = msg.text.body.trim();
-        const datosRecuperados = estadosClientes[numeroCliente];
+        const datosRecuperados = estadoNombre;
 
         // 🛡️ FILTRO: Si el usuario escribe un ticket o la palabra estatus, NO lo guardamos como nombre
         if (
@@ -1017,7 +1040,7 @@ app.post("/webhook", async (req, res) => {
         } else {
           // VALIDACIÓN DE SEGURIDAD
           if (!datosRecuperados || !datosRecuperados.ticket) {
-            delete estadosClientes[numeroCliente];
+            await delEstado(numeroCliente);
             await enviarBotones(
               numeroCliente,
               "¡Ups! Sesión expirada. Por favor, selecciona la categoría de nuevo.",
@@ -1026,11 +1049,12 @@ app.post("/webhook", async (req, res) => {
             return;
           }
 
-          estadosClientes[numeroCliente].nombre = nombreProporcionado;
-          estadosClientes[numeroCliente].esperandoNombre = false;
-
-          // IMPORTANTE: Aquí activamos la escucha de notas extras para que el siguiente mensaje sea nota
-      estadosClientes[numeroCliente].esperandoDetallesExtra = true;
+          await setEstado(numeroCliente, {
+            ...datosRecuperados,
+            nombre: nombreProporcionado,
+            esperandoNombre: false,
+            esperandoDetallesExtra: true,
+          });
 
           // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
           await procesarPedidoDetallado(
@@ -1069,19 +1093,21 @@ app.post("/webhook", async (req, res) => {
         const textoCliente = msg.text.body.toLowerCase().trim();
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
-        // 🎯 PRIORIDAD MÁXIMA: Si hay pedido activo, capturamos el mensaje ANTES que cualquier otro check
-  if (estadosClientes[numeroCliente]?.esperandoDetallesExtra && !estadosClientes[numeroCliente]?.esperandoNombre) {
+        const estadoTexto = await getEstado(numeroCliente);
+  if (estadoTexto?.esperandoDetallesExtra && !estadoTexto?.esperandoNombre) {
     const esComando = [
       "inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios"
     ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
     if (!esComando) {
-      estadosClientes[numeroCliente].detalles = (estadosClientes[numeroCliente].detalles || "") + " " + msg.text.body.trim();
+      await setEstado(numeroCliente, {
+        ...estadoTexto,
+        detalles: (estadoTexto.detalles || "") + " " + msg.text.body.trim(),
+      });
       await enviarMensaje(numeroCliente, `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Algo más o confirmamos?`);
       await enviarBotones(numeroCliente, "¿Todo listo?", ["Confirmar Pedido"]);
       return;
     }
-    // Si es un comando, cae a la lógica normal de abajo
   }
 
         if (esAdmin) {
@@ -1197,7 +1223,8 @@ app.post("/webhook", async (req, res) => {
 
         if (quiereBienvenida) {
           // ⚠️ Si el cliente ya tiene un ticket activo, NO borramos el estado ni saludamos de nuevo
-          if (estadosClientes[numeroCliente]?.ticket) {
+         const estadoBienvenida = await getEstado(numeroCliente);
+          if (estadoBienvenida?.ticket) {
             await enviarMensaje(
               numeroCliente,
               "¡Hola! Sigo esperando la confirmación de tu pedido actual. 😊",
@@ -1210,7 +1237,7 @@ app.post("/webhook", async (req, res) => {
             return;
           }
 
-          delete estadosClientes[numeroCliente];
+          await delEstado(numeroCliente);
           await enviarBotones(
             numeroCliente,
             `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
@@ -1276,7 +1303,8 @@ app.post("/webhook", async (req, res) => {
         }
 
         // 9. MENSAJE NO RECONOCIDO (Si llegó hasta aquí y tiene un ticket, le pedimos confirmar)
-        if (estadosClientes[numeroCliente]?.ticket) {
+        const estadoFinal = await getEstado(numeroCliente);
+        if (estadoFinal?.ticket) {
           await enviarMensaje(
             numeroCliente,
             `He anotado: "${msg.text.body}".\n\n¿Quieres agregar algo más o ya podemos *Confirmar Pedido*?`,
@@ -1400,16 +1428,14 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Textil":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
             console.log("iniciando busqueda para:", numeroCliente);
-            delete estadosClientes[numeroCliente];
+            await delEstado(numeroCliente);
 
-            estadosClientes[numeroCliente] = {
+            await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
               esperandoNombre: !nombreRegistrado,
               categoria: "TEXTIL",
-            };
+            });
             await enviarMensaje(
               numeroCliente,
               "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envía la imagen de tu diseño.\n2. En la descripción escribe: *Talla, Color y que tipo deprenda se estampara*.",
@@ -1417,15 +1443,13 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Tazas y MDF":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
-            delete estadosClientes[numeroCliente];
+            await delEstado(numeroCliente);
 
-            estadosClientes[numeroCliente] = {
+            await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
               esperandoNombre: !nombreRegistrado,
               categoria: "TAZAS Y MDF",
-            };
+            });
             await enviarMensaje(
               numeroCliente,
               "☕*Tazas y madera MDF*🪵\n\nEnvía tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte láser en MDF",
@@ -1433,15 +1457,13 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Etiquetas":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
-            delete estadosClientes[numeroCliente];
+            await delEstado(numeroCliente);
 
-            estadosClientes[numeroCliente] = {
+            await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
               esperandoNombre: !nombreRegistrado,
               categoria: "ETIQUETAS",
-            };
+            });
             await enviarMensaje(
               numeroCliente,
               "🏷️ *Etiquetas*\nEnvía tu logo y menciona las *medidas* y la *cantidad* que necesitas.",
@@ -1483,7 +1505,8 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Cancelar Pedido":
-            let ticketParaBorrar = estadosClientes[numeroCliente]?.ticket;
+            const estadoCancelacion = await getEstado(numeroCliente);
+            let ticketParaBorrar = estadoCancelacion?.ticket;
 
             // Rescate de ticket si es por ID de botón
             if (!ticketParaBorrar && msg.type === "interactive") {
@@ -1496,10 +1519,10 @@ app.post("/webhook", async (req, res) => {
               try {
                 // 1. Extraemos datos antes de borrar la memoria para el reporte Admin
                 const categoriaArticulo =
-                  estadosClientes[numeroCliente]?.categoria ||
+                  estadoCancelacion?.categoria ||
                   "No especificado";
                 const nombreDelCliente =
-                  estadosClientes[numeroCliente]?.nombre || "Cliente";
+                  estadoCancelacion?.nombre || "Cliente";
 
                 // 2. Actualizamos el Sheet
                 await actualizarEstadoCRM(ticketParaBorrar, {
@@ -1546,9 +1569,7 @@ app.post("/webhook", async (req, res) => {
                   `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
                 );
 
-                // 5. Borramos memoria
-                if (estadosClientes[numeroCliente])
-                  delete estadosClientes[numeroCliente];
+                await delEstado(numeroCliente);
               } catch (error) {
                 console.error("❌ Error en proceso cancelación:", error);
               }
@@ -1595,7 +1616,7 @@ app.post("/webhook", async (req, res) => {
 
           // COLOCAR DENTRO DE TU SWITCH (resBtn)
           case "Confirmar Pedido":
-            const datosParaPDF = estadosClientes[numeroCliente];
+            const datosParaPDF = await getEstado(numeroCliente);
 
             if (datosParaPDF) {
               try {
@@ -1660,11 +1681,6 @@ app.post("/webhook", async (req, res) => {
                   `Orden_${ticketFinal}.pdf`,
                 );
 
-                // 🚩 APAGADO DE BANDERAS: Lo hacemos justo antes del delete para asegurar limpieza
-                if (estadosClientes[numeroCliente]) {
-                  estadosClientes[numeroCliente].esperandoDetallesExtra = false;
-                }
-
                 await enviarBotones(
                   numeroCliente,
                   "✅ ¡Pedido Confirmado! Tu orden ha sido registrada. Si tienes dudas puedes cancelar tu compra",
@@ -1673,7 +1689,7 @@ app.post("/webhook", async (req, res) => {
                       type: "reply",
                       reply: {
                         // 🚩 CLAVE: El ID ahora guarda el ticket (Ej: CANCEL_PED-123)
-                        id: `CANCEL_${estadosClientes[numeroCliente]?.ticket}`,
+                        id: `CANCEL_${datosParaPDF?.ticket}`,
                         title: "Cancelar Pedido",
                       },
                     },
@@ -1682,7 +1698,7 @@ app.post("/webhook", async (req, res) => {
                 );
 
                 // 🧹 LIMPIEZA TOTAL: Esto apaga 'esperandoDetallesExtra' y libera la memoria
-                delete estadosClientes[numeroCliente];
+                await delEstado(numeroCliente);
               } catch (error) {
                 console.error("❌ Error en Confirmar Pedido:", error);
               }
