@@ -524,11 +524,11 @@ async function procesarPedidoDetallado(
     const urlPermanente = result.secure_url;
     console.log("Imagen en cloudinary:", urlPermanente);
 
-    estadosClientes[numeroCliente] = {
-      ...estadosClientes[numeroCliente], // Conservamos categoría, ticket, etc.
-      urlImagen: urlPermanente, // <--- GUARDAMOS EL LINK AQUÍ
-      esperandoNombre: true, // Seguimos con el flujo del nombre
-    };
+    const estadoActualPedido = await getEstado(numeroCliente);
+    await setEstado(numeroCliente, {
+      ...estadoActualPedido,
+      urlImagen: urlPermanente,
+    });
 
     // Determinar categoria para la notificacion
     let cat = "📦 GENERAL";
@@ -573,8 +573,9 @@ async function procesarPedidoDetallado(
         : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
     //Guardar en CRM
-    estadosClientes[numeroCliente] = {
-      ...estadosClientes[numeroCliente],
+    const estadoActualPedido2 = await getEstado(numeroCliente);
+    await setEstado(numeroCliente, {
+      ...estadoActualPedido2,
       ticket: ticket,
       nombre: nombreCliente,
       numero: numeroCliente,
@@ -584,7 +585,7 @@ async function procesarPedidoDetallado(
       urlImagen: urlPermanente,
       precio: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
       precioTotal: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
-    };
+    });
 
     //Notidicacion detallada
     const mensajeAdmin =
