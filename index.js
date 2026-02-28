@@ -958,6 +958,10 @@ app.post("/webhook", async (req, res) => {
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
            const estadoPrevioRegistrado = await getEstado(numeroCliente);
+           if (estadoPrevioRegistrado?.ticket === ticketGenerado) {
+    console.log("Duplicado detectado, ignorando...");
+    return;
+  }
            await setEstado(numeroCliente, {
     ...estadoPrevioRegistrado,
     nombre: nombreRegistrado,
@@ -966,16 +970,8 @@ app.post("/webhook", async (req, res) => {
     precioTotal: precioCalculado,
     detalles: comentarioImagen,
     imageId: idDeLaImagen,
-    esperandoDetallesExtra: false,
+    esperandoDetallesExtra: true,
   });
-
-  const estadoActual = await getEstado(numeroCliente);
-  if (estadoActual) {
-    await setEstado(numeroCliente, {
-      ...estadoActual,
-      esperandoDetallesExtra: true,
-    });
-  }
 
           await procesarPedidoDetallado(
             nombreRegistrado,
