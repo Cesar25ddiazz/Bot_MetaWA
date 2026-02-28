@@ -969,6 +969,14 @@ app.post("/webhook", async (req, res) => {
     esperandoDetallesExtra: false,
   });
 
+  const estadoActual = await getEstado(numeroCliente);
+  if (estadoActual) {
+    await setEstado(numeroCliente, {
+      ...estadoActual,
+      esperandoDetallesExtra: true,
+    });
+  }
+
           await procesarPedidoDetallado(
             nombreRegistrado,
             numeroCliente,
@@ -976,14 +984,6 @@ app.post("/webhook", async (req, res) => {
             comentarioImagen,
             ticketGenerado,
           );
-
-          const estadoActual = await getEstado(numeroCliente);
-  if (estadoActual) {
-    await setEstado(numeroCliente, {
-      ...estadoActual,
-      esperandoDetallesExtra: true,
-    });
-  }
 
           const saludo = estaFueraDeHorario()
             ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
