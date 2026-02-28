@@ -420,7 +420,15 @@ async function buscarNombreEnSheets(whatsapp) {
       process.env.GOOGLE_SHEET_ID,
       serviceAccountAuth,
     );
+    let sheetConectada = null;
     await doc.loadInfo();
+
+    if (!sheetConectada) {
+      await doc.loadInfo();
+      sheetConectada = doc.sheetsByIndex[0];
+      console.log("📊 Conexión con Google Sheets establecida.");
+    }
+
     const sheet = doc.sheetsByIndex[0];
     const filas = await sheet.getRows();
 
@@ -462,6 +470,7 @@ async function buscarNombreEnSheets(whatsapp) {
     return null;
   } catch (error) {
     console.error("❌ Error buscando el cliente:", error.message);
+    sheetConectada = null;
     return null;
   }
 }
