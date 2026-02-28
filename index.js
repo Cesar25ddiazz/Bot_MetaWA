@@ -968,13 +968,13 @@ app.post("/webhook", async (req, res) => {
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
            const estadoPrevioRegistrado = await getEstado(numeroCliente);
-           const lockKey = `lock:${ticketGenerado}`;
-  const yaEnProceso = await redis.get(lockKey);
-  if (yaEnProceso) {
-    console.log("Duplicado detectado, ignorando...");
-    return;
-  }
-  await redis.set(lockKey, "1", { ex: 30 });
+           const lockKey = `lock:${idDeLaImagen}`;
+const yaEnProceso = await redis.get(lockKey);
+if (yaEnProceso) {
+  console.log("Duplicado detectado, ignorando...");
+  return;
+}
+await redis.set(lockKey, "1", { ex: 30 });
            await setEstado(numeroCliente, {
     ...estadoPrevioRegistrado,
     nombre: nombreRegistrado,
@@ -1716,19 +1716,13 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "ESPERANDO_DETALLES":
-            // 1. Limpiamos el texto nuevo
-            const textoExtra = msg.text?.body || "";
-
-            // 2. Si ya tiene detalles, le ponemos una coma o un espacio para que no se peguen las palabras
-            if (estadosClientes[numeroCliente].detalles) {
-              estadosClientes[numeroCliente].detalles += " " + textoExtra;
-            } else {
-              estadosClientes[numeroCliente].detalles = textoExtra;
-            }
-
-            console.log(
-              `📝 Nota añadida al ticket ${estadosClientes[numeroCliente].ticket}: ${textoExtra}`,
-            );
+  const textoExtra = msg.text?.body || "";
+  const estadoEsperando = await getEstado(numeroCliente);
+  await setEstado(numeroCliente, {
+    ...estadoEsperando,
+    detalles: (estadoEsperando?.detalles || "") + " " + textoExtra,
+  });
+  console.log(`📝 Nota añadida al ticket ${estadoEsperando?.ticket}: ${textoExtra}`);
 
             // 3. Opcional: Confirmar al cliente que lo escuchaste
             await enviarMensaje(
