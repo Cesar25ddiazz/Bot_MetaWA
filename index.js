@@ -969,12 +969,11 @@ app.post("/webhook", async (req, res) => {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
            const estadoPrevioRegistrado = await getEstado(numeroCliente);
            const lockKey = `lock:${idDeLaImagen}`;
-const yaEnProceso = await redis.get(lockKey);
-if (yaEnProceso) {
+const lockObtenido = await redis.set(lockKey, "1", { nx: true, ex: 30 });
+if (!lockObtenido) {
   console.log("Duplicado detectado, ignorando...");
   return;
 }
-await redis.set(lockKey, "1", { ex: 30 });
            await setEstado(numeroCliente, {
     ...estadoPrevioRegistrado,
     nombre: nombreRegistrado,
