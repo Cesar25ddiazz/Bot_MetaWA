@@ -882,6 +882,12 @@ app.post("/webhook", async (req, res) => {
       if (msg.type === "image") {
         const numeroCliente = msg.from;
 
+        // 🛡️ ESTA DEBE SER LA LÍNEA 1, 2 Y 3. NADA DEBE IR ANTES.
+  if (estadosClientes[numeroCliente]?.bloqueado) {
+    console.log(`⛔ BLOQUEO DE DUPLICADO ACTIVADO PARA: ${numeroCliente}`);
+    return; // Si ya hay un proceso, matamos este segundo intento aquí mismo.
+  }
+
         // 🛡️ Candados de seguridad contra el bucle de 3 segundos
   if (estadosClientes[numeroCliente]?.procesando || estadosClientes[numeroCliente]?.bloqueado) return;
 
