@@ -952,6 +952,16 @@ app.post("/webhook", async (req, res) => {
             ? `$${cantidad * 150}`
             : "Cotización";
 
+            await setEstado(numeroCliente, {
+  ...estadoPrevio,
+  esperandoDetallesExtra: true,
+  imageId: idDeLaImagen,
+  detalles: comentarioImagen,
+  cantidad: cantidad,
+  ticket: ticketGenerado,
+  precioTotal: precioCalculado,
+});
+
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         //Cliente ya existe en excel
