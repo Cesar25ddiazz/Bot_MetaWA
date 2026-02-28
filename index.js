@@ -553,7 +553,7 @@ async function procesarPedidoDetallado(nombreCliente, numeroCliente, imageId, co
     });
 
     // Notificación al admin (con tu setTimeout está bien)
-    const mensajeAdmin = `🛠️ *PRE-ORDEN-RECIBIDA:* 🛠️\n🆔 *Ticket:* \`${ticket}\`\n👤 *Cliente:* ${nombreCliente}\n📦 *CAT:* ${cat}\n💵 *Total:* ${textoPresupuesto}\n🖼️ *Link:* ${urlPermanente}`;
+    const mensajeAdmin = `🛠️ *PRE-ORDEN-RECIBIDA:* 🛠️\n🆔 *Ticket:* \`${ticket}\`\n👤 *Cliente:* ${nombreCliente}\n📦 *CAT:* ${cat}\n💵 *Total:* ${textoPresupuesto}\n🖼️ *Link:* ${urlPermanente}\n ----------------------\n⏰ *Fecha:* ${fechaHora}\n `;
     
     setTimeout(async () => {
       try { await enviarMensaje(MI_NUMERO, mensajeAdmin); } catch (e) { console.log("Error Admin:", e.message); }
@@ -806,6 +806,12 @@ app.post("/webhook", async (req, res) => {
   if (entry && entry.messages && entry.messages[0]) {
     const msg = entry.messages[0];
     const numeroCliente = msg.from;
+
+    // 1. 🛡️ FILTRO DE ENTRADA ATÓMICO
+        if (!estadosClientes[numeroCliente]) {
+            estadosClientes[numeroCliente] = { bloqueado: false, procesando: false };
+        }
+
     // --- 🛡️ SISTEMA DE BLOQUEO ATÓMICO ---
     // Si el mensaje actual ya se está procesando (por ID de mensaje) o el cliente está bloqueado
     if (estadosClientes[numeroCliente]?.mensajeEnCurso === msg.id || estadosClientes[numeroCliente]?.bloqueado) {
@@ -826,10 +832,7 @@ app.post("/webhook", async (req, res) => {
     const timestampMsg = parseInt(msg.timestamp);
     const ahora = Math.floor(Date.now() / 1000);
 
-    if (ahora - timestampMsg > 120) {
-       estadosClientes[numeroCliente].bloqueado = false;
-       return;
-    }
+    if (ahora - timestampMsg > 120) return;
 
     const nombreCliente = (
       entry.contacts?.[0]?.profile?.name || "Cliente").replace(/\s+/g, "_");
@@ -842,10 +845,8 @@ app.post("/webhook", async (req, res) => {
       !msg.video &&
       !msg.audio &&
       !msg.document &&
-      !msg.sticker ){
-        estadosClientes[numeroCliente].bloqueado = false;
+      !msg.sticker )
         return;
-      }
 
     //Validar horario
     if (estaFueraDeHorario() && msg.type === "text") {
@@ -1030,6 +1031,7 @@ app.post("/webhook", async (req, res) => {
               "¡Ups! Sesión expirada. Por favor, selecciona la categoría de nuevo.",
               ["Catalogo", "Personalizar"],
             );
+            if (estadosClientes[numeroCliente]) estadosClientes[numeroCliente].bloqueado = false;
             return;
           }
 
@@ -1064,7 +1066,9 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(numeroCliente, mensajeConfirmacion, [
             "Confirmar Pedido",
           ]);
-          return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
+          // 🔓 LIBERACIÓN ANTES DE SALIR
+        if (estadosClientes[numeroCliente]) estadosClientes[numeroCliente].bloqueado = false;
+        return;
         }
       }
 
@@ -1079,12 +1083,6 @@ app.post("/webhook", async (req, res) => {
          console.log(`esperando texto de ${numeroCliente}, BOT OCUPADO`);
          return;
         } 
-
-        // SI EL BOT ESTÁ SUBIENDO LA IMAGEN, NO DEJES QUE EL TEXTO HAGA NADA
-    if (estadoActivo?.bloqueado) {
-        console.log("Esperando a que termine de procesar la imagen...");
-        return; 
-    }
 
         // Solo si tiene un ticket, NO estamos esperando nombre y NO es un comando de botón
     if (estadoActivo?.ticket && !estadoActivo?.esperandoNombre) {
@@ -1101,7 +1099,8 @@ app.post("/webhook", async (req, res) => {
             
             await enviarMensaje(numeroCliente, `✅ Anotado: "${msg.text.body.trim()}"\n\n¿Algo más o ya podemos *Confirmar Pedido*?`);
             estadoActivo.procesando = false;
-            return; // ⛔ CORTE TOTAL: Evita que el código baje y cree otro usuario o salude.
+            estadoActivo.bloqueado = false; // 🔓 LIBERACIÓN
+            return;
         }
     }
 
@@ -1122,6 +1121,7 @@ app.post("/webhook", async (req, res) => {
             // segundo parámetro sea un STRING
             const mensajeConfirmacion = `✅ El ticket *${ticketId}* ha sido marcado como PAGADO en el sistema.`;
             await enviarMensaje(numeroCliente, mensajeConfirmacion);
+            if (estadosClientes[numeroCliente]) estadosClientes[numeroCliente].bloqueado = false; // 🔓 LIBERACIÓN
             return;
           }
 
@@ -1133,6 +1133,7 @@ app.post("/webhook", async (req, res) => {
             });
             const mensajeConfirmacionA = `💰 Anticipo registrado para el ticket: *${ticketId}*`;
             await enviarMensaje(numeroCliente, mensajeConfirmacionA);
+            if (estadosClientes[numeroCliente]) estadosClientes[numeroCliente].bloqueado = false; // 🔓 LIBERACIÓN
             return;
           }
         }
