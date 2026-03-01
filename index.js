@@ -1715,6 +1715,23 @@ if (!lockObtenido) {
             }
             break;
 
+            case "Ayuda":
+  await enviarMensaje(
+    numeroCliente,
+    "🫱🏼‍🫲🏼 *No te preocupes.* Aquí te explico cómo continuar con tu pedido:\n\n" +
+    "1️⃣ Si ya enviaste tu diseño, presiona *Confirmar Pedido* para generar tu orden en PDF.\n\n" +
+    "2️⃣ Si deseas agregar más detalles a tu pedido, solo escríbelos aquí.\n\n" +
+    "3️⃣ Si necesitas hablar con una persona, presiona *Hablar con Asesor*.\n\n" +
+    "4️⃣ Si quieres cancelar y empezar de nuevo, presiona *Inicio*."
+  );
+  await delay(1000);
+  await enviarBotones(
+    numeroCliente,
+    "¿Qué deseas hacer?",
+    ["Confirmar Pedido", "Hablar con Asesor", "Inicio"]
+  );
+  break;
+
           case "ESPERANDO_DETALLES":
   const textoExtra = msg.text?.body || "";
   const estadoEsperando = await getEstado(numeroCliente);
