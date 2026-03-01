@@ -983,6 +983,7 @@ if (!lockObtenido) {
     detalles: comentarioImagen,
     imageId: idDeLaImagen,
     esperandoDetallesExtra: true,
+    esperandoNombre: false
   });
 
           await procesarPedidoDetallado(
@@ -1006,8 +1007,8 @@ if (!lockObtenido) {
         }
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         await setEstado(numeroCliente, {
-          esperandoNombre: true,
           esperandoDetallesExtra: true,
+          esperandoNombre: false,
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
           detalles: comentarioImagen,
