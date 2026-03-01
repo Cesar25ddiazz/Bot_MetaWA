@@ -1127,14 +1127,86 @@ app.post("/webhook", async (req, res) => {
             ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
           if (!esComando) {
-            await setEstado(numeroCliente, {
-              ...estadoTexto,
-              detalles:
-                (estadoTexto.detalles || "") + " " + msg.text.body.trim(),
+            const lockTexto = `lock:msg:${msg.id}`;
+            const lockTextoObtenido = await redis.set(lockTexto, "1", {
+              nx: true,
+              ex: 30,
             });
+            if (!lockTextoObtenido) {
+              console.log("Mensaje duplicado detectado, ignorando...");
+              return;
+            }
+            const estadoFresco = await getEstado(numeroCliente);
+            const textoAcumulado =
+              (estadoFresco.detalles || "") + " " + msg.text.body.trim();
+            const textoLower = textoAcumulado.toLowerCase();
+
+            // 🔍 Re-detectar categoría si aún es GENERAL o vacía
+            let catActualizada = estadoFresco.categoria || "📦 GENERAL";
+            if (catActualizada === "📦 GENERAL") {
+              if (textoLower.includes("taza")) catActualizada = "☕ TAZA";
+              else if (
+                textoLower.includes("mdf") ||
+                textoLower.includes("madera")
+              )
+                catActualizada = "🪵 MDF";
+              else if (textoLower.includes("etiqueta"))
+                catActualizada = "🏷️ ETIQUETAS";
+              else if (textoLower.includes("playera"))
+                catActualizada = "👕 PLAYERA BASICA";
+              else if (textoLower.includes("sudadera"))
+                catActualizada = "🧥 SUDADERA";
+              else if (textoLower.includes("gorra"))
+                catActualizada = "🧢 GORRA";
+            }
+
+            // 🔍 Re-detectar cantidad
+            const numerosEnTexto = textoAcumulado.match(/\d+/);
+            const cantidadActualizada = numerosEnTexto
+              ? parseInt(numerosEnTexto[0])
+              : estadoFresco.cantidad || 1;
+
+            // 🔍 Re-calcular precio si antes era Cotización y ahora ya sabemos la categoría
+            let precioActualizado = estadoFresco.precioTotal;
+            if (
+              catActualizada !== "📦 GENERAL" &&
+              (estadoFresco.precioTotal === "Cotización" ||
+                !estadoFresco.precioTotal)
+            ) {
+              const tablaPrecios = {
+                "👕 PLAYERA BASICA": 250,
+                "🧥 SUDADERA": 450,
+                "🧢 GORRA": 180,
+                "☕ TAZA": 85,
+                "🏷️ ETIQUETAS": 260,
+              };
+              if (catActualizada.includes("MDF")) {
+                precioActualizado = "Sujeto a cotización según diseño";
+              } else if (catActualizada.includes("ETIQUETAS")) {
+                precioActualizado = `$${(cantidadActualizada / 100) * 260} MXN (${cantidadActualizada} pzs)`;
+              } else if (tablaPrecios[catActualizada]) {
+                precioActualizado = `$${tablaPrecios[catActualizada] * cantidadActualizada} MXN (${cantidadActualizada} pzs)`;
+              }
+            }
+
+            await setEstado(numeroCliente, {
+              ...estadoFresco,
+              detalles: textoAcumulado,
+              notas: textoAcumulado,
+              categoria: catActualizada,
+              cantidad: cantidadActualizada,
+              precioTotal: precioActualizado,
+            });
+
+            // Mostrar precio actualizado solo si cambió
+            const precioMostrar =
+              precioActualizado !== estadoFresco.precioTotal
+                ? `\n💵 *Presupuesto actualizado:* ${precioActualizado}`
+                : "";
+
             await enviarBotones(
               numeroCliente,
-              `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Deseas agregar algo más o confirmamos tu pedido?`,
+              `📝 *Nota añadida:* "${msg.text.body.trim()}"${precioMostrar}\n\n¿Deseas agregar algo más o confirmamos tu pedido?`,
               ["Confirmar Pedido", "Hablar con Asesor"],
             );
             return;
