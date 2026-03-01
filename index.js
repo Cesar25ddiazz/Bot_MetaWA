@@ -1005,8 +1005,8 @@ if (!lockObtenido) {
         }
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         await setEstado(numeroCliente, {
-          esperandoDetallesExtra: true,
-          esperandoNombre: false,
+          esperandoDetallesExtra: false,
+          esperandoNombre: true,
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
           detalles: comentarioImagen,
@@ -1016,14 +1016,12 @@ if (!lockObtenido) {
         });
 
         //Confirmación inmediata del cliente
-        await enviarMensaje(numeroCliente, `📸 *Imagen recibida con éxito*`);
-        await delay(1000);
-
-        //Preguntamos el nombre para el registro
         await enviarMensaje(
-          numeroCliente,
-          `Para registrar tu orden *${ticketGenerado}*, ¿Podrías poner tu *Nombre Completo*? ✨`,
-        );
+  numeroCliente,
+  `📸 *¡Imagen recibida con éxito!*\n\n` +
+  `🆔 *Ticket generado:* ${ticketGenerado}\n\n` +
+  `Para completar tu registro, ¿podrías indicarnos tu *Nombre Completo*? ✨`
+);
         return;
       }
 
@@ -1082,15 +1080,19 @@ if (!lockObtenido) {
           await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
           await delay(1500);
 
-          const mensajeConfirmacion =
-            `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
-            `He registrado tu diseño para: *${datosRecuperados.categoria}*.\n` +
-            `Cantidad: *${datosRecuperados.cantidad}* piezas.\n` +
-            `¿Los datos son correctos para generar tu Orden en PDF?`;
+          const estadoConPrecioNuevo = await getEstado(numeroCliente);
+const precioFinalNuevo = estadoConPrecioNuevo?.precioTotal || "Cotización";
 
-          await enviarBotones(numeroCliente, mensajeConfirmacion, [
-            "Confirmar Pedido",
-          ]);
+const mensajeConfirmacion =
+  `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
+  `📦 *Categoría:* ${datosRecuperados.categoria}\n` +
+  `🔢 *Cantidad:* ${datosRecuperados.cantidad} piezas\n` +
+  `💵 *Presupuesto estimado:* ${precioFinalNuevo}\n\n` +
+  `¿Los datos son correctos para generar tu Orden en PDF?`;
+
+await enviarBotones(numeroCliente, mensajeConfirmacion, [
+  "Confirmar Pedido", "Hablar con Asesor"
+]);
           return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
         }
       }
