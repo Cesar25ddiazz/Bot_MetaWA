@@ -890,19 +890,20 @@ app.post("/webhook", async (req, res) => {
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
         const comentarioImagen = (msg.image?.caption || "").trim();
-        const estadoPrevio = await getEstado(numeroCliente) || {};
+        const estadoPrevio = (await getEstado(numeroCliente)) || {};
 
-         // 🔒 Marcamos que estamos procesando para bloquear textos prematuros
-  await setEstado(numeroCliente, {
-    ...estadoPrevio,
-    procesando: true,
-  });
+        // 🔒 Marcamos que estamos procesando para bloquear textos prematuros
+        await setEstado(numeroCliente, {
+          ...estadoPrevio,
+          procesando: true,
+        });
 
         // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
         if (!estadoPrevio.categoria) {
           await enviarBotones(
             numeroCliente,
-            "⚠️ Por favor, primero selecciona una categoría: ", ["Textil", "Tazas y MDF", "Etiquetas"]
+            "⚠️ Por favor, primero selecciona una categoría: ",
+            ["Textil", "Tazas y MDF", "Etiquetas"],
           );
           return;
         }
@@ -945,40 +946,44 @@ app.post("/webhook", async (req, res) => {
             ? `$${cantidad * 150}`
             : "Cotización";
 
-            await setEstado(numeroCliente, {
-  ...estadoPrevio,
-  esperandoDetallesExtra: true,
-  imageId: idDeLaImagen,
-  detalles: comentarioImagen,
-  cantidad: cantidad,
-  ticket: ticketGenerado,
-  precioTotal: precioCalculado,
-});
+        await setEstado(numeroCliente, {
+          ...estadoPrevio,
+          esperandoDetallesExtra: true,
+          procesando: true, // 👈 mantener el flag activo
+          imageId: idDeLaImagen,
+          detalles: comentarioImagen,
+          cantidad: cantidad,
+          ticket: ticketGenerado,
+          precioTotal: precioCalculado,
+        });
 
         const nombreRegistrado = await buscarNombreEnSheets(numeroCliente);
 
         //Cliente ya existe en excel
         if (nombreRegistrado) {
           console.log(`Cliente reconocido: ${nombreRegistrado}`);
-           const estadoPrevioRegistrado = await getEstado(numeroCliente);
-           const lockKey = `lock:${idDeLaImagen}`;
-const lockObtenido = await redis.set(lockKey, "1", { nx: true, ex: 30 });
-if (!lockObtenido) {
-  console.log("Duplicado detectado, ignorando...");
-  return;
-}
-           await setEstado(numeroCliente, {
-    ...estadoPrevioRegistrado,
-    nombre: nombreRegistrado,
-    ticket: ticketGenerado,
-    cantidad: cantidad,
-    precioTotal: precioCalculado,
-    detalles: comentarioImagen,
-    imageId: idDeLaImagen,
-    esperandoDetallesExtra: true,
-    esperandoNombre: false,
-    procesando: false
-  });
+          const estadoPrevioRegistrado = await getEstado(numeroCliente);
+          const lockKey = `lock:${idDeLaImagen}`;
+          const lockObtenido = await redis.set(lockKey, "1", {
+            nx: true,
+            ex: 30,
+          });
+          if (!lockObtenido) {
+            console.log("Duplicado detectado, ignorando...");
+            return;
+          }
+          await setEstado(numeroCliente, {
+            ...estadoPrevioRegistrado,
+            nombre: nombreRegistrado,
+            ticket: ticketGenerado,
+            cantidad: cantidad,
+            precioTotal: precioCalculado,
+            detalles: comentarioImagen,
+            imageId: idDeLaImagen,
+            esperandoDetallesExtra: true,
+            esperandoNombre: false,
+            procesando: false,
+          });
 
           await procesarPedidoDetallado(
             nombreRegistrado,
@@ -989,121 +994,59 @@ if (!lockObtenido) {
           );
 
           const estadoConPrecio = await getEstado(numeroCliente);
-  const precioFinal = estadoConPrecio?.precioTotal || precioCalculado;
+          const precioFinal = estadoConPrecio?.precioTotal || precioCalculado;
 
           const saludo = estaFueraDeHorario()
-    ? `🌙 *¡Hola de nuevo, ${nombreRegistrado}!*\n\n` +
-      `Recibimos tu diseño fuera de horario, lo revisaremos mañana a primera hora.\n\n` +
-      `🆔 *Ticket:* ${ticketGenerado}\n\n` +
-      `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
-      `Cuando estés listo, confirma tu pedido para generar tu orden en PDF. ✨`
-    : `✅ *¡Diseño recibido!*\n\n` +
-      `👤 *Cliente:* ${nombreRegistrado}\n\n` +
-      `🆔 *Ticket:* ${ticketGenerado}\n\n` +
-      `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
-      `Puedes agregar más detalles o confirmar tu pedido para generar tu orden en PDF. ✨`;
-  await enviarBotones(
-    numeroCliente,
-    saludo,
-    ["Confirmar Pedido", "Hablar con Asesor"],);
+            ? `🌙 *¡Hola de nuevo, ${nombreRegistrado}!*\n\n` +
+              `Recibimos tu diseño fuera de horario, lo revisaremos mañana a primera hora.\n\n` +
+              `🆔 *Ticket:* ${ticketGenerado}\n\n` +
+              `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
+              `Cuando estés listo, confirma tu pedido para generar tu orden en PDF. ✨`
+            : `✅ *¡Diseño recibido!*\n\n` +
+              `👤 *Cliente:* ${nombreRegistrado}\n\n` +
+              `🆔 *Ticket:* ${ticketGenerado}\n\n` +
+              `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
+              `Puedes agregar más detalles o confirmar tu pedido para generar tu orden en PDF. ✨`;
+          await enviarBotones(numeroCliente, saludo, [
+            "Confirmar Pedido",
+            "Hablar con Asesor",
+          ]);
           return;
         }
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
         await setEstado(numeroCliente, {
-          esperandoDetallesExtra: false,
-          esperandoNombre: true,
+          esperandoNombre: false,
+          esperandoDetallesExtra: true,
           ticket: ticketGenerado,
           imageId: idDeLaImagen,
           detalles: comentarioImagen,
           categoria: estadoPrevio.categoria || "📦 GENERAL",
           cantidad: cantidad,
           precioTotal: precioCalculado,
+          nombre: "Pendiente",
         });
 
-        //Confirmación inmediata del cliente
-        await setEstado(numeroCliente, {
-  ...await getEstado(numeroCliente),
-  procesando: false, // 👈 desbloqueamos cuando ya pedimos el nombre
-});
+        await procesarPedidoDetallado(
+          "Pendiente",
+          numeroCliente,
+          idDeLaImagen,
+          comentarioImagen,
+          ticketGenerado,
+        );
 
-await enviarMensaje(
-  numeroCliente,
-  `📸 *¡Imagen recibida con éxito!*\n\n` +
-  `🆔 *Ticket generado:* ${ticketGenerado}\n\n` +
-  `Para completar tu registro, ¿podrías indicarnos tu *Nombre Completo*? ✨`);
+        const estadoConPrecioNuevo = await getEstado(numeroCliente);
+        const precioFinalNuevo =
+          estadoConPrecioNuevo?.precioTotal || precioCalculado;
+
+        await enviarBotones(
+          numeroCliente,
+          `📸 *¡Imagen recibida con éxito!*\n\n` +
+            `🆔 *Ticket:* ${ticketGenerado}\n` +
+            `💵 *Presupuesto estimado:* ${precioFinalNuevo}\n\n` +
+            `Puedes agregar más detalles o confirmar tu pedido. ✨`,
+          ["Confirmar Pedido", "Hablar con Asesor"],
+        );
         return;
-      }
-
-      // 1. PRIMERO: Prioridad absoluta al nombre (FUERA del else if)
-      const estadoNombre = await getEstado(numeroCliente);
-      if (
-        msg.type === "text" &&
-        estadoNombre?.esperandoNombre
-      ) {
-        const nombreProporcionado = msg.text.body.trim();
-        const datosRecuperados = estadoNombre;
-
-        // 🛡️ FILTRO: Si el usuario escribe un ticket o la palabra estatus, NO lo guardamos como nombre
-        if (
-          nombreProporcionado.toUpperCase().includes("PED-") ||
-          nombreProporcionado.toLowerCase().includes("estatus")
-        ) {
-          console.log(
-            "Detectado ticket/estatus, saltando guardado de nombre...",
-          );
-          // No ponemos 'return' para que el código baje al siguiente 'else if' y procese el ticket
-        } else {
-          // VALIDACIÓN DE SEGURIDAD
-          if (!datosRecuperados || !datosRecuperados.ticket) {
-            await delEstado(numeroCliente);
-            await enviarBotones(
-              numeroCliente,
-              "¡Ups! Sesión expirada. Por favor, selecciona la categoría de nuevo.",
-              ["Catalogo", "Personalizar"],
-            );
-            return;
-          }
-
-          await setEstado(numeroCliente, {
-            ...datosRecuperados,
-            nombre: nombreProporcionado,
-            esperandoNombre: false,
-            esperandoDetallesExtra: true,
-          });
-
-          // Usamos "Cliente Nuevo" como nombre temporal para que Cloudinary y la notificación funcionen
-          await procesarPedidoDetallado(
-            nombreProporcionado,
-            numeroCliente,
-            datosRecuperados.imageId,
-            datosRecuperados.detalles,
-            datosRecuperados.ticket,
-          );
-
-          // 🔍 AQUÍ EL CAMBIO: Notificamos al Admin que ya tenemos el nombre del cliente nuevo
-          const mensajeAdmin =
-            `👤 *NUEVO CLIENTE REGISTRADO*\n` +
-            `Nombre: ${nombreProporcionado}\n` +
-            `Ticket: ${datosRecuperados.ticket}\n` +
-            `WhatsApp: wa.me/${numeroCliente}`;
-          await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
-          await delay(1500);
-
-          const estadoConPrecioNuevo = await getEstado(numeroCliente);
-const precioFinalNuevo = estadoConPrecioNuevo?.precioTotal || "Cotización";
-
-const mensajeConfirmacion =
-  `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n` +
-  `📦 *Categoría:* ${datosRecuperados.categoria}\n` +
-  `🔢 *Cantidad:* ${datosRecuperados.cantidad} piezas\n` +
-  `💵 *Presupuesto estimado:* ${precioFinalNuevo}\n\n` +
-  `¿Los datos son correctos para generar tu Orden en PDF?`;
-
-await enviarBotones(numeroCliente, mensajeConfirmacion, [
-  "Confirmar Pedido", "Hablar con Asesor"
-]);
-          return; // ⛔ IMPORTANTE: Aquí termina el proceso para el nombre
-        }
       }
 
       // B. SI ENVÍAN TEXTO
@@ -1112,32 +1055,91 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
         const textoCliente = msg.text.body.toLowerCase().trim();
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
+        // 🎯 PRIORIDAD 1: Esperando nombre para confirmar pedido
+        const estadoConfirmacion = await getEstado(numeroCliente);
+        if (estadoConfirmacion?.esperandoNombreConfirmacion) {
+          const nombreProporcionado = msg.text.body.trim();
+          const esComandoNombre =
+            nombreProporcionado.toUpperCase().includes("PED-") ||
+            nombreProporcionado.toLowerCase().includes("estatus") ||
+            nombreProporcionado.toLowerCase().startsWith("pago ") ||
+            nombreProporcionado.toLowerCase().startsWith("pagado ") ||
+            nombreProporcionado.toLowerCase().startsWith("anticipo ") ||
+            nombreProporcionado.toLowerCase().startsWith("cancelar");
+
+          if (!esComandoNombre) {
+            if (!estadoConfirmacion.ticket) {
+              await delEstado(numeroCliente);
+              await enviarBotones(
+                numeroCliente,
+                "¡Ups! Sesión expirada. Por favor, selecciona la categoría de nuevo.",
+                ["Catalogo", "Personalizar"],
+              );
+              return;
+            }
+            await setEstado(numeroCliente, {
+              ...estadoConfirmacion,
+              nombre: nombreProporcionado,
+              esperandoNombreConfirmacion: false,
+            });
+            const mensajeAdmin =
+              `👤 *NUEVO CLIENTE REGISTRADO*\n` +
+              `Nombre: ${nombreProporcionado}\n` +
+              `Ticket: ${estadoConfirmacion.ticket}\n` +
+              `WhatsApp: wa.me/${numeroCliente}`;
+            await enviarMensaje(process.env.MY_PERSONAL_NUMBER, mensajeAdmin);
+            await enviarBotones(
+              numeroCliente,
+              `¡Mucho gusto, *${nombreProporcionado}*! ✨\n\n¿Confirmamos tu pedido?`,
+              ["Confirmar Pedido", "Hablar con Asesor"],
+            );
+            return;
+          }
+          // Si es un comando, cae a la lógica normal de abajo
+        }
+
         const estadoTexto = await getEstado(numeroCliente);
 
-  // 🔒 Si la imagen aún está procesándose, pedimos que espere
-  if (estadoTexto?.procesando) {
-    await enviarMensaje(
-      numeroCliente,
-      "⏳ Estamos procesando tu imagen, por favor espera un momento antes de escribir..."
-    );
-    return;
-  }
+        // 🔒 Si la imagen aún está procesándose, pedimos que espere
+        if (estadoTexto?.procesando) {
+          await enviarMensaje(
+            numeroCliente,
+            "⏳ Estamos procesando tu imagen, por favor espera un momento antes de escribir...",
+          );
+          return;
+        }
 
-  if (estadoTexto?.esperandoDetallesExtra && !estadoTexto?.esperandoNombre) {
-   const esComando = [
-  "hola","inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios", "reiniciar", "cancelar"
-].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
+        if (
+          estadoTexto?.esperandoDetallesExtra &&
+          !estadoTexto?.esperandoNombre
+        ) {
+          const esComando =
+            [
+              "hola",
+              "inicio",
+              "catalogo",
+              "personalizar",
+              "confirmar pedido",
+              "tallas",
+              "precios",
+              "reiniciar",
+              "cancelar",
+            ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
-    if (!esComando) {
-      await setEstado(numeroCliente, {
-        ...estadoTexto,
-        detalles: (estadoTexto.detalles || "") + " " + msg.text.body.trim(),
-      });
-     await enviarBotones( numeroCliente, `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Deseas agregar algo más o confirmamos tu pedido?`,
-  ["Confirmar Pedido", "Hablar con Asesor"]);
-      return;
-    }
-  }
+          if (!esComando) {
+            await setEstado(numeroCliente, {
+              ...estadoTexto,
+              detalles:
+                (estadoTexto.detalles || "") + " " + msg.text.body.trim(),
+            });
+            await enviarBotones(
+              numeroCliente,
+              `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Deseas agregar algo más o confirmamos tu pedido?`,
+              ["Confirmar Pedido", "Hablar con Asesor"],
+            );
+            return;
+          }
+        }
 
         if (esAdmin) {
           if (
@@ -1253,7 +1255,7 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
 
         if (quiereBienvenida) {
           // ⚠️ Si el cliente ya tiene un ticket activo, NO borramos el estado ni saludamos de nuevo
-         const estadoBienvenida = await getEstado(numeroCliente);
+          const estadoBienvenida = await getEstado(numeroCliente);
           if (estadoBienvenida?.ticket) {
             await enviarMensaje(
               numeroCliente,
@@ -1463,7 +1465,7 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
 
             await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
-              esperandoNombre: !nombreRegistrado,
+              esperandoNombre: false,
               categoria: "TEXTIL",
             });
             await enviarMensaje(
@@ -1477,7 +1479,7 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
 
             await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
-              esperandoNombre: !nombreRegistrado,
+              esperandoNombre: false,
               categoria: "TAZAS Y MDF",
             });
             await enviarMensaje(
@@ -1491,7 +1493,7 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
 
             await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
-              esperandoNombre: !nombreRegistrado,
+              esperandoNombre: false,
               categoria: "ETIQUETAS",
             });
             await enviarMensaje(
@@ -1550,10 +1552,8 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
               try {
                 // 1. Extraemos datos antes de borrar la memoria para el reporte Admin
                 const categoriaArticulo =
-                  estadoCancelacion?.categoria ||
-                  "No especificado";
-                const nombreDelCliente =
-                  estadoCancelacion?.nombre || "Cliente";
+                  estadoCancelacion?.categoria || "No especificado";
+                const nombreDelCliente = estadoCancelacion?.nombre || "Cliente";
 
                 // 2. Actualizamos el Sheet
                 await actualizarEstadoCRM(ticketParaBorrar, {
@@ -1597,7 +1597,8 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
                 // 4. MENSAJE AL CLIENTE
                 await enviarBotones(
                   numeroCliente,
-                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,["Inicio"]
+                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
+                  ["Inicio"],
                 );
 
                 await delEstado(numeroCliente);
@@ -1650,6 +1651,18 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
             const datosParaPDF = await getEstado(numeroCliente);
 
             if (datosParaPDF) {
+              // Si el nombre es Pendiente, pedimos el nombre antes de generar el PDF
+              if (datosParaPDF.nombre === "Pendiente") {
+                await setEstado(numeroCliente, {
+                  ...datosParaPDF,
+                  esperandoNombreConfirmacion: true,
+                });
+                await enviarMensaje(
+                  numeroCliente,
+                  `Para generar tu orden, ¿podrías indicarnos tu *Nombre Completo*? ✨`,
+                );
+                break;
+              }
               try {
                 const ticketFinal = datosParaPDF.ticket;
                 const rutaPDF = `./temp/Orden_${ticketFinal}.pdf`;
@@ -1736,31 +1749,33 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
             }
             break;
 
-            case "Ayuda":
-  await enviarMensaje(
-    numeroCliente,
-    "🫱🏼‍🫲🏼 *No te preocupes.* Aquí te explico cómo continuar con tu pedido:\n\n" +
-    "1️⃣ Si ya enviaste tu diseño, presiona *Confirmar Pedido* para generar tu orden en PDF.\n\n" +
-    "2️⃣ Si deseas agregar más detalles a tu pedido, solo escríbelos aquí.\n\n" +
-    "3️⃣ Si necesitas hablar con una persona, presiona *Hablar con Asesor*.\n\n" +
-    "4️⃣ Si quieres cancelar y empezar de nuevo, presiona *Inicio*."
-  );
-  await delay(1000);
-  await enviarBotones(
-    numeroCliente,
-    "¿Qué deseas hacer?",
-    ["Confirmar Pedido", "Hablar con Asesor", "Inicio"]
-  );
-  break;
+          case "Ayuda":
+            await enviarMensaje(
+              numeroCliente,
+              "🫱🏼‍🫲🏼 *No te preocupes.* Aquí te explico cómo continuar con tu pedido:\n\n" +
+                "1️⃣ Si ya enviaste tu diseño, presiona *Confirmar Pedido* para generar tu orden en PDF.\n\n" +
+                "2️⃣ Si deseas agregar más detalles a tu pedido, solo escríbelos aquí.\n\n" +
+                "3️⃣ Si necesitas hablar con una persona, presiona *Hablar con Asesor*.\n\n" +
+                "4️⃣ Si quieres cancelar y empezar de nuevo, presiona *Inicio*.",
+            );
+            await delay(1000);
+            await enviarBotones(numeroCliente, "¿Qué deseas hacer?", [
+              "Confirmar Pedido",
+              "Hablar con Asesor",
+              "Inicio",
+            ]);
+            break;
 
           case "ESPERANDO_DETALLES":
-  const textoExtra = msg.text?.body || "";
-  const estadoEsperando = await getEstado(numeroCliente);
-  await setEstado(numeroCliente, {
-    ...estadoEsperando,
-    detalles: (estadoEsperando?.detalles || "") + " " + textoExtra,
-  });
-  console.log(`📝 Nota añadida al ticket ${estadoEsperando?.ticket}: ${textoExtra}`);
+            const textoExtra = msg.text?.body || "";
+            const estadoEsperando = await getEstado(numeroCliente);
+            await setEstado(numeroCliente, {
+              ...estadoEsperando,
+              detalles: (estadoEsperando?.detalles || "") + " " + textoExtra,
+            });
+            console.log(
+              `📝 Nota añadida al ticket ${estadoEsperando?.ticket}: ${textoExtra}`,
+            );
 
             // 3. Opcional: Confirmar al cliente que lo escuchaste
             await enviarMensaje(
