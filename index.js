@@ -890,9 +890,13 @@ app.post("/webhook", async (req, res) => {
       if (msg.type === "image") {
         const idDeLaImagen = msg.image?.id || msg.id;
         const comentarioImagen = (msg.image?.caption || "").trim();
-
-        // 🟢 CAMBIO: Solo tomamos la categoría, si no hay, forzamos a que elija una
         const estadoPrevio = await getEstado(numeroCliente) || {};
+
+         // 🔒 Marcamos que estamos procesando para bloquear textos prematuros
+  await setEstado(numeroCliente, {
+    ...estadoPrevio,
+    procesando: true,
+  });
 
         // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
         if (!estadoPrevio.categoria) {
@@ -972,7 +976,8 @@ if (!lockObtenido) {
     detalles: comentarioImagen,
     imageId: idDeLaImagen,
     esperandoDetallesExtra: true,
-    esperandoNombre: false
+    esperandoNombre: false,
+    procesando: false
   });
 
           await procesarPedidoDetallado(
@@ -1016,12 +1021,16 @@ if (!lockObtenido) {
         });
 
         //Confirmación inmediata del cliente
-        await enviarMensaje(
+        await setEstado(numeroCliente, {
+  ...await getEstado(numeroCliente),
+  procesando: false, // 👈 desbloqueamos cuando ya pedimos el nombre
+});
+
+await enviarMensaje(
   numeroCliente,
   `📸 *¡Imagen recibida con éxito!*\n\n` +
   `🆔 *Ticket generado:* ${ticketGenerado}\n\n` +
-  `Para completar tu registro, ¿podrías indicarnos tu *Nombre Completo*? ✨`
-);
+  `Para completar tu registro, ¿podrías indicarnos tu *Nombre Completo*? ✨`);
         return;
       }
 
@@ -1104,6 +1113,16 @@ await enviarBotones(numeroCliente, mensajeConfirmacion, [
         const esAdmin = numeroCliente === process.env.MY_PERSONAL_NUMBER;
 
         const estadoTexto = await getEstado(numeroCliente);
+
+  // 🔒 Si la imagen aún está procesándose, pedimos que espere
+  if (estadoTexto?.procesando) {
+    await enviarMensaje(
+      numeroCliente,
+      "⏳ Estamos procesando tu imagen, por favor espera un momento antes de escribir..."
+    );
+    return;
+  }
+
   if (estadoTexto?.esperandoDetallesExtra && !estadoTexto?.esperandoNombre) {
    const esComando = [
   "hola","inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios", "reiniciar", "cancelar"
