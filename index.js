@@ -983,15 +983,19 @@ if (!lockObtenido) {
             ticketGenerado,
           );
 
+          const estadoConPrecio = await getEstado(numeroCliente);
+  const precioFinal = estadoConPrecio?.precioTotal || precioCalculado;
+
           const saludo = estaFueraDeHorario()
     ? `🌙 *¡Hola de nuevo, ${nombreRegistrado}!*\n\n` +
       `Recibimos tu diseño fuera de horario, lo revisaremos mañana a primera hora.\n\n` +
-      `🆔 *Ticket:* ${ticketGenerado}\n` +
-      `💵 *Presupuesto estimado:* ${precioCalculado}\n\n` +
+      `🆔 *Ticket:* ${ticketGenerado}\n\n` +
+      `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
       `Cuando estés listo, confirma tu pedido para generar tu orden en PDF. ✨`
-    : `✅ *¡Diseño recibido, ${nombreRegistrado}!*\n\n` +
-      `🆔 *Ticket:* ${ticketGenerado}\n` +
-      `💵 *Presupuesto estimado:* ${precioCalculado}\n\n` +
+    : `✅ *¡Diseño recibido!*\n\n` +
+      `👤 *Cliente:* ${nombreRegistrado}\n\n` +
+      `🆔 *Ticket:* ${ticketGenerado}\n\n` +
+      `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
       `Puedes agregar más detalles o confirmar tu pedido para generar tu orden en PDF. ✨`;
   await enviarBotones(
     numeroCliente,
@@ -1099,9 +1103,9 @@ if (!lockObtenido) {
 
         const estadoTexto = await getEstado(numeroCliente);
   if (estadoTexto?.esperandoDetallesExtra && !estadoTexto?.esperandoNombre) {
-    const esComando = [
-      "inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios"
-    ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
+   const esComando = [
+  "hola","inicio", "catalogo", "personalizar", "confirmar pedido", "tallas", "precios", "reiniciar", "cancelar"
+].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
     if (!esComando) {
       await setEstado(numeroCliente, {
@@ -1187,6 +1191,7 @@ if (!lockObtenido) {
 
         const groserias = [
           "puto",
+          "negro",
           "chingada",
           "idiota",
           "estupido",
@@ -1477,6 +1482,7 @@ if (!lockObtenido) {
           case "Inicio":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
+            await delEstado(numeroCliente);
             await enviarBotones(
               numeroCliente,
               "Menu principal 🏠\n Selecciona una opción:",
