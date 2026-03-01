@@ -608,17 +608,6 @@ async function procesarPedidoDetallado(
         console.log("Error al enviar notificacion:", e.message);
       }
     }, 2500);
-
-    const despedidaElegante =
-      `✅ *¡Orden registrada con éxito!*\n\n` +
-      `🆔 *Ticket:* ${ticket}\n\n` +
-      `💵 *Presupuesto estimado:* ${textoPresupuesto}\n\n` +
-      `¿Desea realizar alguna otra consulta o prefiere hablar con un *Asesor Especializado*?`;
-
-    await delay(1500);
-    await enviarBotones(numeroCliente, despedidaElegante, [
-      "Hablar con Asesor",
-    ]);
   } catch (error) {
     console.error("✖️ Error en producción:", error);
   }
@@ -907,9 +896,9 @@ app.post("/webhook", async (req, res) => {
 
         // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
         if (!estadoPrevio.categoria) {
-          await enviarMensaje(
+          await enviarBotones(
             numeroCliente,
-            "⚠️ Por favor, primero selecciona una categoría (Textil o Tazas).",
+            "⚠️ Por favor, primero selecciona una categoría: ", ["Textil", "Tazas y MDF", "Etiquetas"]
           );
           return;
         }
@@ -995,14 +984,19 @@ if (!lockObtenido) {
           );
 
           const saludo = estaFueraDeHorario()
-            ? `¡Hola de nuevo, ${nombreRegistrado}! 🌙 Recibimos tu diseño. Como estamos fuera de horario, lo revisaremos mañana a primera hora.\n Ticket: *${ticketGenerado}*`
-            : `¡Hola ${nombreRegistrado}! ✨ Recibimos tu diseño correctamente. Generamos tu ticket: *${ticketGenerado}*.\n\n` +
-              `Recuerda que debes confirmar tu pedido para generar la orden y te mande los detalles de tu compra.`;
-          await enviarBotones(
-            numeroCliente,
-            saludo + "\n\n¿Deseas realizar otra acción?",
-            ["Confirmar Pedido", "Inicio"],
-          );
+    ? `🌙 *¡Hola de nuevo, ${nombreRegistrado}!*\n\n` +
+      `Recibimos tu diseño fuera de horario, lo revisaremos mañana a primera hora.\n\n` +
+      `🆔 *Ticket:* ${ticketGenerado}\n` +
+      `💵 *Presupuesto estimado:* ${precioCalculado}\n\n` +
+      `Cuando estés listo, confirma tu pedido para generar tu orden en PDF. ✨`
+    : `✅ *¡Diseño recibido, ${nombreRegistrado}!*\n\n` +
+      `🆔 *Ticket:* ${ticketGenerado}\n` +
+      `💵 *Presupuesto estimado:* ${precioCalculado}\n\n` +
+      `Puedes agregar más detalles o confirmar tu pedido para generar tu orden en PDF. ✨`;
+  await enviarBotones(
+    numeroCliente,
+    saludo,
+    ["Confirmar Pedido", "Hablar con Asesor"],);
           return;
         }
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
@@ -1114,8 +1108,8 @@ if (!lockObtenido) {
         ...estadoTexto,
         detalles: (estadoTexto.detalles || "") + " " + msg.text.body.trim(),
       });
-      await enviarMensaje(numeroCliente, `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Algo más o confirmamos?`);
-      await enviarBotones(numeroCliente, "¿Todo listo?", ["Confirmar Pedido"]);
+     await enviarBotones( numeroCliente, `📝 *Nota añadida:* "${msg.text.body.trim()}"\n\n¿Deseas agregar algo más o confirmamos tu pedido?`,
+  ["Confirmar Pedido", "Hablar con Asesor"]);
       return;
     }
   }
@@ -1574,9 +1568,9 @@ if (!lockObtenido) {
                 }
 
                 // 4. MENSAJE AL CLIENTE
-                await enviarMensaje(
+                await enviarBotones(
                   numeroCliente,
-                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,
+                  `🚫 Tu pedido *${ticketParaBorrar}* ha sido cancelado exitosamente.`,["Inicio"]
                 );
 
                 await delEstado(numeroCliente);
