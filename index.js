@@ -1687,7 +1687,7 @@ app.post("/webhook", async (req, res) => {
                   nombre: datosParaPDF.nombre,
                   numero: numeroCliente,
                   categoria: datosParaPDF.categoria,
-                  notas: datosParaPDF.notas, // o datosParaPDF.detalles
+                  notas: datosParaPDF.detalles, // o datosParaPDF.detalles
                   urlImagen: datosParaPDF.urlImagen,
                   precio: datosParaPDF.precioTotal, // 👈 Ahora esto tendrá el desglose
                   origen: origenPedido,
