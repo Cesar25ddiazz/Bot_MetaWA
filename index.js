@@ -86,13 +86,21 @@ if (!fs.existsSync(dir)) {
 }
 
 const PRECIOS = {
-  playera_básica: 250,
-  sudadera: 450,
-  gorra: 180,
+  playera_básica: 215,
+  playera_básica_mayoreo: 195,
+  sudadera: 350,
+  sudadera_mayoreo: 330,
+  tote_bags: 150,
+  boxer: 150,
+  calcetines: 80,
+  pijamas: 390,
+  pijamas_duo: 600,
+  elfo_personalizado: 150,
+  almohada_silueta: 150, 
+  gorra: 110,
   taza_personalizada: 85,
-  etiquetas: 260,
+  etiquetas: "Cotización según diseño",
   mdf: "Cotización según diseño",
-  personalización_extra: 150,
 };
 
 // ==========================================
@@ -537,17 +545,34 @@ async function procesarPedidoDetallado(
     else if (c.includes("mdf")) cat = "🪵 MDF";
     else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
     else if (c.includes("playera")) cat = "👕 PLAYERA BASICA";
+    else if (c.includes("playera mayoreo")) cat = "👕 PLAYERA BASICA MAYOREO";
     else if (c.includes("sudadera")) cat = "🧥 SUDADERA";
+    else if (c.includes("sudadera mayoreo")) cat = "🧥 SUDADERA MAYOREO";
+    else if (c.includes("tote bags")) cat = "👜 TOTE BAGS";
     else if (c.includes("gorra")) cat = "🧢 GORRA";
+    else if (c.includes("boxer")) cat = "🩲 BOXER";
+    else if (c.includes("calcetines")) cat = "🧦 CALCETINES";
+    else if (c.includes("pijama")) cat = "👘 PIJAMA";
+    else if (c.includes("pijama duo")) cat = "👘 PIJAMA DUO";
+    else if (c.includes("elfo personalizado")) cat = "🧝🏽‍♂️ ELFO PERSONALIZADO";
+    else if (c.includes("almohada silueta")) cat = "☁️ ALMOHADA SILUETA";
 
     let precioUnitario = 0;
-    if (cat === "👕 PLAYERA BASICA")
-      precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "☕ TAZA")
-      precioUnitario = Number(PRECIOS.taza_personalizada);
+    if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "👕 PLAYERA BASICA MAYOREO") precioUnitario = Number(PRECIOS.playera_básica_mayoreo);
+    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
+    else if (cat === "🧥 SUDADERA MAYOREO") precioUnitario = Number(PRECIOS.sudadera_mayoreo);
+    else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
+    else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
+    else if (cat === "🧦 CALCETINES") precioUnitario = Number(PRECIOS.calcetines);
+    else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
+    else if (cat === "👘 PIJAMA DUO") precioUnitario = Number(PRECIOS.pijamas_duo);
+    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO") precioUnitario = Number(PRECIOS.elfo_personalizado);
+    else if (cat ===  "☁️ ALMOHADA SILUETA") precioUnitario = Number(PRECIOS.almohada_silueta);
+
 
     //Intenta detectar cantidad
     const numerosEnTexto = comentario.match(/\d+/);
@@ -594,11 +619,20 @@ async function procesarPedidoDetallado(
     if (numerosFinales) cantidadDetectada = parseInt(numerosFinales[0]);
 
     // Re-calcular precio con datos actualizados
-    if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
+     if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "👕 PLAYERA BASICA MAYOREO") precioUnitario = Number(PRECIOS.playera_básica_mayoreo);
     else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
+    else if (cat === "🧥 SUDADERA MAYOREO") precioUnitario = Number(PRECIOS.sudadera_mayoreo);
+    else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
+    else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
+    else if (cat === "🧦 CALCETINES") precioUnitario = Number(PRECIOS.calcetines);
+    else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
+    else if (cat === "👘 PIJAMA DUO") precioUnitario = Number(PRECIOS.pijamas_duo);
+    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO") precioUnitario = Number(PRECIOS.elfo_personalizado);
+    else if (cat ===  "☁️ ALMOHADA SILUETA") precioUnitario = Number(PRECIOS.almohada_silueta);
 
     if (cat.includes("ETIQUETAS")) {
       totalFinal = (cantidadDetectada / 100) * Number(PRECIOS.etiquetas);
@@ -1405,11 +1439,19 @@ app.post("/webhook", async (req, res) => {
           const mensajePrecios =
             `💰 *Lista de Precios actualizada* 💰\n\n` +
             `👕 *Playera personalizada:* ${PRECIOS.playera_básica}\n` +
+            `👕 *Playera mayoreo (10pzas):* ${PRECIOS.playera_básica_mayoreo}\n` +
             `🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}\n` +
+            `🧥 *Sudadera mayoreo (6pzas):* ${PRECIOS.sudadera_mayoreo}\n` +
+            `👘 *Pijama personalizada:* ${PRECIOS.pijamas}\n` +
+            `👘 *Pijama duo:* ${PRECIOS.pijamas_duo}\n` +
+            `🩲 *Boxer:* ${PRECIOS.boxer}\n` +
+            `🧦 *Calcetines:* ${PRECIOS.calcetines}\n` +
             `🧢 *Gorra estampada:* ${PRECIOS.gorra}\n` +
+            `👜 *Tote Bags (bolsa de manta):* ${PRECIOS.tote_bags}\n` +
+            `🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}\n` +
+            `☁️ *Almohada silueta* ${PRECIOS.almohada_silueta}\n` +
             `☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n` +
-            `✨ *Diseño extra:* ${PRECIOS.personalización_extra}\n\n` +
-            `_Precios sujetos a cambios según la complejidad del diseño._\n` +
+            `_Precios sujetos a cambios según el diseño MDF o Etiquetas._\n` +
             `¿Te gustaría iniciar un pedido ahora? Presiona el botón *Personalizar*.`;
 
           await enviarBotones(numeroCliente, mensajePrecios, [
@@ -1521,14 +1563,20 @@ app.post("/webhook", async (req, res) => {
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             const listaPrecios = `💰 *Lista de Nuestros Precios:*\n
-            👕 Playera: ${PRECIOS.playera_básica}
-            🧥 Sudadera: ${PRECIOS.sudadera}
-            🧢 Gorra: ${PRECIOS.gorra}
-            ☕ Taza Personalizada: ${PRECIOS.taza_personalizada}
-            🏷️ Etiquetas (100 piezas): ${PRECIOS.etiquetas}
-            🪵 MDF: ${PRECIOS.mdf}
-            ✨ Extra: ${PRECIOS.personalización_extra}\n
-            _Precios sujetos a cambios o según la complejidad_`;
+            👕 *Playera personalizada:* ${PRECIOS.playera_básica}
+            👕 *Playera mayoreo (10pzas):* ${PRECIOS.playera_básica_mayoreo}
+            🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}
+            🧥 *Sudadera mayoreo (6pzas):* ${PRECIOS.sudadera_mayoreo}
+            👘 *Pijama personalizada:* ${PRECIOS.pijamas}
+            👘 *Pijama duo:* ${PRECIOS.pijamas_duo}
+            🩲 *Boxer:* ${PRECIOS.boxer}
+            🧦 *Calcetines:* ${PRECIOS.calcetines}
+            🧢 *Gorra estampada:* ${PRECIOS.gorra}
+            👜 *Tote Bags (bolsa de manta):* ${PRECIOS.tote_bags}
+            🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}
+            ☁️ *Almohada silueta* ${PRECIOS.almohada_silueta}
+            ☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n
+            _Precios sujetos a cambios o según el diseño MDF o Etiquetas_`;
             await enviarMensaje(numeroCliente, listaPrecios);
             await delay(2000);
             await enviarBotones(
