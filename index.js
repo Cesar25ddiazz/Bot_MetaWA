@@ -99,8 +99,8 @@ const PRECIOS = {
   almohada_silueta: 150, 
   gorra: 110,
   taza_personalizada: 85,
-  etiquetas: "Cotización según diseño",
-  mdf: "Cotización según diseño",
+  etiquetas: "Cotización según tamaño y cantidad",
+  mdf: "Cotización según grabado, corte y tamaño",
 };
 
 // ==========================================
@@ -582,19 +582,14 @@ async function procesarPedidoDetallado(
     let totalFinal = 0;
     let precioBase = Number(PRECIOS.etiquetas);
 
-    if (cat && cat.includes("ETIQUETAS")) {
-      //Si piden 200, nos dividimos entre 100 = 2 unidades de precio
-      //Usamos match.ceil para redondear hacia arriba si pide 150 cobra 2 paquetes
-      totalFinal = (cantidadDetectada / 100) * precioBase;
-    } else {
+   if (!cat.includes("ETIQUETAS") && !cat.includes("MDF")) {
       totalFinal = Number(precioUnitario) * cantidadDetectada;
     }
     totalFinal = Math.round(totalFinal * 100) / 100;
 
-    //Calculo total
     let textoPresupuesto =
-      (cat && cat.includes("MDF")) || c.includes("mdf") || c.includes("madera")
-        ? "Sujeto a cotización según diseño"
+      cat.includes("MDF") || cat.includes("ETIQUETAS") || c.includes("mdf") || c.includes("madera") || c.includes("llavero") || cat.includes("etiquetas")
+        ? "Sujeto a cotización según tamaño y cantidad"
         : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
     //Guardar en CRM
@@ -1018,8 +1013,8 @@ app.post("/webhook", async (req, res) => {
         let precioCalculado =
           estadoPrevio.categoria === "TAZAS Y MDF" &&
           comentarioImagen.toLowerCase().includes("taza")
-            ? `$${cantidad * 150}`
-            : "Cotización";
+            ? `$${cantidad * 85}`
+            : "Cotización según tamaño y cantidad";
 
         await setEstado(numeroCliente, {
           ...estadoPrevio,
@@ -1258,9 +1253,9 @@ app.post("/webhook", async (req, res) => {
                 "🏷️ ETIQUETAS": 260,
               };
               if (catActualizada.includes("MDF")) {
-                precioActualizado = "Sujeto a cotización según diseño";
+                precioActualizado = "Cotización según grabado, corte y tamaño";
               } else if (catActualizada.includes("ETIQUETAS")) {
-                precioActualizado = `$${(cantidadActualizada / 100) * 260} MXN (${cantidadActualizada} pzs)`;
+                precioActualizado = "Cotización según tamaño y cantidad";
               } else if (tablaPrecios[catActualizada]) {
                 precioActualizado = `$${tablaPrecios[catActualizada] * cantidadActualizada} MXN (${cantidadActualizada} pzs)`;
               }
@@ -1447,9 +1442,9 @@ app.post("/webhook", async (req, res) => {
             `🩲 *Boxer:* ${PRECIOS.boxer}\n` +
             `🧦 *Calcetines:* ${PRECIOS.calcetines}\n` +
             `🧢 *Gorra estampada:* ${PRECIOS.gorra}\n` +
-            `👜 *Tote Bags (bolsa de manta):* ${PRECIOS.tote_bags}\n` +
+            `👜 *Tote Bags (bolsa manta):* ${PRECIOS.tote_bags}\n` +
             `🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}\n` +
-            `☁️ *Almohada silueta* ${PRECIOS.almohada_silueta}\n` +
+            `☁️ *Almohada silueta:* ${PRECIOS.almohada_silueta}\n` +
             `☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n` +
             `_Precios sujetos a cambios según el diseño MDF o Etiquetas._\n` +
             `¿Te gustaría iniciar un pedido ahora? Presiona el botón *Personalizar*.`;
