@@ -574,14 +574,51 @@ async function procesarPedidoDetallado(
 
     //Guardar en CRM
     const estadoActualPedido2 = await getEstado(numeroCliente);
+
+    // 🔍 Si el cliente ya mandó texto extra, usamos los detalles acumulados en Redis
+    const detallesAcumulados = estadoActualPedido2?.detalles || comentario;
+    const textoFinal = detallesAcumulados.toLowerCase();
+
+    // Re-detectar categoría con detalles acumulados si sigue siendo GENERAL
+    if (cat === "📦 GENERAL") {
+      if (textoFinal.includes("taza")) cat = "☕ TAZA";
+      else if (textoFinal.includes("mdf") || textoFinal.includes("madera")) cat = "🪵 MDF";
+      else if (textoFinal.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
+      else if (textoFinal.includes("playera")) cat = "👕 PLAYERA BASICA";
+      else if (textoFinal.includes("sudadera")) cat = "🧥 SUDADERA";
+      else if (textoFinal.includes("gorra")) cat = "🧢 GORRA";
+    }
+
+    // Re-detectar cantidad con detalles acumulados
+    const numerosFinales = detallesAcumulados.match(/\d+/);
+    if (numerosFinales) cantidadDetectada = parseInt(numerosFinales[0]);
+
+    // Re-calcular precio con datos actualizados
+    if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+    else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
+    else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
+    else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
+
+    if (cat.includes("ETIQUETAS")) {
+      totalFinal = (cantidadDetectada / 100) * Number(PRECIOS.etiquetas);
+    } else {
+      totalFinal = Number(precioUnitario) * cantidadDetectada;
+    }
+    totalFinal = Math.round(totalFinal * 100) / 100;
+
+    textoPresupuesto = cat.includes("MDF") || textoFinal.includes("mdf") || textoFinal.includes("madera")
+      ? "Sujeto a cotización según diseño"
+      : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
+
     await setEstado(numeroCliente, {
       ...estadoActualPedido2,
       ticket: ticket,
       nombre: nombreCliente,
       numero: numeroCliente,
       categoria: cat,
-      notas: comentario,
-      detalles: comentario,
+      notas: detallesAcumulados,
+      detalles: detallesAcumulados,
       urlImagen: urlPermanente,
       precio: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
       precioTotal: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
