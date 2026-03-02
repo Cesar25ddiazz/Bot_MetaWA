@@ -632,7 +632,7 @@ async function procesarPedidoDetallado(
       `👤 *Cliente:* ${nombreCliente}\n` +
       `📱 *Whatsapp:* wa.me/${numeroCliente}\n` +
       `📦 *CAT:* ${cat}\n` +
-      `📝 *Notas:* ${comentario}\n` +
+      `📝 *Notas:* ${detallesAcumulados}\n` +
       `💵 *Total:* ${textoPresupuesto}\n` +
       `🖼️ *Link:* ${result.secure_url}\n` +
       `-----------------------------\n` +
@@ -945,9 +945,8 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
-        if (estadoPrevio.categoria === "TAZAS Y MDF") {
+       if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
-          //Palabras clave
           const tieneMaterial =
             textoAnalizar.includes("taza") ||
             textoAnalizar.includes("mdf") ||
@@ -957,12 +956,17 @@ app.post("/webhook", async (req, res) => {
             textoAnalizar.includes("corte");
 
           if (!tieneMaterial) {
+            // 🔓 Resetear procesando para no bloquear al cliente
+            await setEstado(numeroCliente, {
+              ...estadoPrevio,
+              procesando: false,
+            });
             await enviarMensaje(
               numeroCliente,
               "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\n" +
                 "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨",
             );
-            return; // Detiene la generación de la orden
+            return;
           }
         }
 
@@ -1140,7 +1144,7 @@ app.post("/webhook", async (req, res) => {
         // 🔒 Si la imagen aún está procesándose, pedimos que espere
         if (estadoTexto?.procesando) {
   // Guardamos el texto silenciosamente en Redis para que procesarPedidoDetallado lo encuentre
-  const detallesPendientes = (estadoTexto.detalles || "") + " " + msg.text.body.trim();
+  const detallesPendientes = (estadoTexto.detalles || "") + " / " + msg.text.body.trim();
   await setEstado(numeroCliente, {
     ...estadoTexto,
     detalles: detallesPendientes,
@@ -1177,8 +1181,7 @@ app.post("/webhook", async (req, res) => {
               return;
             }
             const estadoFresco = await getEstado(numeroCliente);
-            const textoAcumulado =
-              (estadoFresco.detalles || "") + " " + msg.text.body.trim();
+            const textoAcumulado = (estadoFresco.detalles || "") + " / " + msg.text.body.trim();
             const textoLower = textoAcumulado.toLowerCase();
 
             // 🔍 Re-detectar categoría si aún es GENERAL o vacía
@@ -1883,7 +1886,7 @@ app.post("/webhook", async (req, res) => {
             const estadoEsperando = await getEstado(numeroCliente);
             await setEstado(numeroCliente, {
               ...estadoEsperando,
-              detalles: (estadoEsperando?.detalles || "") + " " + textoExtra,
+              detalles: (estadoEsperando?.detalles || "") + " / " + textoExtra,
             });
             console.log(
               `📝 Nota añadida al ticket ${estadoEsperando?.ticket}: ${textoExtra}`,
