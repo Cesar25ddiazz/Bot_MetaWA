@@ -1139,12 +1139,15 @@ app.post("/webhook", async (req, res) => {
 
         // 🔒 Si la imagen aún está procesándose, pedimos que espere
         if (estadoTexto?.procesando) {
-          await enviarMensaje(
-            numeroCliente,
-            "⏳ Estamos procesando tu imagen, por favor espera un momento antes de escribir...",
-          );
-          return;
-        }
+  // Guardamos el texto silenciosamente en Redis para que procesarPedidoDetallado lo encuentre
+  const detallesPendientes = (estadoTexto.detalles || "") + " " + msg.text.body.trim();
+  await setEstado(numeroCliente, {
+    ...estadoTexto,
+    detalles: detallesPendientes,
+  });
+  console.log("📥 Texto guardado durante procesamiento:", msg.text.body.trim());
+  return;
+}
 
         if (
           estadoTexto?.esperandoDetallesExtra &&
