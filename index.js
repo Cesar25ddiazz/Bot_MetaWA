@@ -18,7 +18,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || hora >= 23 || hora < 9;
+  return dia === 0 || hora >= 21 || hora < 9;
 }
 
 //Función retraso
@@ -1830,17 +1830,17 @@ app.post("/webhook", async (req, res) => {
             const Catalogos = {
               textil:
                 "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-              tazas_y_regalos:
-                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-              grabado_y_corte:
+              Tazas_y_MDF:
+                "https://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf",
+              Etiquetas:
                 "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
             };
             await enviarMensaje(
               numeroCliente,
               `📂 *Nuestros Catálogos*\n\n` +
                 `👕 *Textil:* ${Catalogos.textil}\n\n` +
-                `☕ *Tazas y Regalos:* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
-                `🪵 *Grabado y Corte MDF* [https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf]\n\n` +
+                `☕🪵 *Tazas y MDF:* ${Catalogos.Tazas_y_MDF}\n\n` +
+                `🏷️ *Etiquetas y Llaveros:* ${Catalogos.Etiquetas}\n\n` +
                 `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`,
             );
             await delay(2000);
@@ -1863,7 +1863,7 @@ app.post("/webhook", async (req, res) => {
             🩲 *Boxer:* ${PRECIOS.boxer}
             🧦 *Calcetines:* ${PRECIOS.calcetines}
             🧢 *Gorra estampada:* ${PRECIOS.gorra}
-            👜 *Tote Bags (bolsa de manta):* ${PRECIOS.tote_bags}
+            👜 *Tote Bags (bolsa manta):* ${PRECIOS.tote_bags}
             🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}
             ☁️ *Almohada silueta* ${PRECIOS.almohada_silueta}
             ☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n
