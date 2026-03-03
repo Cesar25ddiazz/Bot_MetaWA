@@ -96,7 +96,7 @@ const PRECIOS = {
   pijamas: 390,
   pijamas_duo: 600,
   elfo_personalizado: 150,
-  almohada_silueta: 150, 
+  almohada_silueta: 150,
   gorra: 110,
   taza_personalizada: 85,
   etiquetas: "Cotización según tamaño y cantidad",
@@ -410,7 +410,7 @@ async function consultarStatusCRM(ticket) {
     console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
 
     // Extraemos los datos de la fila
-    const nombre = fila.get("Nombre") || "Cliente";
+    const nombre = fila.get("Cliente") || fila.get("Nombre") || "Cliente";
     const pago = fila.get("Estado_Pago") || "Pendiente";
     const produccion = fila.get("Estado_Produccion") || "En espera";
     const concepto = fila.get("Descripcion") || "Pedido General";
@@ -432,6 +432,113 @@ async function consultarStatusCRM(ticket) {
     console.error("❌ Error al consultar en Sheets:", error.message);
     return "❌ Hubo un error al consultar tu ticket. Por favor, intenta más tarde.";
   }
+}
+
+async function consultarHistorialCRM(whatsapp) {
+  try {
+    const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const doc = new GoogleSpreadsheet(
+      process.env.GOOGLE_SHEET_ID,
+      serviceAccountAuth,
+    );
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    const filas = await sheet.getRows();
+    const telCliente = whatsapp.toString().replace(/\D/g, "");
+
+    // Buscar todas las filas del cliente
+    const pedidosCliente = filas.filter((f) => {
+      const celda = f.get("Whatsapp") || f.get("whatsapp") || "";
+      const telSheet = celda.toString().replace(/\D/g, "");
+      return telSheet.length >= 10 && telCliente.endsWith(telSheet.slice(-10));
+    });
+
+    if (!pedidosCliente.length) return null; // Cliente nuevo
+
+    // Ordenar por fecha descendente y tomar los últimos 5
+    const ultimos = pedidosCliente.slice(-5).reverse();
+
+    // Verificar fidelidad: algún pedido en los últimos 15 días con estado Pagado
+    const hace15dias = new Date();
+    hace15dias.setDate(hace15dias.getDate() - 15);
+
+    const esFiel = pedidosCliente.some((f) => {
+      const fechaStr = f.get("Fecha") || "";
+      const pago = f.get("Estado_Pago") || "";
+      try {
+        const fecha = new Date(fechaStr);
+        return fecha >= hace15dias && pago === "Pagado";
+      } catch {
+        return false;
+      }
+    });
+
+    // Emojis por estado de pago
+    const emojoPago = (p) => {
+      if (!p || p === "Pendiente") return "🕐 Pendiente";
+      if (p === "Pagado") return "✅ Pagado";
+      if (p === "Anticipo") return "💰 Anticipo";
+      if (p === "Cancelado") return "🚫 Cancelado";
+      return p;
+    };
+
+    // Emojis por estado de producción
+    const emojoProduccion = (p) => {
+      if (!p || p === "En Cola") return "📋 En Cola";
+      if (p === "En Proceso") return "⚙️ En Proceso";
+      if (p === "Listo") return "📦 Listo";
+      if (p === "Entregado") return "🎉 Entregado";
+      if (p === "Cancelado") return "🚫 Cancelado";
+      return p;
+    };
+
+    let resumen = `📋 *Historial de tus pedidos*\n`;
+    resumen += `_Últimos ${ultimos.length} pedido(s) registrados_\n`;
+    resumen += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    ultimos.forEach((f, i) => {
+      const ticket = f.get("Ticket") || "—";
+      const producto = f.get("Producto") || "—";
+      const total = f.get("Total_a_Pagar") || "—";
+      const pago = f.get("Estado_Pago") || "Pendiente";
+      const prod = f.get("Estado_Produccion") || "En Cola";
+      const fecha = f.get("Fecha") || "—";
+      const fechaCorta = fecha.split(",")[0] || fecha;
+
+      resumen += `*${i + 1}.* 🆔 \`${ticket}\`\n`;
+      resumen += `   📦 ${producto}\n`;
+      resumen += `   💵 ${total}\n`;
+      resumen += `   ${emojoPago(pago)}\n`;
+      resumen += `   ${emojoProduccion(prod)}\n`;
+      resumen += `   📅 ${fechaCorta}\n`;
+      if (i < ultimos.length - 1) resumen += `─────────────────────\n`;
+    });
+
+    resumen += `\n━━━━━━━━━━━━━━━━━━━━━`;
+
+    return { resumen, esFiel, totalPedidos: pedidosCliente.length };
+  } catch (error) {
+    console.error("❌ Error consultando historial:", error.message);
+    return null;
+  }
+}
+
+async function generarCupon(numeroCliente) {
+  // Verificar si ya tiene un cupón activo
+  const cuponExistente = await redis.get(`cupon:${numeroCliente}`);
+  if (cuponExistente) return cuponExistente;
+
+  // Generar código único
+  const codigo = `FIEL-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+  // Guardar en Redis con expiración de 30 días
+  await redis.set(`cupon:${numeroCliente}`, codigo, { ex: 60 * 60 * 24 * 30 });
+
+  return codigo;
 }
 
 async function buscarNombreEnSheets(whatsapp) {
@@ -558,21 +665,28 @@ async function procesarPedidoDetallado(
     else if (c.includes("almohada silueta")) cat = "☁️ ALMOHADA SILUETA";
 
     let precioUnitario = 0;
-    if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "👕 PLAYERA BASICA MAYOREO") precioUnitario = Number(PRECIOS.playera_básica_mayoreo);
-    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+    if (cat === "👕 PLAYERA BASICA")
+      precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "👕 PLAYERA BASICA MAYOREO")
+      precioUnitario = Number(PRECIOS.playera_básica_mayoreo);
+    else if (cat === "☕ TAZA")
+      precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
-    else if (cat === "🧥 SUDADERA MAYOREO") precioUnitario = Number(PRECIOS.sudadera_mayoreo);
+    else if (cat === "🧥 SUDADERA MAYOREO")
+      precioUnitario = Number(PRECIOS.sudadera_mayoreo);
     else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
     else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
-    else if (cat === "🧦 CALCETINES") precioUnitario = Number(PRECIOS.calcetines);
+    else if (cat === "🧦 CALCETINES")
+      precioUnitario = Number(PRECIOS.calcetines);
     else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
-    else if (cat === "👘 PIJAMA DUO") precioUnitario = Number(PRECIOS.pijamas_duo);
-    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO") precioUnitario = Number(PRECIOS.elfo_personalizado);
-    else if (cat ===  "☁️ ALMOHADA SILUETA") precioUnitario = Number(PRECIOS.almohada_silueta);
-
+    else if (cat === "👘 PIJAMA DUO")
+      precioUnitario = Number(PRECIOS.pijamas_duo);
+    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO")
+      precioUnitario = Number(PRECIOS.elfo_personalizado);
+    else if (cat === "☁️ ALMOHADA SILUETA")
+      precioUnitario = Number(PRECIOS.almohada_silueta);
 
     //Intenta detectar cantidad
     const numerosEnTexto = comentario.match(/\d+/);
@@ -582,13 +696,18 @@ async function procesarPedidoDetallado(
     let totalFinal = 0;
     let precioBase = Number(PRECIOS.etiquetas);
 
-   if (!cat.includes("ETIQUETAS") && !cat.includes("MDF")) {
+    if (!cat.includes("ETIQUETAS") && !cat.includes("MDF")) {
       totalFinal = Number(precioUnitario) * cantidadDetectada;
     }
     totalFinal = Math.round(totalFinal * 100) / 100;
 
     let textoPresupuesto =
-      cat.includes("MDF") || cat.includes("ETIQUETAS") || c.includes("mdf") || c.includes("madera") || c.includes("llavero") || cat.includes("etiquetas")
+      cat.includes("MDF") ||
+      cat.includes("ETIQUETAS") ||
+      c.includes("mdf") ||
+      c.includes("madera") ||
+      c.includes("llavero") ||
+      cat.includes("etiquetas")
         ? "Sujeto a cotización según tamaño y cantidad"
         : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
@@ -602,7 +721,8 @@ async function procesarPedidoDetallado(
     // Re-detectar categoría con detalles acumulados si sigue siendo GENERAL
     if (cat === "📦 GENERAL") {
       if (textoFinal.includes("taza")) cat = "☕ TAZA";
-      else if (textoFinal.includes("mdf") || textoFinal.includes("madera")) cat = "🪵 MDF";
+      else if (textoFinal.includes("mdf") || textoFinal.includes("madera"))
+        cat = "🪵 MDF";
       else if (textoFinal.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
       else if (textoFinal.includes("playera")) cat = "👕 PLAYERA BASICA";
       else if (textoFinal.includes("sudadera")) cat = "🧥 SUDADERA";
@@ -614,20 +734,28 @@ async function procesarPedidoDetallado(
     if (numerosFinales) cantidadDetectada = parseInt(numerosFinales[0]);
 
     // Re-calcular precio con datos actualizados
-     if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "👕 PLAYERA BASICA MAYOREO") precioUnitario = Number(PRECIOS.playera_básica_mayoreo);
-    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+    if (cat === "👕 PLAYERA BASICA")
+      precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "👕 PLAYERA BASICA MAYOREO")
+      precioUnitario = Number(PRECIOS.playera_básica_mayoreo);
+    else if (cat === "☕ TAZA")
+      precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
-    else if (cat === "🧥 SUDADERA MAYOREO") precioUnitario = Number(PRECIOS.sudadera_mayoreo);
+    else if (cat === "🧥 SUDADERA MAYOREO")
+      precioUnitario = Number(PRECIOS.sudadera_mayoreo);
     else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
     else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
-    else if (cat === "🧦 CALCETINES") precioUnitario = Number(PRECIOS.calcetines);
+    else if (cat === "🧦 CALCETINES")
+      precioUnitario = Number(PRECIOS.calcetines);
     else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
-    else if (cat === "👘 PIJAMA DUO") precioUnitario = Number(PRECIOS.pijamas_duo);
-    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO") precioUnitario = Number(PRECIOS.elfo_personalizado);
-    else if (cat ===  "☁️ ALMOHADA SILUETA") precioUnitario = Number(PRECIOS.almohada_silueta);
+    else if (cat === "👘 PIJAMA DUO")
+      precioUnitario = Number(PRECIOS.pijamas_duo);
+    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO")
+      precioUnitario = Number(PRECIOS.elfo_personalizado);
+    else if (cat === "☁️ ALMOHADA SILUETA")
+      precioUnitario = Number(PRECIOS.almohada_silueta);
 
     if (cat.includes("ETIQUETAS")) {
       totalFinal = (cantidadDetectada / 100) * Number(PRECIOS.etiquetas);
@@ -636,9 +764,12 @@ async function procesarPedidoDetallado(
     }
     totalFinal = Math.round(totalFinal * 100) / 100;
 
-    textoPresupuesto = cat.includes("MDF") || textoFinal.includes("mdf") || textoFinal.includes("madera")
-      ? "Sujeto a cotización según diseño"
-      : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
+    textoPresupuesto =
+      cat.includes("MDF") ||
+      textoFinal.includes("mdf") ||
+      textoFinal.includes("madera")
+        ? "Sujeto a cotización según diseño"
+        : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
 
     await setEstado(numeroCliente, {
       ...estadoActualPedido2,
@@ -809,7 +940,7 @@ async function generarPDFOrden(datos, pathDestino) {
         //.text("• TikTok: @", 70, marketingY + 55)
         .text("• Facebook: facebook.com/lyn_shopp.39", 70, marketingY + 70);
 
-      const qrData = `https://wa.me/5212482492723?text=Hola, quisiera informes de los productos`;
+      const qrData = `https://wa.me/521xxxxxxx?text=Hola, quisiera informes de los productos`;
       const qrImage = await QRCode.toDataURL(qrData);
       doc.image(qrImage, 430, marketingY + 10, { width: 100 });
 
@@ -974,7 +1105,7 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
-       if (estadoPrevio.categoria === "TAZAS Y MDF") {
+        if (estadoPrevio.categoria === "TAZAS Y MDF") {
           const textoAnalizar = comentarioImagen.toLowerCase();
           const tieneMaterial =
             textoAnalizar.includes("taza") ||
@@ -1168,19 +1299,95 @@ app.post("/webhook", async (req, res) => {
           // Si es un comando, cae a la lógica normal de abajo
         }
 
+        // 🎯 PRIORIDAD 2: Historial de pedidos
+        if (
+          textoCliente.includes("mis pedidos") ||
+          textoCliente.includes("mis compras") ||
+          textoCliente.includes("historial")
+        ) {
+          const resultado = await consultarHistorialCRM(numeroCliente);
+
+          if (!resultado) {
+            // Cliente nuevo sin pedidos
+            await enviarBotones(
+              numeroCliente,
+              `✨ *¡Bienvenido!*\n\n` +
+                `Aún no tienes pedidos registrados con nosotros.\n\n` +
+                `Estamos listos para crear algo especial para ti. ` +
+                `Selecciona una categoría y empieza tu primer pedido ahora. 🎨`,
+              ["Personalizar", "Catalogo", "Precios"],
+            );
+            return;
+          }
+
+          // Cliente con historial
+          await enviarMensaje(numeroCliente, resultado.resumen);
+          await delay(1000);
+
+          if (resultado.esFiel) {
+            // Generar o recuperar cupón
+            const codigoCupon = await generarCupon(numeroCliente);
+            await delay(800);
+            await enviarMensaje(
+              numeroCliente,
+              `🏆 *¡Eres un cliente VIP!*\n\n` +
+                `Gracias por tu preferencia y lealtad. Como reconocimiento a tus compras frecuentes, ` +
+                `te hemos generado un cupón exclusivo de *10% de descuento* en tu próximo pedido:\n\n` +
+                `┌─────────────────────┐\n` +
+                `│  🎟️  *${codigoCupon}*  │\n` +
+                `└─────────────────────┘\n\n` +
+                `_Válido por 30 días. Menciona este código al confirmar tu pedido._`,
+            );
+            await delay(800);
+            await enviarBotones(
+              numeroCliente,
+              `¿Listo para tu siguiente pedido con descuento?`,
+              ["Personalizar", "Hablar con Asesor"],
+            );
+
+            // Notificar al admin
+            const cuponEsNuevo = !(await redis.get(`cupon:${numeroCliente}`));
+            await enviarMensaje (
+              MI_NUMERO,
+              `🏆 *CLIENTE VIP ACTIVO*\n` +
+                `📱 wa.me/${numeroCliente}\n` +
+                `🎟️ Cupón ${cuponEsNuevo ? "generado" : "activo"}: *${codigoCupon}*\n` +
+                `📦 Total de pedidos: ${resultado.totalPedidos}`,
+            );
+          } else {
+            // Cliente con historial pero sin compra reciente
+            const faltanPedidos =
+              resultado.totalPedidos === 1
+                ? `Solo te falta mantener el ritmo de compra para desbloquear beneficios VIP. 🌟`
+                : `Sigue comprando con regularidad para desbloquear tu cupón VIP de *10% de descuento*. 🌟`;
+
+            await enviarBotones(
+              numeroCliente,
+              `¡Gracias por tu preferencia! Tienes *${resultado.totalPedidos}* pedido(s) con nosotros.\n\n` +
+                faltanPedidos,
+              ["Nuevo Pedido", "Hablar con Asesor"],
+            );
+          }
+          return;
+        }
+
         const estadoTexto = await getEstado(numeroCliente);
 
         // 🔒 Si la imagen aún está procesándose, pedimos que espere
         if (estadoTexto?.procesando) {
-  // Guardamos el texto silenciosamente en Redis para que procesarPedidoDetallado lo encuentre
-  const detallesPendientes = (estadoTexto.detalles || "") + " / " + msg.text.body.trim();
-  await setEstado(numeroCliente, {
-    ...estadoTexto,
-    detalles: detallesPendientes,
-  });
-  console.log("📥 Texto guardado durante procesamiento:", msg.text.body.trim());
-  return;
-}
+          // Guardamos el texto silenciosamente en Redis para que procesarPedidoDetallado lo encuentre
+          const detallesPendientes =
+            (estadoTexto.detalles || "") + " / " + msg.text.body.trim();
+          await setEstado(numeroCliente, {
+            ...estadoTexto,
+            detalles: detallesPendientes,
+          });
+          console.log(
+            "📥 Texto guardado durante procesamiento:",
+            msg.text.body.trim(),
+          );
+          return;
+        }
 
         if (
           estadoTexto?.esperandoDetallesExtra &&
@@ -1197,6 +1404,9 @@ app.post("/webhook", async (req, res) => {
               "precios",
               "reiniciar",
               "cancelar",
+              "mis pedidos",
+              "mis compras",
+              "historial",
             ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
           if (!esComando) {
@@ -1210,7 +1420,8 @@ app.post("/webhook", async (req, res) => {
               return;
             }
             const estadoFresco = await getEstado(numeroCliente);
-            const textoAcumulado = (estadoFresco.detalles || "") + " / " + msg.text.body.trim();
+            const textoAcumulado =
+              (estadoFresco.detalles || "") + " / " + msg.text.body.trim();
             const textoLower = textoAcumulado.toLowerCase();
 
             // 🔍 Re-detectar categoría si aún es GENERAL o vacía
