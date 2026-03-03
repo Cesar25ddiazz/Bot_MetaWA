@@ -464,21 +464,24 @@ async function consultarHistorialCRM(whatsapp) {
 
     // Verificar fidelidad: algún pedido en los últimos 30 días con estado Pagado
     const hace30dias = new Date();
-hace30dias.setDate(hace30dias.getDate() - 30);
+    hace30dias.setDate(hace30dias.getDate() - 30);
 
-const pedidosPagadosEnMes = pedidosCliente.filter((f) => {
-  const fechaStr = f.get("Fecha") || "";
-  const pago = f.get("Estado_Pago") || "";
-  try {
-    const partes = fechaStr.split(",")[0].trim().split("/");
-    const fecha = partes.length === 3
-      ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
-      : new Date(fechaStr);
-    return fecha >= hace30dias && pago === "Pagado";
-  } catch { return false; }
-});
+    const pedidosPagadosEnMes = pedidosCliente.filter((f) => {
+      const fechaStr = f.get("Fecha") || "";
+      const pago = f.get("Estado_Pago") || "";
+      try {
+        const partes = fechaStr.split(",")[0].trim().split("/");
+        const fecha =
+          partes.length === 3
+            ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
+            : new Date(fechaStr);
+        return fecha >= hace30dias && pago === "Pagado";
+      } catch {
+        return false;
+      }
+    });
 
-const esFiel = pedidosPagadosEnMes.length >= 4;
+    const esFiel = pedidosPagadosEnMes.length >= 4;
     // Emojis por estado de pago
     const emojoPago = (p) => {
       if (!p || p === "Pendiente") return "🕐 Pendiente";
@@ -522,7 +525,12 @@ const esFiel = pedidosPagadosEnMes.length >= 4;
 
     resumen += `\n━━━━━━━━━━━━━━━━━━━━━`;
 
-    return { resumen, esFiel, totalPedidos: pedidosCliente.length, pagadosEnMes: pedidosPagadosEnMes.length };
+    return {
+      resumen,
+      esFiel,
+      totalPedidos: pedidosCliente.length,
+      pagadosEnMes: pedidosPagadosEnMes.length,
+    };
   } catch (error) {
     console.error("❌ Error consultando historial:", error.message);
     return null;
@@ -667,16 +675,19 @@ async function procesarPedidoDetallado(
     else if (c.includes("almohada silueta")) cat = "☁️ ALMOHADA SILUETA";
 
     let precioUnitario = 0;
-    if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
+    if (cat === "👕 PLAYERA BASICA")
+      precioUnitario = Number(PRECIOS.playera_básica);
     else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
-    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+    else if (cat === "☕ TAZA")
+      precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
     else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
     else if (cat === "🧦 CALCETINES")
       precioUnitario = Number(PRECIOS.calcetines);
-    else if (cat === "👘 PIJAMA DUO") precioUnitario = Number(PRECIOS.pijamas_duo);
+    else if (cat === "👘 PIJAMA DUO")
+      precioUnitario = Number(PRECIOS.pijamas_duo);
     else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
     else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO")
       precioUnitario = Number(PRECIOS.elfo_personalizado);
@@ -728,23 +739,30 @@ async function procesarPedidoDetallado(
 
     // Re-calcular precio con datos actualizados
     if (cat === "👕 PLAYERA BASICA")
-      precioUnitario = cantidadDetectada >= 10
-        ? Number(PRECIOS.playera_básica_mayoreo)
-        : Number(PRECIOS.playera_básica);
+      precioUnitario =
+        cantidadDetectada >= 10
+          ? Number(PRECIOS.playera_básica_mayoreo)
+          : Number(PRECIOS.playera_básica);
     else if (cat === "🧥 SUDADERA")
-      precioUnitario = cantidadDetectada >= 6
-        ? Number(PRECIOS.sudadera_mayoreo)
-        : Number(PRECIOS.sudadera);
-    else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
+      precioUnitario =
+        cantidadDetectada >= 6
+          ? Number(PRECIOS.sudadera_mayoreo)
+          : Number(PRECIOS.sudadera);
+    else if (cat === "☕ TAZA")
+      precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
     else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
     else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
-    else if (cat === "🧦 CALCETINES") precioUnitario = Number(PRECIOS.calcetines);
-    else if (cat === "👘 PIJAMA DUO") precioUnitario = Number(PRECIOS.pijamas_duo);
+    else if (cat === "🧦 CALCETINES")
+      precioUnitario = Number(PRECIOS.calcetines);
+    else if (cat === "👘 PIJAMA DUO")
+      precioUnitario = Number(PRECIOS.pijamas_duo);
     else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
-    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO") precioUnitario = Number(PRECIOS.elfo_personalizado);
-    else if (cat === "☁️ ALMOHADA SILUETA") precioUnitario = Number(PRECIOS.almohada_silueta);
+    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO")
+      precioUnitario = Number(PRECIOS.elfo_personalizado);
+    else if (cat === "☁️ ALMOHADA SILUETA")
+      precioUnitario = Number(PRECIOS.almohada_silueta);
 
     if (cat.includes("ETIQUETAS")) {
       totalFinal = (cantidadDetectada / 100) * Number(PRECIOS.etiquetas);
@@ -1336,7 +1354,7 @@ app.post("/webhook", async (req, res) => {
 
             // Notificar al admin
             const cuponEsNuevo = !(await redis.get(`cupon:${numeroCliente}`));
-            await enviarMensaje (
+            await enviarMensaje(
               MI_NUMERO,
               `🏆 *CLIENTE VIP ACTIVO*\n` +
                 `📱 wa.me/${numeroCliente}\n` +
@@ -1346,16 +1364,16 @@ app.post("/webhook", async (req, res) => {
           } else {
             // Cliente con historial pero sin compra reciente
             const pagadosEnMes = resultado.pagadosEnMes;
-const faltan = Math.max(0, 4 - pagadosEnMes);
+            const faltan = Math.max(0, 4 - pagadosEnMes);
 
-await enviarBotones(
-  numeroCliente,
-  `¡Gracias por tu preferencia! 🙌\n\n` +
-  `📦 *Pedidos este mes:* ${pagadosEnMes} de 4\n` +
-  `${"🟢".repeat(pagadosEnMes)}${"⚪".repeat(faltan)}\n\n` +
-  `Te faltan *${faltan} compra(s)* para desbloquear tu cupón VIP de *10% de descuento*. ¡Sigue así! 🌟`,
-  ["Nuevo Pedido", "Hablar con Asesor"],
-);
+            await enviarBotones(
+              numeroCliente,
+              `¡Gracias por tu preferencia! 🙌\n\n` +
+                `📦 *Pedidos este mes:* ${pagadosEnMes} de 4\n` +
+                `${"🟢".repeat(pagadosEnMes)}${"⚪".repeat(faltan)}\n\n` +
+                `Te faltan *${faltan} compra(s)* para desbloquear tu cupón VIP de *10% de descuento*. ¡Sigue así! 🌟`,
+              ["Nuevo Pedido", "Hablar con Asesor"],
+            );
           }
           return;
         }
@@ -1452,22 +1470,35 @@ await enviarBotones(
               } else {
                 const precioUnitario =
                   catActualizada === "👕 PLAYERA BASICA"
-                    ? (cantidadActualizada >= 10 ? Number(PRECIOS.playera_básica_mayoreo) : Number(PRECIOS.playera_básica))
-                  : catActualizada === "🧥 SUDADERA"
-                    ? (cantidadActualizada >= 6 ? Number(PRECIOS.sudadera_mayoreo) : Number(PRECIOS.sudadera))
-                  : catActualizada === "🧢 GORRA" ? Number(PRECIOS.gorra)
-                  : catActualizada === "☕ TAZA" ? Number(PRECIOS.taza_personalizada)
-                  : catActualizada === "👜 TOTE BAGS" ? Number(PRECIOS.tote_bags)
-                  : catActualizada === "🩲 BOXER" ? Number(PRECIOS.boxer)
-                  : catActualizada === "🧦 CALCETINES" ? Number(PRECIOS.calcetines)
-                  : catActualizada === "👘 PIJAMA DUO" ? Number(PRECIOS.pijamas_duo)
-                  : catActualizada === "👘 PIJAMA" ? Number(PRECIOS.pijamas)
-                  : 0;
+                    ? cantidadActualizada >= 10
+                      ? Number(PRECIOS.playera_básica_mayoreo)
+                      : Number(PRECIOS.playera_básica)
+                    : catActualizada === "🧥 SUDADERA"
+                      ? cantidadActualizada >= 6
+                        ? Number(PRECIOS.sudadera_mayoreo)
+                        : Number(PRECIOS.sudadera)
+                      : catActualizada === "🧢 GORRA"
+                        ? Number(PRECIOS.gorra)
+                        : catActualizada === "☕ TAZA"
+                          ? Number(PRECIOS.taza_personalizada)
+                          : catActualizada === "👜 TOTE BAGS"
+                            ? Number(PRECIOS.tote_bags)
+                            : catActualizada === "🩲 BOXER"
+                              ? Number(PRECIOS.boxer)
+                              : catActualizada === "🧦 CALCETINES"
+                                ? Number(PRECIOS.calcetines)
+                                : catActualizada === "👘 PIJAMA DUO"
+                                  ? Number(PRECIOS.pijamas_duo)
+                                  : catActualizada === "👘 PIJAMA"
+                                    ? Number(PRECIOS.pijamas)
+                                    : 0;
 
                 if (precioUnitario > 0) {
                   const etiquetaMayoreo =
-                    (catActualizada === "👕 PLAYERA BASICA" && cantidadActualizada >= 10) ||
-                    (catActualizada === "🧥 SUDADERA" && cantidadActualizada >= 6)
+                    (catActualizada === "👕 PLAYERA BASICA" &&
+                      cantidadActualizada >= 10) ||
+                    (catActualizada === "🧥 SUDADERA" &&
+                      cantidadActualizada >= 6)
                       ? " (precio mayoreo)"
                       : "";
                   precioActualizado = `$${precioUnitario * cantidadActualizada} MXN (${cantidadActualizada} pzs${etiquetaMayoreo})`;
@@ -1484,15 +1515,57 @@ await enviarBotones(
               precioTotal: precioActualizado,
             });
 
-            // Mostrar precio actualizado solo si cambió
+            // Verificar si el cliente escribió un cupón
+            const textoCupon = msg.text.body.trim().toUpperCase();
+            const cuponGuardado = await redis.get(`cupon:${numeroCliente}`);
+            let descuentoAplicado = false;
+
+            if (cuponGuardado && textoCupon === cuponGuardado.toUpperCase()) {
+              const precioSinDescuento =
+                precioActualizado || estadoFresco.precioTotal;
+              const matchPrecio = precioSinDescuento.match(/\$(\d+(\.\d+)?)/);
+
+              if (matchPrecio) {
+                const precioOriginal = parseFloat(matchPrecio[1]);
+                const precioConDescuento = Math.round(precioOriginal * 0.9);
+                precioActualizado = `$${precioConDescuento} MXN (${cantidadActualizada} pzs — 10% descuento aplicado ✅)`;
+                descuentoAplicado = true;
+
+                await setEstado(numeroCliente, {
+                  ...estadoFresco,
+                  detalles: textoAcumulado,
+                  notas: textoAcumulado,
+                  categoria: catActualizada,
+                  cantidad: cantidadActualizada,
+                  precioTotal: precioActualizado,
+                  cuponAplicado: cuponGuardado,
+                });
+              }
+            }
+
+            if (!descuentoAplicado) {
+              await setEstado(numeroCliente, {
+                ...estadoFresco,
+                detalles: textoAcumulado,
+                notas: textoAcumulado,
+                categoria: catActualizada,
+                cantidad: cantidadActualizada,
+                precioTotal: precioActualizado,
+              });
+            }
+
             const precioMostrar =
               precioActualizado !== estadoFresco.precioTotal
                 ? `\n💵 *Presupuesto actualizado:* ${precioActualizado}`
                 : "";
 
+            const mensajeCupon = descuentoAplicado
+              ? `\n\n🎟️ *¡Cupón VIP aplicado!* Tu descuento del 10% ha sido registrado.`
+              : "";
+
             await enviarBotones(
               numeroCliente,
-              `📝 *Nota añadida:* "${msg.text.body.trim()}"${precioMostrar}\n\n¿Deseas agregar algo más o confirmamos tu pedido?`,
+              `📝 *Nota añadida:* "${msg.text.body.trim()}"${precioMostrar}${mensajeCupon}\n\n¿Deseas agregar algo más o confirmamos tu pedido?`,
               ["Confirmar Pedido", "Hablar con Asesor"],
             );
             return;
@@ -2114,6 +2187,13 @@ await enviarBotones(
                 );
 
                 // 🧹 LIMPIEZA TOTAL: Esto apaga 'esperandoDetallesExtra' y libera la memoria
+                // Si usó cupón, eliminarlo de Redis para que no se reutilice
+                if (datosParaPDF.cuponAplicado) {
+                  await redis.del(`cupon:${numeroCliente}`);
+                  console.log(
+                    `🎟️ Cupón ${datosParaPDF.cuponAplicado} eliminado tras uso`,
+                  );
+                }
                 await delEstado(numeroCliente);
               } catch (error) {
                 console.error("❌ Error en Confirmar Pedido:", error);
