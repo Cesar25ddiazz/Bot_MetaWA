@@ -667,14 +667,8 @@ async function procesarPedidoDetallado(
     else if (c.includes("almohada silueta")) cat = "☁️ ALMOHADA SILUETA";
 
     let precioUnitario = 0;
-    if (cat === "👕 PLAYERA BASICA")
-      precioUnitario = cantidadDetectada >= 10
-        ? Number(PRECIOS.playera_básica_mayoreo)
-        : Number(PRECIOS.playera_básica);
-    else if (cat === "🧥 SUDADERA")
-      precioUnitario = cantidadDetectada >= 6
-        ? Number(PRECIOS.sudadera_mayoreo)
-        : Number(PRECIOS.sudadera);
+    if (cat === "👕 PLAYERA BASICA") precioUnitario = Number(PRECIOS.playera_básica);
+    else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
     else if (cat === "☕ TAZA") precioUnitario = Number(PRECIOS.taza_personalizada);
     else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
     else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
