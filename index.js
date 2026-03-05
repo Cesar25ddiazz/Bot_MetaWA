@@ -935,7 +935,7 @@ async function generarPDFOrden(datos, pathDestino) {
         .stroke();
 
       doc
-        .fillColor(colorNegro)
+        .fillColor(colorNegro )
         .fontSize(12)
         .font("Helvetica-Bold")
         .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
