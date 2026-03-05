@@ -329,7 +329,7 @@ async function guardarEnCRM(datos) {
   }
 }
 
-async function actualizarEstadoCRM(ticket, nuevosDatos) {
+async function actualizarEstadoCRM(ticket, nuevosDatos ) {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_CLIENT_EMAIL,
