@@ -946,7 +946,7 @@ async function generarPDFOrden(datos, pathDestino) {
         //.text("• TikTok: @", 70, marketingY + 55)
         .text("• Facebook: facebook.com/lyn_shopp.39", 70, marketingY + 70);
 
-      const qrData = `https://wa.me/521xxxxxxx?text=Hola, quisiera informes de los productos`;
+      const qrData = `https://wa.me/${process.env.MY_PERSONAL_NUMBER}?text=Hola, quisiera informes de los productos`;
       const qrImage = await QRCode.toDataURL(qrData);
       doc.image(qrImage, 430, marketingY + 10, { width: 100 });
 
