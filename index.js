@@ -322,14 +322,15 @@ async function guardarEnCRM(datos) {
       Total_a_Pagar: datos.precio,
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
       Origen: origen,
+      Calificacion: "Sin calificar"
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
-    console.error("Error al escribir en Google Sheet:", error );
+    console.error("Error al escribir en Google Sheet:", error);
   }
 }
 
-async function actualizarEstadoCRM(ticket, nuevosDatos ) {
+async function actualizarEstadoCRM(ticket, nuevosDatos) {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -378,6 +379,32 @@ async function actualizarEstadoCRM(ticket, nuevosDatos ) {
   } catch (error) {
     console.error("❌ Error al guardar en Sheets:", error.message);
     throw error;
+  }
+}
+
+async function actualizarCalificacionCRM(ticket, calificacion) {
+  try {
+    const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    const filas = await sheet.getRows();
+
+    const fila = filas.find((f) =>
+      String(f.get("Ticket")).trim().toUpperCase() === String(ticket).trim().toUpperCase()
+    );
+
+    if (fila) {
+      fila.set("Calificacion", calificacion);
+      await fila.save();
+      console.log(`⭐ Calificación guardada para ${ticket}: ${calificacion}`);
+    }
+  } catch (error) {
+    console.error("❌ Error guardando calificación:", error.message);
   }
 }
 
@@ -935,7 +962,7 @@ async function generarPDFOrden(datos, pathDestino) {
         .stroke();
 
       doc
-        .fillColor(colorNegro )
+        .fillColor(colorNegro)
         .fontSize(12)
         .font("Helvetica-Bold")
         .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
@@ -1338,8 +1365,8 @@ app.post("/webhook", async (req, res) => {
               await enviarBotones(
                 numeroCliente,
                 `🏆 *¡Eres cliente VIP!*\n\n` +
-                `Ya canjeaste tu cupón este mes. ¡Sigue comprando para ganar el siguiente! 🌟`,
-                ["Nuevo Pedido", "Hablar con Asesor"]
+                  `Ya canjeaste tu cupón este mes. ¡Sigue comprando para ganar el siguiente! 🌟`,
+                ["Nuevo Pedido", "Hablar con Asesor"],
               );
               return;
             }
@@ -1349,26 +1376,28 @@ app.post("/webhook", async (req, res) => {
             await enviarMensaje(
               numeroCliente,
               `🏆 *¡Eres un cliente VIP!*\n\n` +
-              `${esNuevo
-                ? "Como reconocimiento a tus 4 compras este mes, te hemos generado un cupón exclusivo:"
-                : "Tu cupón activo es:"}\n\n` +
-              `┌─────────────────────┐\n` +
-              `│  🎟️  *${codigoCupon}*  │\n` +
-              `└─────────────────────┘\n\n` +
-              `_Válido por 30 días. Al confirmar tu próximo pedido presiona_ *"Aplicar Cupón 10%"*`
+                `${
+                  esNuevo
+                    ? "Como reconocimiento a tus 4 compras este mes, te hemos generado un cupón exclusivo:"
+                    : "Tu cupón activo es:"
+                }\n\n` +
+                `┌─────────────────────┐\n` +
+                `│  🎟️  *${codigoCupon}*  │\n` +
+                `└─────────────────────┘\n\n` +
+                `_Válido por 30 días. Al confirmar tu próximo pedido presiona_ *"Aplicar Cupón 10%"*`,
             );
             await delay(800);
             await enviarBotones(
               numeroCliente,
               `¿Listo para tu siguiente pedido con descuento?`,
-              ["Personalizar", "Hablar con Asesor"]
+              ["Personalizar", "Hablar con Asesor"],
             );
             await enviarMensaje(
               MI_NUMERO,
               `🏆 *CLIENTE VIP*\n` +
-              `📱 wa.me/${numeroCliente}\n` +
-              `🎟️ Cupón ${esNuevo ? "generado" : "activo"}: *${codigoCupon}*\n` +
-              `📦 Total de pedidos: ${resultado.totalPedidos}`
+                `📱 wa.me/${numeroCliente}\n` +
+                `🎟️ Cupón ${esNuevo ? "generado" : "activo"}: *${codigoCupon}*\n` +
+                `📦 Total de pedidos: ${resultado.totalPedidos}`,
             );
           } else {
             // Cliente con historial pero sin compra reciente
@@ -2115,8 +2144,8 @@ app.post("/webhook", async (req, res) => {
                 await enviarBotones(
                   numeroCliente,
                   `🎟️ *Tienes un cupón VIP activo:* \`${cuponActivo}\`\n\n` +
-                  `¿Deseas aplicar tu *10% de descuento* en este pedido?`,
-                  ["Aplicar Cupón 10%", "Continuar sin cupón"]
+                    `¿Deseas aplicar tu *10% de descuento* en este pedido?`,
+                  ["Aplicar Cupón 10%", "Continuar sin cupón"],
                 );
                 break;
               }
@@ -2202,47 +2231,56 @@ app.post("/webhook", async (req, res) => {
                     {
                       type: "reply",
                       reply: {
-                        // 🚩 CLAVE: El ID ahora guarda el ticket (Ej: CANCEL_PED-123)
                         id: `CANCEL_${datosParaPDF?.ticket}`,
                         title: "Cancelar Pedido",
                       },
                     },
+                    "Nuevo Pedido",
                     "Inicio",
                   ],
                 );
 
-                // 🧹 LIMPIEZA TOTAL: Esto apaga 'esperandoDetallesExtra' y libera la memoria
-                // Si usó cupón, eliminarlo de Redis para que no se reutilice
-                if (datosParaPDF.cuponAplicado) {
-                  await redis.del(`cupon:${numeroCliente}`);
-                  console.log(
-                    `🎟️ Cupón ${datosParaPDF.cuponAplicado} eliminado tras uso`,
-                  );
-                }
+                // Enviar calificación después de 4 segundos
+                await delay(4000);
+                await enviarBotones(
+                  numeroCliente,
+                  `⭐ *¿Cómo calificarías tu experiencia hoy?*\n\n` +
+                    `Tu opinión nos ayuda a mejorar el servicio. ¡Solo toma un segundo! 😊`,
+                  [
+                    "⭐⭐⭐⭐⭐ Excelente",
+                    "⭐⭐⭐ Regular",
+                    "Tengo un problema",
+                  ],
+                );
+
                 // 🎟️ Si usó cupón, eliminarlo y activar enfriamiento 30 días
                 if (datosParaPDF.cuponAplicado) {
                   await redis.del(`cupon:${numeroCliente}`);
-                  await redis.set(`cupon:usado:${numeroCliente}`, "1", { ex: 60 * 60 * 24 * 30 });
+                  await redis.set(`cupon:usado:${numeroCliente}`, "1", {
+                    ex: 60 * 60 * 24 * 30,
+                  });
                   console.log(`🎟️ Cupón canjeado. Enfriamiento activado.`);
                 }
-                // 🧹 LIMPIEZA TOTAL
-                await delEstado(numeroCliente);
+                // Guardar ultimoTicket para la calificación (expira en 5 minutos)
+                await setEstado(numeroCliente, { ultimoTicket: ticketFinal });
               } catch (error) {
                 console.error("❌ Error en Confirmar Pedido:", error);
               }
             }
             break;
 
-            case "Aplicar Cupón 10%":
+          case "Aplicar Cupón 10%":
             const estadoCupon = await getEstado(numeroCliente);
             const codigoActivo = await redis.get(`cupon:${numeroCliente}`);
 
             if (estadoCupon && codigoActivo) {
-              const matchPrecio = (estadoCupon.precioTotal || "").match(/\$(\d+(\.\d+)?)/);
+              const matchPrecio = (estadoCupon.precioTotal || "").match(
+                /\$(\d+(\.\d+)?)/,
+              );
 
               if (matchPrecio) {
                 const precioOriginal = parseFloat(matchPrecio[1]);
-                const precioConDescuento = Math.round(precioOriginal * 0.90);
+                const precioConDescuento = Math.round(precioOriginal * 0.9);
                 const precioFinalCupon = `$${precioConDescuento} MXN (${estadoCupon.cantidad} pzs — 10% descuento VIP ✅)`;
 
                 await setEstado(numeroCliente, {
@@ -2254,11 +2292,11 @@ app.post("/webhook", async (req, res) => {
                 await enviarBotones(
                   numeroCliente,
                   `✅ *¡Descuento aplicado!*\n\n` +
-                  `💵 *Precio original:* $${precioOriginal} MXN\n` +
-                  `🎟️ *Descuento VIP 10%:* -$${Math.round(precioOriginal * 0.10)} MXN\n` +
-                  `💰 *Total final:* $${precioConDescuento} MXN\n\n` +
-                  `¿Confirmamos tu pedido?`,
-                  ["Confirmar Pedido", "Hablar con Asesor"]
+                    `💵 *Precio original:* $${precioOriginal} MXN\n` +
+                    `🎟️ *Descuento VIP 10%:* -$${Math.round(precioOriginal * 0.1)} MXN\n` +
+                    `💰 *Total final:* $${precioConDescuento} MXN\n\n` +
+                    `¿Confirmamos tu pedido?`,
+                  ["Confirmar Pedido", "Hablar con Asesor"],
                 );
               } else {
                 // Precio es cotización, no se puede calcular automático
@@ -2270,8 +2308,8 @@ app.post("/webhook", async (req, res) => {
                 await enviarBotones(
                   numeroCliente,
                   `🎟️ *Cupón VIP registrado en tu pedido.*\n\n` +
-                  `Al ser cotización, el asesor aplicará el 10% al validar el precio final.`,
-                  ["Confirmar Pedido", "Hablar con Asesor"]
+                    `Al ser cotización, el asesor aplicará el 10% al validar el precio final.`,
+                  ["Confirmar Pedido", "Hablar con Asesor"],
                 );
               }
             }
@@ -2286,11 +2324,82 @@ app.post("/webhook", async (req, res) => {
             await enviarBotones(
               numeroCliente,
               `De acuerdo, continuamos sin cupón. ¿Confirmamos tu pedido?`,
-              ["Confirmar Pedido", "Hablar con Asesor"]
+              ["Confirmar Pedido", "Hablar con Asesor"],
             );
             break;
 
-          case "Ayuda":
+            case "⭐⭐⭐⭐⭐ Excelente":
+            await enviarMensaje(
+              numeroCliente,
+              `🌟 *¡Gracias por tu calificación!*\n\n` +
+              `Nos alegra mucho saber que tuviste una excelente experiencia. ` +
+              `Tu confianza es lo que nos motiva a seguir mejorando cada día. ❤️\n\n` +
+              `No olvides seguirnos en redes:\n` +
+              `📸 Instagram: @lyn_shop1\n` +
+              `👍 Facebook: facebook.com/lyn_shopp.39`
+            );
+            await delay(1000);
+            await enviarBotones(
+              numeroCliente,
+              `¿Te gustaría hacer otro pedido?`,
+              ["Nuevo Pedido", "Inicio"]
+            );
+
+            // Guardar calificación en Sheets
+            try {
+              const estadoCalif = await getEstado(numeroCliente);
+              const ticketCalif = estadoCalif?.ultimoTicket;
+              if (ticketCalif) {
+                await actualizarCalificacionCRM(ticketCalif, "⭐⭐⭐⭐⭐ Excelente");
+              }
+            } catch (e) { console.log("Error guardando calificación:", e.message); }
+            break;
+
+          case "⭐⭐⭐ Regular":
+            await enviarMensaje(
+              numeroCliente,
+              `🙏 *Gracias por tu honestidad.*\n\n` +
+              `Queremos mejorar tu experiencia. ¿Podrías contarnos qué podríamos hacer mejor? ` +
+              `Tu comentario es muy importante para nosotros.`
+            );
+            await enviarMensaje(
+              MI_NUMERO,
+              `⚠️ *CALIFICACIÓN REGULAR*\n` +
+              `📱 Cliente: wa.me/${numeroCliente}\n` +
+              `_El cliente dejó calificación de 3 estrellas. Revisar experiencia._`
+            );
+
+            try {
+              const estadoCalif = await getEstado(numeroCliente);
+              const ticketCalif = estadoCalif?.ultimoTicket;
+              if (ticketCalif) {
+                await actualizarCalificacionCRM(ticketCalif, "⭐⭐⭐ Regular");
+              }
+            } catch (e) { console.log("Error guardando calificación:", e.message); }
+            break;
+
+          case "Tengo un problema":
+            await enviarMensaje(
+              numeroCliente,
+              `😟 *Lamentamos escuchar eso.*\n\n` +
+              `He notificado a un asesor para que te contacte a la brevedad y resuelva tu situación. ` +
+              `¡Gracias por avisarnos, lo resolveremos!`
+            );
+            await enviarMensaje(
+              MI_NUMERO,
+              `🚨 *PROBLEMA CON PEDIDO*\n` +
+              `📱 Cliente: wa.me/${numeroCliente}\n` +
+              `_El cliente reportó un problema después de confirmar su pedido. Atender urgente._`
+            );
+
+            try {
+              const estadoCalif = await getEstado(numeroCliente);
+              const ticketCalif = estadoCalif?.ultimoTicket;
+              if (ticketCalif) {
+                await actualizarCalificacionCRM(ticketCalif, "🚨 Problema reportado");
+              }
+            } catch (e) { console.log("Error guardando calificación:", e.message); }
+            break;
 
           case "Ayuda":
             await enviarMensaje(
