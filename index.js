@@ -325,7 +325,7 @@ async function guardarEnCRM(datos) {
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
-    console.error("Error al escribir en Google Sheet:", error);
+    console.error("Error al escribir en Google Sheet:", error );
   }
 }
 
