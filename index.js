@@ -1810,7 +1810,7 @@ app.post("/webhook", async (req, res) => {
               Etiquetas:
                 "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
             };
-          await enviarPDF(numeroCliente, urlPdf,  `📂 *Nuestros Catálogos*\n\n` +
+          await enviarMensaje(numeroCliente, urlPdf,  `📂 *Nuestros Catálogos*\n\n` +
                 `👕 *Textil:* ${urlPdf.textil}\n\n` +
                 `☕🪵 *Tazas y MDF:* ${urlPdf.Tazas_y_MDF}\n\n` +
                 `🏷️ *Etiquetas y Llaveros:* ${urlPdf.Etiquetas}\n\n` +
@@ -1818,7 +1818,7 @@ app.post("/webhook", async (req, res) => {
           await delay(3000);
           await enviarBotones(
             numeroCliente,
-            "Ahi tienes el catalogo. ¿Deseas algo mas?",
+            "Ahi tienes el catálogo. ¿Deseas algo mas?",
             ["Tallas", "Personalizar"],
           );
           return;
