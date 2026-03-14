@@ -1460,6 +1460,34 @@ app.post("/webhook", async (req, res) => {
               "historial",
             ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
+            const esSaludo = ["gracias", "muchas gracias", "mil gracias", "grax", "grácias"].some(p => textoCliente.includes(p));
+
+if (esSaludo) {
+  const estadoGracias = await getEstado(numeroCliente);
+
+  // Respuesta según el contexto donde está el cliente
+  if (estadoGracias?.ticket && estadoGracias?.esperandoDetallesExtra) {
+    await enviarBotones(
+      numeroCliente,
+      `🙏 *¡Gracias a ti!* Es un placer atenderte.\n\n¿Continuamos con tu pedido?`,
+      ["Confirmar Pedido", "Hablar con Asesor"]
+    );
+  } else if (estadoGracias?.ticket) {
+    await enviarBotones(
+      numeroCliente,
+      `🙏 *¡Gracias a ti por tu preferencia!* ❤️\n\nSi necesitas algo más aquí estamos.`,
+      ["Nuevo Pedido", "Mis Pedidos", "Inicio"]
+    );
+  } else {
+    await enviarBotones(
+      numeroCliente,
+      `🙏 *¡Gracias a ti!* Es un placer tenerte aquí. ✨\n\n¿En qué más podemos ayudarte?`,
+      ["Catalogo", "Precios", "Personalizar"]
+    );
+  }
+  return;
+}
+
           // 🚫 Palabras sociales que NO deben guardarse como notas
           const esPalabraSocial = [
             "gracias", "ok", "okay", "okey", "entendido", "perfecto", "listo", "de acuerdo",
