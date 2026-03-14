@@ -1811,9 +1811,9 @@ app.post("/webhook", async (req, res) => {
                 "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
             };
           await enviarPDF(numeroCliente, urlPdf,  `📂 *Nuestros Catálogos*\n\n` +
-                `👕 *Textil:* ${Catalogos.textil}\n\n` +
-                `☕🪵 *Tazas y MDF:* ${Catalogos.Tazas_y_MDF}\n\n` +
-                `🏷️ *Etiquetas y Llaveros:* ${Catalogos.Etiquetas}\n\n` +
+                `👕 *Textil:* ${urlPdf.textil}\n\n` +
+                `☕🪵 *Tazas y MDF:* ${urlPdf.Tazas_y_MDF}\n\n` +
+                `🏷️ *Etiquetas y Llaveros:* ${urlPdf.Etiquetas}\n\n` +
                 `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`,);
           await delay(3000);
           await enviarBotones(
