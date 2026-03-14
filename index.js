@@ -1799,7 +1799,7 @@ app.post("/webhook", async (req, res) => {
             "Tallas",
           ]);
           return;
-        } else if (textoCliente.includes("catalogo")) {
+        } else if (textoCliente.includes("catalogo") || textoCliente.includes("catálogo") || textoCliente.includes("servicios")) {
           //await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
           const urlPdf = {
