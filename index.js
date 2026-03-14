@@ -1778,23 +1778,21 @@ app.post("/webhook", async (req, res) => {
         ) {
           //await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
-          const mensajePrecios =
-            `💰 *Lista de Precios actualizada* 💰\n\n` +
-            `👕 *Playera personalizada:* ${PRECIOS.playera_básica}\n` +
-            `👕 *Playera mayoreo (10pzas):* ${PRECIOS.playera_básica_mayoreo}\n` +
-            `🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}\n` +
-            `🧥 *Sudadera mayoreo (6pzas):* ${PRECIOS.sudadera_mayoreo}\n` +
-            `👘 *Pijama duo:* ${PRECIOS.pijamas_duo}\n` +
-            `👘 *Pijama personalizada:* ${PRECIOS.pijamas}\n` +
-            `🩲 *Boxer:* ${PRECIOS.boxer}\n` +
-            `🧦 *Calcetines:* ${PRECIOS.calcetines}\n` +
-            `🧢 *Gorra estampada:* ${PRECIOS.gorra}\n` +
-            `👜 *Tote Bags (bolsa manta):* ${PRECIOS.tote_bags}\n` +
-            `🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}\n` +
-            `☁️ *Almohada silueta:* ${PRECIOS.almohada_silueta}\n` +
-            `☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n` +
-            `_Precios sujetos a cambios según el diseño MDF o Etiquetas._\n` +
-            `¿Te gustaría iniciar un pedido ahora? Presiona el botón *Personalizar*.`;
+          const mensajePrecios = `💰 *Lista de Nuestros Precios:*\n
+            👕 *Playera personalizada:* ${PRECIOS.playera_básica}
+            👕 *Playera mayoreo (10pzas):* ${PRECIOS.playera_básica_mayoreo}
+            🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}
+            🧥 *Sudadera mayoreo (6pzas):* ${PRECIOS.sudadera_mayoreo}
+            👘 *Pijama duo:* ${PRECIOS.pijamas_duo}
+            👘 *Pijama personalizada:* ${PRECIOS.pijamas}
+            🩲 *Boxer:* ${PRECIOS.boxer}
+            🧦 *Calcetines:* ${PRECIOS.calcetines}
+            🧢 *Gorra estampada:* ${PRECIOS.gorra}
+            👜 *Tote Bags (bolsa manta):* ${PRECIOS.tote_bags}
+            🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}
+            ☁️ *Almohada silueta* ${PRECIOS.almohada_silueta}
+            ☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n
+            _Precios sujetos a cambios o según el diseño MDF o Etiquetas_`;
 
           await enviarBotones(numeroCliente, mensajePrecios, [
             "Personalizar",
@@ -1822,6 +1820,22 @@ app.post("/webhook", async (req, res) => {
             numeroCliente,
             "Ahi tienes el catalogo. ¿Deseas algo mas?",
             ["Tallas", "Personalizar"],
+          );
+          return;
+        }
+
+        else if (textoCliente.includes("tallas") || textoCliente.includes("talla") || textoCliente.includes("medidas")) {
+          const urlTabla = "https://i.postimg.cc/13WjV0t1/Tabla-de-Tallas.jpg";
+          await enviarImagen(
+            numeroCliente,
+            urlTabla,
+            "📏 *Guía de Medidas*\nAquí tienes las tallas para nuestras prendas textiles",
+          );
+          await delay(3000);
+          await enviarBotones(
+            numeroCliente,
+            "¿Deseas regresar al menu o ir a personalizar?",
+            ["Inicio", "Personalizar"],
           );
           return;
         }
@@ -1885,7 +1899,7 @@ app.post("/webhook", async (req, res) => {
             );
             break;
 
-          case "Catalogo":
+          case "Catalogo": {
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
             const Catalogos = {
@@ -1911,6 +1925,7 @@ app.post("/webhook", async (req, res) => {
               ["Precios", "Personalizar", "Inicio"],
             );
             break;
+          }
           case "Precios":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
