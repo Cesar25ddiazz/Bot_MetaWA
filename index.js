@@ -1800,29 +1800,22 @@ app.post("/webhook", async (req, res) => {
           ]);
           return;
         } else if (textoCliente.includes("catalogo") || textoCliente.includes("catálogo") || textoCliente.includes("servicios")) {
-          //await escribir(numeroCliente); //El cliente ve escribiendo
-          //await delay(1500);
-          const urlPdf = {
-              textil:
-                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-              Tazas_y_MDF:
-                "https://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf",
-              Etiquetas:
-                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-            };
-          await enviarMensaje(numeroCliente, urlPdf,  `📂 *Nuestros Catálogos*\n\n` +
-                `👕 *Textil:* ${urlPdf.textil}\n\n` +
-                `☕🪵 *Tazas y MDF:* ${urlPdf.Tazas_y_MDF}\n\n` +
-                `🏷️ *Etiquetas y Llaveros:* ${urlPdf.Etiquetas}\n\n` +
-                `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`,);
-          await delay(3000);
-          await enviarBotones(
-            numeroCliente,
-            "Ahi tienes el catálogo. ¿Deseas algo mas?",
-            ["Tallas", "Personalizar"],
-          );
-          return;
-        }
+  await enviarMensaje(
+    numeroCliente,
+    `📂 *Nuestros Catálogos*\n\n` +
+    `👕 *Textil:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
+    `☕🪵 *Tazas y MDF:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf\n\n` +
+    `🏷️ *Etiquetas y Llaveros:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
+    `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`
+  );
+  await delay(2000);
+  await enviarBotones(
+    numeroCliente,
+    "¿Deseas algo más?",
+    ["Tallas", "Personalizar"],
+  );
+  return;
+}
 
         else if (textoCliente.includes("tallas") || textoCliente.includes("talla") || textoCliente.includes("medidas")) {
           const urlTabla = "https://i.postimg.cc/13WjV0t1/Tabla-de-Tallas.jpg";
