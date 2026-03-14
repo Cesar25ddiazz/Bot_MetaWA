@@ -322,7 +322,7 @@ async function guardarEnCRM(datos) {
       Total_a_Pagar: datos.precio,
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
       Origen: origen,
-      Calificacion: "Sin calificar"
+      Calificacion: "Sin calificar",
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
@@ -389,13 +389,18 @@ async function actualizarCalificacionCRM(ticket, calificacion) {
       key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
-    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
+    const doc = new GoogleSpreadsheet(
+      process.env.GOOGLE_SHEET_ID,
+      serviceAccountAuth,
+    );
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     const filas = await sheet.getRows();
 
-    const fila = filas.find((f) =>
-      String(f.get("Ticket")).trim().toUpperCase() === String(ticket).trim().toUpperCase()
+    const fila = filas.find(
+      (f) =>
+        String(f.get("Ticket")).trim().toUpperCase() ===
+        String(ticket).trim().toUpperCase(),
     );
 
     if (fila) {
@@ -1443,6 +1448,7 @@ app.post("/webhook", async (req, res) => {
               "hola",
               "inicio",
               "catalogo",
+              "catálogo",
               "personalizar",
               "confirmar pedido",
               "tallas",
@@ -1453,6 +1459,22 @@ app.post("/webhook", async (req, res) => {
               "mis compras",
               "historial",
             ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
+
+          // 🚫 Palabras sociales que NO deben guardarse como notas
+          const esPalabraSocial = [
+            "gracias", "ok", "okay", "okey", "entendido", "perfecto", "listo", "de acuerdo",
+            "dale", "claro", "si", "sí", "no", "excelente", "bien", "genial", "👍", "😊",
+            "🙏", "❤️", "jaja",  "jajaja", "👌", "bueno", "sale", "va", "ya"
+          ].includes(textoCliente);
+
+          if (esPalabraSocial) {
+            await enviarBotones(
+              numeroCliente,
+              `¿Deseas agregar algo más a tu pedido o lo confirmamos? ✨`,
+              ["Confirmar Pedido", "Hablar con Asesor"],
+            );
+            return;
+          }
 
           if (!esComando) {
             const lockTexto = `lock:msg:${msg.id}`;
@@ -1782,9 +1804,19 @@ app.post("/webhook", async (req, res) => {
         } else if (textoCliente.includes("catalogo")) {
           //await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
-          const urlPdf =
-            "https://github.com/user-attachments/files/25300456/Practica.GO_Prac3_LyA.1.pdf";
-          await enviarPDF(numeroCliente, urlPdf, "Catalogo_Tienda.pdf");
+          const urlPdf = {
+              textil:
+                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
+              Tazas_y_MDF:
+                "https://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf",
+              Etiquetas:
+                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
+            };
+          await enviarPDF(numeroCliente, urlPdf,  `📂 *Nuestros Catálogos*\n\n` +
+                `👕 *Textil:* ${Catalogos.textil}\n\n` +
+                `☕🪵 *Tazas y MDF:* ${Catalogos.Tazas_y_MDF}\n\n` +
+                `🏷️ *Etiquetas y Llaveros:* ${Catalogos.Etiquetas}\n\n` +
+                `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`,);
           await delay(3000);
           await enviarBotones(
             numeroCliente,
@@ -2328,21 +2360,21 @@ app.post("/webhook", async (req, res) => {
             );
             break;
 
-            case "⭐⭐⭐⭐⭐ Excelente":
+          case "⭐⭐⭐⭐⭐ Excelente":
             await enviarMensaje(
               numeroCliente,
               `🌟 *¡Gracias por tu calificación!*\n\n` +
-              `Nos alegra mucho saber que tuviste una excelente experiencia. ` +
-              `Tu confianza es lo que nos motiva a seguir mejorando cada día. ❤️\n\n` +
-              `No olvides seguirnos en redes:\n` +
-              `📸 Instagram: @lyn_shop1\n` +
-              `👍 Facebook: facebook.com/lyn_shopp.39`
+                `Nos alegra mucho saber que tuviste una excelente experiencia. ` +
+                `Tu confianza es lo que nos motiva a seguir mejorando cada día. ❤️\n\n` +
+                `No olvides seguirnos en redes:\n` +
+                `📸 Instagram: @lyn_shop1\n` +
+                `👍 Facebook: facebook.com/lyn_shopp.39`,
             );
             await delay(1000);
             await enviarBotones(
               numeroCliente,
               `¿Te gustaría hacer otro pedido?`,
-              ["Nuevo Pedido", "Inicio"]
+              ["Nuevo Pedido", "Inicio"],
             );
 
             // Guardar calificación en Sheets
@@ -2350,23 +2382,29 @@ app.post("/webhook", async (req, res) => {
               const estadoCalif = await getEstado(numeroCliente);
               const ticketCalif = estadoCalif?.ultimoTicket;
               if (ticketCalif) {
-                await actualizarCalificacionCRM(ticketCalif, "⭐⭐⭐⭐⭐ Excelente");
+                await actualizarCalificacionCRM(
+                  ticketCalif,
+                  "⭐⭐⭐⭐⭐ Excelente",
+                );
               }
-            } catch (e) { console.log("Error guardando calificación:", e.message); }
+            } catch (e) {
+              console.log("Error guardando calificación:", e.message);
+            }
             break;
 
           case "⭐⭐⭐ Regular":
-            await enviarMensaje(
+            await enviarBotones(
               numeroCliente,
               `🙏 *Gracias por tu honestidad.*\n\n` +
-              `Queremos mejorar tu experiencia. ¿Podrías contarnos qué podríamos hacer mejor? ` +
-              `Tu comentario es muy importante para nosotros.`
+                `Queremos mejorar tu experiencia. ¿Podrías contarnos qué podríamos hacer mejor? ` +
+                `Tu comentario es muy importante para nosotros.`,
+              ["Hablar con Asesor"],
             );
             await enviarMensaje(
               MI_NUMERO,
               `⚠️ *CALIFICACIÓN REGULAR*\n` +
-              `📱 Cliente: wa.me/${numeroCliente}\n` +
-              `_El cliente dejó calificación de 3 estrellas. Revisar experiencia._`
+                `📱 Cliente: wa.me/${numeroCliente}\n` +
+                `_El cliente dejó calificación de 3 estrellas. Revisar experiencia._`,
             );
 
             try {
@@ -2375,30 +2413,37 @@ app.post("/webhook", async (req, res) => {
               if (ticketCalif) {
                 await actualizarCalificacionCRM(ticketCalif, "⭐⭐⭐ Regular");
               }
-            } catch (e) { console.log("Error guardando calificación:", e.message); }
+            } catch (e) {
+              console.log("Error guardando calificación:", e.message);
+            }
             break;
 
           case "Tengo un problema":
             await enviarMensaje(
               numeroCliente,
               `😟 *Lamentamos escuchar eso.*\n\n` +
-              `He notificado a un asesor para que te contacte a la brevedad y resuelva tu situación. ` +
-              `¡Gracias por avisarnos, lo resolveremos!`
+                `He notificado a un asesor para que te contacte a la brevedad y resuelva tu situación. ` +
+                `¡Gracias por avisarnos, lo resolveremos!`,
             );
             await enviarMensaje(
               MI_NUMERO,
               `🚨 *PROBLEMA CON PEDIDO*\n` +
-              `📱 Cliente: wa.me/${numeroCliente}\n` +
-              `_El cliente reportó un problema después de confirmar su pedido. Atender urgente._`
+                `📱 Cliente: wa.me/${numeroCliente}\n` +
+                `_El cliente reportó un problema después de confirmar su pedido. Atender urgente._`,
             );
 
             try {
               const estadoCalif = await getEstado(numeroCliente);
               const ticketCalif = estadoCalif?.ultimoTicket;
               if (ticketCalif) {
-                await actualizarCalificacionCRM(ticketCalif, "🚨 Problema reportado");
+                await actualizarCalificacionCRM(
+                  ticketCalif,
+                  "🚨 Problema reportado",
+                );
               }
-            } catch (e) { console.log("Error guardando calificación:", e.message); }
+            } catch (e) {
+              console.log("Error guardando calificación:", e.message);
+            }
             break;
 
           case "Ayuda":
