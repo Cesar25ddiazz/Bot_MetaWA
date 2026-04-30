@@ -1845,6 +1845,31 @@ if (esSaludo) {
   return;
 }
 
+// Asesor
+        if (
+          textoCliente.includes("asesor") ||
+          textoCliente.includes("asesor personalizado") ||
+          textoCliente.includes("hablar con alguien") ||
+          textoCliente.includes("agente") ||
+          textoCliente.includes("persona") ||
+          textoCliente.includes("humano")
+        ) {
+          await enviarMensaje(
+            numeroCliente,
+            `🫱🏼‍🫲🏼 *Conectando con un especialista...*\n\n` +
+            `He notificado a nuestro equipo. En un momento uno de nuestros asesores ` +
+            `tomará la conversación para una atención personalizada. ¡Gracias por tu paciencia! 😊`
+          );
+          await enviarMensaje(
+            MI_NUMERO,
+            `⚠️ *ATENCIÓN HUMANA:*\n` +
+            `El cliente wa.me/${numeroCliente} solicita un asesor.\n` +
+            `_Escribió: "${msg.text.body.trim()}"_`
+          );
+          return;
+        }
+
+        // Tallas
         else if (textoCliente.includes("tallas") || textoCliente.includes("talla") || textoCliente.includes("medidas")) {
           const urlTabla = "https://i.postimg.cc/13WjV0t1/Tabla-de-Tallas.jpg";
           await enviarImagen(
