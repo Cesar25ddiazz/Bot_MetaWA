@@ -1089,7 +1089,7 @@ app.post("/webhook", async (req, res) => {
       entry.contacts?.[0]?.profile?.name || "Cliente"
     ).replace(/\s+/g, "_");
 
-    // Filtro: Solo procesar si es texto, botón o imagen (ignorar estados read/delivered)
+    // Filtro: Solo procesar si es texto, botón o imagen
     if (
       !msg.text &&
       !msg.interactive &&
@@ -1127,13 +1127,13 @@ app.post("/webhook", async (req, res) => {
         const comentarioImagen = (msg.image?.caption || "").trim();
         const estadoPrevio = (await getEstado(numeroCliente)) || {};
 
-        // 🔒 Marcamos que estamos procesando para bloquear textos prematuros
+        // Marcamos que estamos procesando para bloquear textos prematuros
         await setEstado(numeroCliente, {
           ...estadoPrevio,
           procesando: true,
         });
 
-        // Si el cliente mandó imagen sin haber elegido categoría antes (ej: Reinicio)
+        // Si el cliente mandó imagen sin haber elegido categoría antes
         if (!estadoPrevio.categoria) {
           await enviarBotones(
             numeroCliente,
@@ -1173,7 +1173,7 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
-        // --- CÁLCULO DE PRECIOS PARA EL PDF (IMPORTANTE) ---
+        // CÁLCULO DE PRECIOS PARA EL PDF
         // Extraer cantidad
         const cantidadMatch = comentarioImagen.match(/\d+/);
         const cantidad = cantidadMatch ? parseInt(cantidadMatch[0]) : 1;
@@ -1188,7 +1188,7 @@ app.post("/webhook", async (req, res) => {
         await setEstado(numeroCliente, {
           ...estadoPrevio,
           esperandoDetallesExtra: true,
-          procesando: true, // 👈 mantener el flag activo
+          procesando: true, //mantener el flag activo
           imageId: idDeLaImagen,
           detalles: comentarioImagen,
           cantidad: cantidad,
@@ -1903,7 +1903,7 @@ if (esSaludo) {
           return;
         }
 
-        // 9. MENSAJE NO RECONOCIDO (Si llegó hasta aquí y tiene un ticket, le pedimos confirmar)
+        // 9. MENSAJE NO RECONOCIDO 
         const estadoFinal = await getEstado(numeroCliente);
         if (estadoFinal?.ticket) {
           await enviarMensaje(
@@ -2560,6 +2560,8 @@ if (esSaludo) {
       }
     } catch (err) {
       console.error("❌ Error procesando flujo:", err.message);
+      console.error("❌ Stack completo:", err.stack);
+      console.error("❌ Tipo de error:", err.name);
     }
   }
 });
