@@ -86,21 +86,9 @@ if (!fs.existsSync(dir)) {
 }
 
 const PRECIOS = {
-  playera_básica: 215,
-  playera_básica_mayoreo: 195,
-  sudadera: 350,
-  sudadera_mayoreo: 330,
-  tote_bags: 150,
-  boxer: 150,
-  calcetines: 80,
-  pijamas: 390,
-  pijamas_duo: 600,
-  elfo_personalizado: 150,
-  almohada_silueta: 150,
-  gorra: 110,
-  taza_personalizada: 85,
-  etiquetas: "Cotización según tamaño y cantidad",
-  mdf: "Cotización según grabado, corte y tamaño",
+  impresion_3d: "Sujeto a cotización según especificaciones",
+  corte_laser: "Sujeto a cotización según material y medidas",
+  modelado_3d: "Sujeto a cotización según complejidad del modelo",
 };
 
 // ==========================================
@@ -323,6 +311,8 @@ async function guardarEnCRM(datos) {
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
       Origen: origen,
       Calificacion: "Sin calificar",
+      Anticipo: "Pendiente",
+      Tipo_Servicio: datos.categoria || "📦 GENERAL",
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
@@ -686,128 +676,58 @@ async function procesarPedidoDetallado(
       urlImagen: urlPermanente,
     });
 
-    // Determinar categoria para la notificacion
-    let cat = "📦 GENERAL";
+    // Se usa la categoría guardada en Redis como base
+    const estadoParaCat = await getEstado(numeroCliente);
+    let cat = estadoParaCat?.categoria || "📦 GENERAL";
     const c = comentario.toLowerCase();
-    if (c.includes("taza")) cat = "☕ TAZA";
-    else if (c.includes("mdf")) cat = "🪵 MDF";
-    else if (c.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
-    else if (c.includes("playera")) cat = "👕 PLAYERA BASICA";
-    else if (c.includes("playera mayoreo")) cat = "👕 PLAYERA BASICA MAYOREO";
-    else if (c.includes("sudadera")) cat = "🧥 SUDADERA";
-    else if (c.includes("sudadera mayoreo")) cat = "🧥 SUDADERA MAYOREO";
-    else if (c.includes("tote bags")) cat = "👜 TOTE BAGS";
-    else if (c.includes("gorra")) cat = "🧢 GORRA";
-    else if (c.includes("boxer")) cat = "🩲 BOXER";
-    else if (c.includes("calcetines")) cat = "🧦 CALCETINES";
-    else if (c.includes("pijama duo")) cat = "👘 PIJAMA DUO";
-    else if (c.includes("pijama")) cat = "👘 PIJAMA";
-    else if (c.includes("elfo personalizado")) cat = "🧝🏽‍♂️ ELFO PERSONALIZADO";
-    else if (c.includes("almohada silueta")) cat = "☁️ ALMOHADA SILUETA";
 
-    let precioUnitario = 0;
-    if (cat === "👕 PLAYERA BASICA")
-      precioUnitario = Number(PRECIOS.playera_básica);
-    else if (cat === "🧥 SUDADERA") precioUnitario = Number(PRECIOS.sudadera);
-    else if (cat === "☕ TAZA")
-      precioUnitario = Number(PRECIOS.taza_personalizada);
-    else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
-    else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
-    else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
-    else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
-    else if (cat === "🧦 CALCETINES")
-      precioUnitario = Number(PRECIOS.calcetines);
-    else if (cat === "👘 PIJAMA DUO")
-      precioUnitario = Number(PRECIOS.pijamas_duo);
-    else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
-    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO")
-      precioUnitario = Number(PRECIOS.elfo_personalizado);
-    else if (cat === "☁️ ALMOHADA SILUETA")
-      precioUnitario = Number(PRECIOS.almohada_silueta);
+    // Refinar categoría con palabras clave del comentario
+    if (c.includes("impresion") || c.includes("impresión") || c.includes("3d"))
+      cat = "🖨️ IMPRESIÓN 3D";
+    else if (
+      c.includes("corte") ||
+      c.includes("laser") ||
+      c.includes("láser") ||
+      c.includes("grabado")
+    )
+      cat = "✂️ CORTE LÁSER";
+    else if (
+      c.includes("modelado") ||
+      c.includes("modelo") ||
+      c.includes("diseño 3d")
+    )
+      cat = "🎨 MODELADO 3D";
+    else if (cat === "IMPRESIÓN 3D") cat = "🖨️ IMPRESIÓN 3D";
+    else if (cat === "CORTE LÁSER") cat = "✂️ CORTE LÁSER";
+    else if (cat === "MODELADO 3D") cat = "🎨 MODELADO 3D";
 
-    //Intenta detectar cantidad
+    // Todo es cotización
     const numerosEnTexto = comentario.match(/\d+/);
-    let cantidadDetectada = numerosEnTexto ? parseInt(numerosEnTexto[0]) : 1; //Si no se encuentra asume 1
+    let cantidadDetectada = numerosEnTexto ? parseInt(numerosEnTexto[0]) : 1;
 
-    //Logica para etiquetas
-    let totalFinal = 0;
+    textoPresupuesto =
+      "Sujeto a cotización según especificaciones del proyecto";
+    if (
+      textoFinal.includes("impresion") ||
+      textoFinal.includes("impresión") ||
+      textoFinal.includes("3d")
+    )
+      cat = "🖨️ IMPRESIÓN 3D";
+    else if (
+      textoFinal.includes("corte") ||
+      textoFinal.includes("laser") ||
+      textoFinal.includes("láser") ||
+      textoFinal.includes("grabado")
+    )
+      cat = "✂️ CORTE LÁSER";
+    else if (textoFinal.includes("modelado") || textoFinal.includes("modelo"))
+      cat = "🎨 MODELADO 3D";
 
-    if (!cat.includes("ETIQUETAS") && !cat.includes("MDF")) {
-      totalFinal = Number(precioUnitario) * cantidadDetectada;
-    }
-
-    let textoPresupuesto =
-      cat.includes("MDF") ||
-      cat.includes("ETIQUETAS") ||
-      c.includes("mdf") ||
-      c.includes("madera") ||
-      c.includes("llavero") ||
-      cat.includes("etiquetas")
-        ? "Sujeto a cotización según tamaño y cantidad"
-        : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
-
-    //Guardar en CRM
-    const estadoActualPedido2 = await getEstado(numeroCliente);
-
-    // 🔍 Si el cliente ya mandó texto extra, usamos los detalles acumulados en Redis
-    const detallesAcumulados = estadoActualPedido2?.detalles || comentario;
-    const textoFinal = detallesAcumulados.toLowerCase();
-
-    // Re-detectar categoría con detalles acumulados si sigue siendo GENERAL
-    if (cat === "📦 GENERAL") {
-      if (textoFinal.includes("taza")) cat = "☕ TAZA";
-      else if (textoFinal.includes("mdf") || textoFinal.includes("madera"))
-        cat = "🪵 MDF";
-      else if (textoFinal.includes("etiqueta")) cat = "🏷️ ETIQUETAS";
-      else if (textoFinal.includes("playera")) cat = "👕 PLAYERA BASICA";
-      else if (textoFinal.includes("sudadera")) cat = "🧥 SUDADERA";
-      else if (textoFinal.includes("gorra")) cat = "🧢 GORRA";
-    }
-
-    // Re-detectar cantidad con detalles acumulados
     const numerosFinales = detallesAcumulados.match(/\d+/);
     if (numerosFinales) cantidadDetectada = parseInt(numerosFinales[0]);
 
-    // Re-calcular precio con datos actualizados
-    if (cat === "👕 PLAYERA BASICA")
-      precioUnitario =
-        cantidadDetectada >= 10
-          ? Number(PRECIOS.playera_básica_mayoreo)
-          : Number(PRECIOS.playera_básica);
-    else if (cat === "🧥 SUDADERA")
-      precioUnitario =
-        cantidadDetectada >= 6
-          ? Number(PRECIOS.sudadera_mayoreo)
-          : Number(PRECIOS.sudadera);
-    else if (cat === "☕ TAZA")
-      precioUnitario = Number(PRECIOS.taza_personalizada);
-    else if (cat === "🏷️ ETIQUETAS") precioUnitario = Number(PRECIOS.etiquetas);
-    else if (cat === "🧢 GORRA") precioUnitario = Number(PRECIOS.gorra);
-    else if (cat === "👜 TOTE BAGS") precioUnitario = Number(PRECIOS.tote_bags);
-    else if (cat === "🩲 BOXER") precioUnitario = Number(PRECIOS.boxer);
-    else if (cat === "🧦 CALCETINES")
-      precioUnitario = Number(PRECIOS.calcetines);
-    else if (cat === "👘 PIJAMA DUO")
-      precioUnitario = Number(PRECIOS.pijamas_duo);
-    else if (cat === "👘 PIJAMA") precioUnitario = Number(PRECIOS.pijamas);
-    else if (cat === "🧝🏽‍♂️ ELFO PERSONALIZADO")
-      precioUnitario = Number(PRECIOS.elfo_personalizado);
-    else if (cat === "☁️ ALMOHADA SILUETA")
-      precioUnitario = Number(PRECIOS.almohada_silueta);
-
-    if (cat.includes("ETIQUETAS")) {
-      totalFinal = (cantidadDetectada / 100) * Number(PRECIOS.etiquetas);
-    } else {
-      totalFinal = Number(precioUnitario) * cantidadDetectada;
-    }
-    totalFinal = Math.round(totalFinal * 100) / 100;
-
     textoPresupuesto =
-      cat.includes("MDF") ||
-      textoFinal.includes("mdf") ||
-      textoFinal.includes("madera")
-        ? "Sujeto a cotización según diseño"
-        : `$${totalFinal} MXN (${cantidadDetectada} pzs)`;
+      "Sujeto a cotización según especificaciones del proyecto";
 
     await setEstado(numeroCliente, {
       ...estadoActualPedido2,
@@ -818,8 +738,8 @@ async function procesarPedidoDetallado(
       notas: detallesAcumulados,
       detalles: detallesAcumulados,
       urlImagen: urlPermanente,
-      precio: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
-      precioTotal: cat.includes("MDF") ? "Cotización" : textoPresupuesto,
+      precio: textoPresupuesto,
+      precioTotal: textoPresupuesto,
     });
 
     //Notidicacion detallada
@@ -1137,32 +1057,34 @@ app.post("/webhook", async (req, res) => {
         if (!estadoPrevio.categoria) {
           await enviarBotones(
             numeroCliente,
-            "⚠️ Por favor, primero selecciona una categoría: ",
-            ["Textil", "Tazas y MDF", "Etiquetas"],
+            "⚠️ Por favor, primero selecciona el servicio que necesitas:",
+            ["Impresión 3D", "Corte Láser", "Modelado 3D"],
           );
           return;
         }
 
-        if (estadoPrevio.categoria === "TAZAS Y MDF") {
+        if (estadoPrevio.categoria === "CORTE LÁSER") {
           const textoAnalizar = comentarioImagen.toLowerCase();
           const tieneMaterial =
-            textoAnalizar.includes("taza") ||
-            textoAnalizar.includes("mdf") ||
             textoAnalizar.includes("madera") ||
-            textoAnalizar.includes("laser") ||
+            textoAnalizar.includes("acrilico") ||
+            textoAnalizar.includes("acrílico") ||
+            textoAnalizar.includes("mdf") ||
+            textoAnalizar.includes("corte") ||
             textoAnalizar.includes("grabado") ||
-            textoAnalizar.includes("corte");
+            textoAnalizar.includes("laser") ||
+            textoAnalizar.includes("láser") ||
+            comentarioImagen.trim() !== "";
 
           if (!tieneMaterial) {
-            // 🔓 Resetear procesando para no bloquear al cliente
             await setEstado(numeroCliente, {
               ...estadoPrevio,
               procesando: false,
             });
             await enviarMensaje(
               numeroCliente,
-              "⚠️ *Dato importante:* Olvidaste especificar si tu diseño es para una *Taza* o para *MDF* en la descripción.\n\n" +
-                "Por favor, vuelve a enviar la imagen y escribe para qué material es (ejemplo: *2 tazas* o *corte en mdf*). ✨",
+              "⚠️ *Dato importante:* Por favor especifica el *material* para el corte láser.\n\n" +
+                "Ejemplo: *corte en acrílico 3mm* o *grabado en madera MDF*. ✨",
             );
             return;
           }
@@ -1180,10 +1102,7 @@ app.post("/webhook", async (req, res) => {
         const ticketGenerado = `PED-${Date.now()}`;
 
         let precioCalculado =
-          estadoPrevio.categoria === "TAZAS Y MDF" &&
-          comentarioImagen.toLowerCase().includes("taza")
-            ? `$${cantidad * 85}`
-            : "Cotización según tamaño y cantidad";
+          "Sujeto a cotización según especificaciones del proyecto";
 
         await setEstado(numeroCliente, {
           ...estadoPrevio,
@@ -1460,39 +1379,72 @@ app.post("/webhook", async (req, res) => {
               "historial",
             ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
-            const esSaludo = ["gracias", "muchas gracias", "mil gracias", "grax", "grácias"].some(p => textoCliente.includes(p));
+          const esSaludo = [
+            "gracias",
+            "muchas gracias",
+            "mil gracias",
+            "grax",
+            "grácias",
+          ].some((p) => textoCliente.includes(p));
 
-if (esSaludo) {
-  const estadoGracias = await getEstado(numeroCliente);
+          if (esSaludo) {
+            const estadoGracias = await getEstado(numeroCliente);
 
-  // Respuesta según el contexto donde está el cliente
-  if (estadoGracias?.ticket && estadoGracias?.esperandoDetallesExtra) {
-    await enviarBotones(
-      numeroCliente,
-      `🙏 *¡Gracias a ti!* Es un placer atenderte.\n\n¿Continuamos con tu pedido?`,
-      ["Confirmar Pedido", "Hablar con Asesor"]
-    );
-  } else if (estadoGracias?.ticket) {
-    await enviarBotones(
-      numeroCliente,
-      `🙏 *¡Gracias a ti por tu preferencia!* ❤️\n\nSi necesitas algo más aquí estamos.`,
-      ["Nuevo Pedido", "Mis Pedidos", "Inicio"]
-    );
-  } else {
-    await enviarBotones(
-      numeroCliente,
-      `🙏 *¡Gracias a ti!* Es un placer tenerte aquí. ✨\n\n¿En qué más podemos ayudarte?`,
-      ["Catalogo", "Precios", "Personalizar"]
-    );
-  }
-  return;
-}
+            // Respuesta según el contexto donde está el cliente
+            if (
+              estadoGracias?.ticket &&
+              estadoGracias?.esperandoDetallesExtra
+            ) {
+              await enviarBotones(
+                numeroCliente,
+                `🙏 *¡Gracias a ti!* Es un placer atenderte.\n\n¿Continuamos con tu pedido?`,
+                ["Confirmar Pedido", "Hablar con Asesor"],
+              );
+            } else if (estadoGracias?.ticket) {
+              await enviarBotones(
+                numeroCliente,
+                `🙏 *¡Gracias a ti por tu preferencia!* ❤️\n\nSi necesitas algo más aquí estamos.`,
+                ["Nuevo Pedido", "Mis Pedidos", "Inicio"],
+              );
+            } else {
+              await enviarBotones(
+                numeroCliente,
+                `🙏 *¡Gracias a ti!* Es un placer tenerte aquí. ✨\n\n¿En qué más podemos ayudarte?`,
+                ["Catalogo", "Precios", "Personalizar"],
+              );
+            }
+            return;
+          }
 
           // 🚫 Palabras sociales que NO deben guardarse como notas
           const esPalabraSocial = [
-            "gracias", "ok", "okay", "okey", "entendido", "perfecto", "listo", "de acuerdo",
-            "dale", "claro", "si", "sí", "no", "excelente", "bien", "genial", "👍", "😊",
-            "🙏", "❤️", "jaja",  "jajaja", "👌", "bueno", "sale", "va", "ya"
+            "gracias",
+            "ok",
+            "okay",
+            "okey",
+            "entendido",
+            "perfecto",
+            "listo",
+            "de acuerdo",
+            "dale",
+            "claro",
+            "si",
+            "sí",
+            "no",
+            "excelente",
+            "bien",
+            "genial",
+            "👍",
+            "😊",
+            "🙏",
+            "❤️",
+            "jaja",
+            "jajaja",
+            "👌",
+            "bueno",
+            "sale",
+            "va",
+            "ya",
           ].includes(textoCliente);
 
           if (esPalabraSocial) {
@@ -1521,78 +1473,33 @@ if (esSaludo) {
 
             // 🔍 Re-detectar categoría si aún es GENERAL o vacía
             let catActualizada = estadoFresco.categoria || "📦 GENERAL";
-            if (catActualizada === "📦 GENERAL") {
-              if (textoLower.includes("taza")) catActualizada = "☕ TAZA";
-              else if (
-                textoLower.includes("mdf") ||
-                textoLower.includes("madera")
-              )
-                catActualizada = "🪵 MDF";
-              else if (textoLower.includes("etiqueta"))
-                catActualizada = "🏷️ ETIQUETAS";
-              else if (textoLower.includes("playera"))
-                catActualizada = "👕 PLAYERA BASICA";
-              else if (textoLower.includes("sudadera"))
-                catActualizada = "🧥 SUDADERA";
-              else if (textoLower.includes("gorra"))
-                catActualizada = "🧢 GORRA";
-            }
+            if (
+              textoLower.includes("impresion") ||
+              textoLower.includes("impresión") ||
+              textoLower.includes("3d")
+            )
+              catActualizada = "🖨️ IMPRESIÓN 3D";
+            else if (
+              textoLower.includes("corte") ||
+              textoLower.includes("laser") ||
+              textoLower.includes("láser") ||
+              textoLower.includes("grabado")
+            )
+              catActualizada = "✂️ CORTE LÁSER";
+            else if (
+              textoLower.includes("modelado") ||
+              textoLower.includes("modelo")
+            )
+              catActualizada = "🎨 MODELADO 3D";
 
             // 🔍 Re-detectar cantidad
-            const numerosEnTexto = textoAcumulado.match(/\d+/);
-            const cantidadActualizada = numerosEnTexto
-              ? parseInt(numerosEnTexto[0])
+            const numerosDetectados = textoAcumulado.match(/\d+/);
+            const cantidadActualizada = numerosDetectados
+              ? parseInt(numerosDetectados[0])
               : estadoFresco.cantidad || 1;
 
-            // 🔍 Re-calcular precio si antes era Cotización y ahora ya sabemos la categoría
-            let precioActualizado = estadoFresco.precioTotal;
-            if (
-              catActualizada !== "📦 GENERAL" &&
-              (estadoFresco.precioTotal === "Cotización" ||
-                !estadoFresco.precioTotal)
-            ) {
-              if (catActualizada.includes("MDF")) {
-                precioActualizado = "Cotización según grabado, corte y tamaño";
-              } else if (catActualizada.includes("ETIQUETAS")) {
-                precioActualizado = "Cotización según tamaño y cantidad";
-              } else {
-                const precioUnitario =
-                  catActualizada === "👕 PLAYERA BASICA"
-                    ? cantidadActualizada >= 10
-                      ? Number(PRECIOS.playera_básica_mayoreo)
-                      : Number(PRECIOS.playera_básica)
-                    : catActualizada === "🧥 SUDADERA"
-                      ? cantidadActualizada >= 6
-                        ? Number(PRECIOS.sudadera_mayoreo)
-                        : Number(PRECIOS.sudadera)
-                      : catActualizada === "🧢 GORRA"
-                        ? Number(PRECIOS.gorra)
-                        : catActualizada === "☕ TAZA"
-                          ? Number(PRECIOS.taza_personalizada)
-                          : catActualizada === "👜 TOTE BAGS"
-                            ? Number(PRECIOS.tote_bags)
-                            : catActualizada === "🩲 BOXER"
-                              ? Number(PRECIOS.boxer)
-                              : catActualizada === "🧦 CALCETINES"
-                                ? Number(PRECIOS.calcetines)
-                                : catActualizada === "👘 PIJAMA DUO"
-                                  ? Number(PRECIOS.pijamas_duo)
-                                  : catActualizada === "👘 PIJAMA"
-                                    ? Number(PRECIOS.pijamas)
-                                    : 0;
-
-                if (precioUnitario > 0) {
-                  const etiquetaMayoreo =
-                    (catActualizada === "👕 PLAYERA BASICA" &&
-                      cantidadActualizada >= 10) ||
-                    (catActualizada === "🧥 SUDADERA" &&
-                      cantidadActualizada >= 6)
-                      ? " (precio mayoreo)"
-                      : "";
-                  precioActualizado = `$${precioUnitario * cantidadActualizada} MXN (${cantidadActualizada} pzs${etiquetaMayoreo})`;
-                }
-              }
-            }
+            let precioActualizado =
+              "Sujeto a cotización según especificaciones del proyecto";
 
             await setEstado(numeroCliente, {
               ...estadoFresco,
@@ -1806,46 +1713,44 @@ if (esSaludo) {
         ) {
           //await escribir(numeroCliente); //El cliente ve escribiendo
           //await delay(1500);
-          const mensajePrecios = `💰 *Lista de Nuestros Precios:*\n
-            👕 *Playera personalizada:* ${PRECIOS.playera_básica}
-            👕 *Playera mayoreo (10pzas):* ${PRECIOS.playera_básica_mayoreo}
-            🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}
-            🧥 *Sudadera mayoreo (6pzas):* ${PRECIOS.sudadera_mayoreo}
-            👘 *Pijama duo:* ${PRECIOS.pijamas_duo}
-            👘 *Pijama personalizada:* ${PRECIOS.pijamas}
-            🩲 *Boxer:* ${PRECIOS.boxer}
-            🧦 *Calcetines:* ${PRECIOS.calcetines}
-            🧢 *Gorra estampada:* ${PRECIOS.gorra}
-            👜 *Tote Bags (bolsa manta):* ${PRECIOS.tote_bags}
-            🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}
-            ☁️ *Almohada silueta* ${PRECIOS.almohada_silueta}
-            ☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n
-            _Precios sujetos a cambios o según el diseño MDF o Etiquetas_`;
+          const mensajePrecios =
+            `💰 *Nuestros Servicios*\n\n` +
+            `🖨️ *Impresión 3D:* ${PRECIOS.impresion_3d}\n\n` +
+            `✂️ *Corte y Grabado Láser:* ${PRECIOS.corte_laser}\n\n` +
+            `🎨 *Modelado 3D:* ${PRECIOS.modelado_3d}\n\n` +
+            `_Cada proyecto es único. Contáctanos con tu idea y te cotizamos._`;
 
           await enviarBotones(numeroCliente, mensajePrecios, [
             "Personalizar",
-            "Tallas",
+            "Hablar con Asesor",
           ]);
           return;
-        } else if (textoCliente.includes("catalogo") || textoCliente.includes("catálogo") || textoCliente.includes("servicios")) {
-  await enviarMensaje(
-    numeroCliente,
-    `📂 *Nuestros Catálogos*\n\n` +
-    `👕 *Textil:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
-    `☕🪵 *Tazas y MDF:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf\n\n` +
-    `🏷️ *Etiquetas y Llaveros:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
-    `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`
-  );
-  await delay(2000);
-  await enviarBotones(
-    numeroCliente,
-    "¿Deseas algo más?",
-    ["Tallas", "Personalizar"],
-  );
-  return;
-}
+        } else if (
+          textoCliente.includes("catalogo") ||
+          textoCliente.includes("catálogo") ||
+          textoCliente.includes("servicios")
+        ) {
+          await enviarMensaje(
+            numeroCliente,
+            `📂 *Nuestros Servicios*\n\n` +
+              `🖨️ *Impresión 3D* — Figuras, prototipos y piezas a medida\n` +
+              `_Portafolio:_ https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
+              `✂️ *Corte y Grabado Láser* — MDF 3mm, acrílico y más\n` +
+              `_Portafolio:_ https://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf\n\n` +
+              `🎨 *Modelado 3D* — Diseño digital para impresión o render\n` +
+              `_Portafolio:_ https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
+              `_Todos los precios son sujetos a cotización según especificaciones. ✨_`,
+          );
+          await delay(2000);
+          await enviarBotones(
+            numeroCliente,
+            "¿Listo para iniciar tu proyecto?",
+            ["Personalizar", "Precios"],
+          );
+          return;
+        }
 
-// Asesor
+        // Asesor
         if (
           textoCliente.includes("asesor") ||
           textoCliente.includes("asesor personalizado") ||
@@ -1857,31 +1762,45 @@ if (esSaludo) {
           await enviarMensaje(
             numeroCliente,
             `🫱🏼‍🫲🏼 *Conectando con un especialista...*\n\n` +
-            `He notificado a nuestro equipo. En un momento uno de nuestros asesores ` +
-            `tomará la conversación para una atención personalizada. ¡Gracias por tu paciencia! 😊`
+              `He notificado a nuestro equipo. En un momento uno de nuestros asesores ` +
+              `tomará la conversación para una atención personalizada. ¡Gracias por tu paciencia! 😊`,
           );
           await enviarMensaje(
             MI_NUMERO,
             `⚠️ *ATENCIÓN HUMANA:*\n` +
-            `El cliente wa.me/${numeroCliente} solicita un asesor.\n` +
-            `_Escribió: "${msg.text.body.trim()}"_`
+              `El cliente wa.me/${numeroCliente} solicita un asesor.\n` +
+              `_Escribió: "${msg.text.body.trim()}"_`,
           );
           return;
         }
 
         // Tallas
-        else if (textoCliente.includes("tallas") || textoCliente.includes("talla") || textoCliente.includes("medidas")) {
-          const urlTabla = "https://i.postimg.cc/13WjV0t1/Tabla-de-Tallas.jpg";
-          await enviarImagen(
+        else if (
+          textoCliente.includes("tallas") ||
+          textoCliente.includes("talla") ||
+          textoCliente.includes("medidas") ||
+          textoCliente.includes("especificaciones")
+        ) {
+          await enviarMensaje(
             numeroCliente,
-            urlTabla,
-            "📏 *Guía de Medidas*\nAquí tienes las tallas para nuestras prendas textiles",
+            `📐 *Especificaciones Técnicas*\n\n` +
+              `🖨️ *Impresión 3D:*\n` +
+              `• Alto x Ancho x Profundidad en mm\n` +
+              `• Material: PLA, PETG, resina, etc.\n\n` +
+              `✂️ *Corte Láser — MDF 3mm:*\n` +
+              `• Medidas de la pieza en mm\n` +
+              `• Material estándar: MDF 3mm\n` +
+              `• Especificar si es corte, grabado o ambos\n\n` +
+              `🎨 *Modelado 3D:*\n` +
+              `• Dimensiones aproximadas\n` +
+              `• Uso final del modelo\n\n` +
+              `_Incluye estas medidas al enviar tu imagen. ✨_`,
           );
-          await delay(3000);
+          await delay(2000);
           await enviarBotones(
             numeroCliente,
-            "¿Deseas regresar al menu o ir a personalizar?",
-            ["Inicio", "Personalizar"],
+            "¿Listo para enviar tu proyecto?",
+            ["Personalizar", "Inicio"],
           );
           return;
         }
@@ -1903,7 +1822,7 @@ if (esSaludo) {
           return;
         }
 
-        // 9. MENSAJE NO RECONOCIDO 
+        // 9. MENSAJE NO RECONOCIDO
         const estadoFinal = await getEstado(numeroCliente);
         if (estadoFinal?.ticket) {
           await enviarMensaje(
@@ -1945,136 +1864,141 @@ if (esSaludo) {
             );
             break;
 
-          case "Catalogo": {
+          case "Precios":
             //await escribir(numeroCliente); //El cliente ve escribiendo
             //await delay(1500);
-            const Catalogos = {
-              textil:
-                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-              Tazas_y_MDF:
-                "https://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf",
-              Etiquetas:
-                "https://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf",
-            };
+            const listaPrecios =
+              `💰 *Nuestros Servicios*\n\n` +
+              `🖨️ *Impresión 3D:* ${PRECIOS.impresion_3d}\n\n` +
+              `✂️ *Corte y Grabado Láser:* ${PRECIOS.corte_laser}\n\n` +
+              `🎨 *Modelado 3D:* ${PRECIOS.modelado_3d}\n\n` +
+              `_Cada proyecto es único. Contáctanos con tu idea y te cotizamos._`;
+            await enviarMensaje(numeroCliente, listaPrecios);
+            await delay(2000);
+            await enviarBotones(
+              numeroCliente,
+              "¿Listo para iniciar tu proyecto?",
+              ["Personalizar", "Hablar con Asesor", "Inicio"],
+            );
+            break;
+
+          case "Catalogo": {
             await enviarMensaje(
               numeroCliente,
-              `📂 *Nuestros Catálogos*\n\n` +
-                `👕 *Textil:* ${Catalogos.textil}\n\n` +
-                `☕🪵 *Tazas y MDF:* ${Catalogos.Tazas_y_MDF}\n\n` +
-                `🏷️ *Etiquetas y Llaveros:* ${Catalogos.Etiquetas}\n\n` +
+              `📂 *Nuestros Servicios*\n\n` +
+                `🖨️ *Impresión 3D:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
+                `✂️ *Corte y Grabado Láser:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1772506937/Catalogo%20Tazas%20y%20MDF.pdf\n\n` +
+                `🎨 *Modelado 3D:*\nhttps://res.cloudinary.com/dvm55hnav/image/upload/v1771967564/Catalogo%20TEXTIL.pdf\n\n` +
                 `_Echa un vistazo y cuando estés listo presiona 'Personalizar'_`,
             );
             await delay(2000);
             await enviarBotones(
               numeroCliente,
-              "¿Te gustaría ver los precios o ya prefieres personalizar?",
-              ["Precios", "Personalizar", "Inicio"],
+              "¿Te gustaría iniciar un proyecto?",
+              ["Personalizar", "Precios", "Inicio"],
             );
             break;
           }
-          case "Precios":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
-            const listaPrecios = `💰 *Lista de Nuestros Precios:*\n
-            👕 *Playera personalizada:* ${PRECIOS.playera_básica}
-            👕 *Playera mayoreo (10pzas):* ${PRECIOS.playera_básica_mayoreo}
-            🧥 *Sudadera con Diseño:* ${PRECIOS.sudadera}
-            🧥 *Sudadera mayoreo (6pzas):* ${PRECIOS.sudadera_mayoreo}
-            👘 *Pijama duo:* ${PRECIOS.pijamas_duo}
-            👘 *Pijama personalizada:* ${PRECIOS.pijamas}
-            🩲 *Boxer:* ${PRECIOS.boxer}
-            🧦 *Calcetines:* ${PRECIOS.calcetines}
-            🧢 *Gorra estampada:* ${PRECIOS.gorra}
-            👜 *Tote Bags (bolsa manta):* ${PRECIOS.tote_bags}
-            🧝🏽‍♂️ *Elfo personalizado:* ${PRECIOS.elfo_personalizado}
-            ☁️ *Almohada silueta* ${PRECIOS.almohada_silueta}
-            ☕ *Taza Personalizada:* ${PRECIOS.taza_personalizada}\n
-            _Precios sujetos a cambios o según el diseño MDF o Etiquetas_`;
-            await enviarMensaje(numeroCliente, listaPrecios);
-            await delay(2000);
-            await enviarBotones(
-              numeroCliente,
-              "¿Deseas ver las tallas o empezar tu pedido?",
-              ["Tallas", "Personalizar", "Inicio"],
-            );
-            break;
-
-          case "Tallas":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
-            const urlTabla =
-              "https://i.postimg.cc/13WjV0t1/Tabla-de-Tallas.jpg";
-            await enviarImagen(
-              numeroCliente,
-              urlTabla,
-              "📏 *Guía de Medidas*\nAquí tienes las tallas para nuestras prendas textiles",
-            );
-            await delay(3000);
-            await enviarBotones(
-              numeroCliente,
-              "¿Deseas regresar al menu o ir a personalizar?",
-              ["Inicio", "Personalizar"],
-            );
-            break;
 
           case "Personalizar":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
-            //Menu de los servicios
             const instrucciones =
-              "🎨 *Área de Personalización*\n\n" +
-              "Selecciona una Categoría para realizar un *Nuevo Pedido*.\n\n" +
+              "🛠️ *Área de Personalización*\n\n" +
+              "Selecciona el servicio que necesitas:\n\n" +
+              "🖨️ *Impresión 3D* — Figuras, prototipos y piezas personalizadas\n" +
+              "✂️ *Corte Láser* — Corte y grabado en madera, acrílico y más\n" +
+              "🎨 *Modelado 3D* — Diseño de modelos para impresión o render\n\n" +
               "-----------------------------\n" +
-              "🔎 Si ya tienes un pedido y quieres saber su estatus escribe:\n\n" +
-              "*Estatus* seguido de tu ticket (ej: *Estatus PED-1234*)\n" +
-              "Puedes copiar el numero de pedido en tu orden generada.";
+              "🏆 *Programa VIP:* 4 pedidos en el mes = cupón 10% de descuento\n\n" +
+              "🔎 Para consultar tu pedido escribe tu ticket (ej: *PED-1234*)";
             await enviarBotones(numeroCliente, instrucciones, [
-              "Textil",
-              "Tazas y MDF",
-              "Etiquetas",
+              "Impresión 3D",
+              "Corte Láser",
+              "Modelado 3D",
             ]);
             break;
 
-          case "Textil":
-            console.log("iniciando busqueda para:", numeroCliente);
-            await delEstado(numeroCliente);
-
-            await setEstado(numeroCliente, {
-              nombre: nombreRegistrado || null,
-              esperandoNombre: false,
-              categoria: "TEXTIL",
-            });
+          case "Tallas":
             await enviarMensaje(
               numeroCliente,
-              "👕 *Linea textil (Playeras, Sudaderas y calcetas)*\n\n1. Envía la imagen de tu diseño.\n2. En la descripción escribe: *Talla, Color y que tipo deprenda se estampara*.",
+              `📐 *Especificaciones Técnicas*\n\n` +
+                `🖨️ *Impresión 3D:*\n` +
+                `• Alto x Ancho x Profundidad en mm\n` +
+                `• Material: PLA, PETG, resina, etc.\n\n` +
+                `✂️ *Corte Láser — MDF 3mm:*\n` +
+                `• Medidas de la pieza en mm\n` +
+                `• Material estándar: MDF 3mm\n` +
+                `• Especificar si es corte, grabado o ambos\n\n` +
+                `🎨 *Modelado 3D:*\n` +
+                `• Dimensiones aproximadas\n` +
+                `• Uso final del modelo\n\n` +
+                `_Incluye estas medidas al enviar tu imagen. ✨_`,
+            );
+            await delay(2000);
+            await enviarBotones(
+              numeroCliente,
+              "¿Listo para enviar tu proyecto?",
+              ["Personalizar", "Inicio"],
             );
             break;
 
-          case "Tazas y MDF":
+          case "Impresión 3D":
             await delEstado(numeroCliente);
-
             await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
               esperandoNombre: false,
-              categoria: "TAZAS Y MDF",
+              categoria: "IMPRESIÓN 3D",
             });
             await enviarMensaje(
               numeroCliente,
-              "☕*Tazas y madera MDF*🪵\n\nEnvía tu imagen o diseño especificando tus instrucciones en:\n- Taza Personalizada\n- Grabado/Corte láser en MDF",
+              "🖨️ *Impresión 3D Personalizada*\n\n" +
+                "Envía la imagen o referencia de lo que necesitas imprimir.\n\n" +
+                "En la descripción incluye:\n" +
+                "• *Medidas aproximadas* (alto x ancho x profundidad)\n" +
+                "• *Material preferido* (PLA, PETG, resina, etc.)\n" +
+                "• *Cantidad de piezas*\n" +
+                "• *Uso o función* del objeto\n\n" +
+                "_Si tienes archivo STL o diseño propio, menciónalo. ✨_",
             );
             break;
 
-          case "Etiquetas":
+          case "Corte Láser":
             await delEstado(numeroCliente);
-
             await setEstado(numeroCliente, {
               nombre: nombreRegistrado || null,
               esperandoNombre: false,
-              categoria: "ETIQUETAS",
+              categoria: "CORTE LÁSER",
             });
             await enviarMensaje(
               numeroCliente,
-              "🏷️ *Etiquetas*\nEnvía tu logo y menciona las *medidas* y la *cantidad* que necesitas.",
+              "✂️ *Corte y Grabado Láser*\n\n" +
+                "Envía la imagen o diseño vectorial de lo que necesitas.\n\n" +
+                "En la descripción incluye:\n" +
+                "• *Material* (madera MDF, acrílico, cuero, etc.)\n" +
+                "• *Grosor del material* en mm\n" +
+                "• *Medidas de la pieza*\n" +
+                "• *Cantidad*\n" +
+                "• *¿Corte, grabado o ambos?*\n\n" +
+                "_Entre más detalle nos des, más precisa será la cotización. ✨_",
+            );
+            break;
+
+          case "Modelado 3D":
+            await delEstado(numeroCliente);
+            await setEstado(numeroCliente, {
+              nombre: nombreRegistrado || null,
+              esperandoNombre: false,
+              categoria: "MODELADO 3D",
+            });
+            await enviarMensaje(
+              numeroCliente,
+              "🎨 *Modelado 3D Personalizado*\n\n" +
+                "Envía referencias, bocetos o imágenes de lo que deseas modelar.\n\n" +
+                "En la descripción incluye:\n" +
+                "• *Descripción detallada* del objeto o figura\n" +
+                "• *Uso final* (impresión 3D, render, animación, etc.)\n" +
+                "• *Medidas aproximadas* si aplica\n" +
+                "• *Nivel de detalle* requerido\n\n" +
+                "_Mientras más referencias nos envíes, mejor resultado obtendrás. ✨_",
             );
             break;
 
@@ -2104,12 +2028,10 @@ if (esSaludo) {
             break;
 
           case "Nuevo Pedido":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
             await enviarBotones(
               numeroCliente,
-              "¡Perfecto! vamos a crear algo nuevo. ¿Que producto te interesa?",
-              ["Textil", "Tazas y MDF", "Etiquetas"],
+              "¡Perfecto! Vamos a crear algo nuevo. ¿Qué servicio necesitas?",
+              ["Impresión 3D", "Corte Láser", "Modelado 3D"],
             );
             break;
 
@@ -2317,9 +2239,22 @@ if (esSaludo) {
                   `Orden_${ticketFinal}.pdf`,
                 );
 
+                await enviarMensaje(
+                  numeroCliente,
+                  `✅ *¡Pedido Confirmado!* 🎉\n\n` +
+                    `Tu orden ha sido registrada con el ticket *${ticketFinal}*.\n\n` +
+                    `📋 *Siguiente paso — Anticipo:*\n` +
+                    `Para iniciar la producción de tu proyecto requerimos un *anticipo del 50%* del total cotizado.\n\n` +
+                    `💳 *Formas de pago:*\n` +
+                    `• Transferencia SPEI\n` +
+                    `• Depósito OXXO / 7-Eleven\n` +
+                    `• Efectivo en punto de entrega\n\n` +
+                    `Un asesor se pondrá en contacto contigo para confirmar el monto y los datos de pago. ✨`,
+                );
+                await delay(2000);
                 await enviarBotones(
                   numeroCliente,
-                  "✅ ¡Pedido Confirmado! Tu orden ha sido registrada. Si tienes dudas puedes cancelar tu compra",
+                  "¿Tienes alguna duda sobre tu pedido?",
                   [
                     {
                       type: "reply",
@@ -2328,7 +2263,7 @@ if (esSaludo) {
                         title: "Cancelar Pedido",
                       },
                     },
-                    "Nuevo Pedido",
+                    "Hablar con Asesor",
                     "Inicio",
                   ],
                 );
