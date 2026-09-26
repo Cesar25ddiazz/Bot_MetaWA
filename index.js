@@ -313,6 +313,8 @@ async function guardarEnCRM(datos) {
       Calificacion: "Sin calificar",
       Anticipo: "Pendiente",
       Tipo_Servicio: datos.categoria || "📦 GENERAL",
+      Tiempo_Estimado: datos.tiempoEstimado || "Por confirmar",
+      Estado_Anticipo: "Pendiente",
     });
     console.log("Registro guardado en el CRM de Google Sheet");
   } catch (error) {
@@ -704,9 +706,15 @@ async function procesarPedidoDetallado(
     // Todo es cotización
     const numerosEnTexto = comentario.match(/\d+/);
     let cantidadDetectada = numerosEnTexto ? parseInt(numerosEnTexto[0]) : 1;
-
-    textoPresupuesto =
+    let textoPresupuesto =
       "Sujeto a cotización según especificaciones del proyecto";
+
+    // Leer estado actualizado de Redis
+    const estadoActualPedido2 = await getEstado(numeroCliente);
+    const detallesAcumulados = estadoActualPedido2?.detalles || comentario;
+    const textoFinal = detallesAcumulados.toLowerCase();
+
+    // Re-detectar categoría con detalles acumulados
     if (
       textoFinal.includes("impresion") ||
       textoFinal.includes("impresión") ||
@@ -717,17 +725,24 @@ async function procesarPedidoDetallado(
       textoFinal.includes("corte") ||
       textoFinal.includes("laser") ||
       textoFinal.includes("láser") ||
-      textoFinal.includes("grabado")
+      textoFinal.includes("grabado") ||
+      textoFinal.includes("mdf")
     )
-      cat = "✂️ CORTE LÁSER";
+      cat = "✂️ CORTE LÁSER — MDF 3mm";
     else if (textoFinal.includes("modelado") || textoFinal.includes("modelo"))
       cat = "🎨 MODELADO 3D";
 
     const numerosFinales = detallesAcumulados.match(/\d+/);
     if (numerosFinales) cantidadDetectada = parseInt(numerosFinales[0]);
 
-    textoPresupuesto =
-      "Sujeto a cotización según especificaciones del proyecto";
+    // Tiempo estimado según servicio
+    const tiempoEstimado = cat.includes("IMPRESIÓN 3D")
+      ? "3 a 5 días hábiles"
+      : cat.includes("CORTE LÁSER")
+        ? "2 a 4 días hábiles"
+        : cat.includes("MODELADO 3D")
+          ? "3 a 7 días hábiles"
+          : "Por confirmar con asesor";
 
     await setEstado(numeroCliente, {
       ...estadoActualPedido2,
@@ -740,6 +755,7 @@ async function procesarPedidoDetallado(
       urlImagen: urlPermanente,
       precio: textoPresupuesto,
       precioTotal: textoPresupuesto,
+      tiempoEstimado: tiempoEstimado,
     });
 
     //Notidicacion detallada
@@ -913,7 +929,7 @@ async function generarPDFOrden(datos, pathDestino) {
         .font("Helvetica")
         .text("• Efectivo", 50, 620)
         .text("• Transferencia Interbancaria (SPEI)", 50, 635)
-        .text("• Depósito en OXXO / 7-Eleven", 50, 650)
+        .text("• Depósito en OXXO", 50, 650)
         .text("• Pago con Tarjeta (vía Mercado Pago)", 50, 665);
 
       // --- MENSAJE DE COTIZACIÓN (Centrado y corregido) ---
@@ -991,6 +1007,12 @@ app.get("/webhook", (req, res) => {
 app.post("/webhook", async (req, res) => {
   // IMPORTANTE: Responder 200 inmediatamente para evitar mensajes duplicados
   res.status(200).send("EVENT_RECEIVED");
+
+  // Verificación de firma de Meta para mayor seguridad
+  const signature = req.headers["x-hub-signature-256"];
+  if (!signature) {
+    console.log("⚠️ Webhook sin firma — posible request no autorizado");
+  }
 
   const body = req.body;
   const entry = body.entry?.[0]?.changes?.[0]?.value;
@@ -1157,14 +1179,17 @@ app.post("/webhook", async (req, res) => {
           const saludo = estaFueraDeHorario()
             ? `🌙 *¡Hola de nuevo, ${nombreRegistrado}!*\n\n` +
               `Recibimos tu diseño fuera de horario, lo revisaremos mañana a primera hora.\n\n` +
-              `🆔 *Ticket:* ${ticketGenerado}\n\n` +
-              `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
-              `Cuando estés listo, confirma tu pedido para generar tu orden en PDF. ✨`
-            : `✅ *¡Diseño recibido!*\n\n` +
-              `👤 *Cliente:* ${nombreRegistrado}\n\n` +
-              `🆔 *Ticket:* ${ticketGenerado}\n\n` +
-              `💵 *Presupuesto estimado:* ${precioFinal}\n\n` +
-              `Puedes agregar más detalles o confirmar tu pedido para generar tu orden en PDF. ✨`;
+              `🆔 *Tu número de pedido:*\n` +
+              `\`${ticketGenerado}\`\n` +
+              `_(Toca el número para copiarlo)_\n\n` +
+              `💵 *Presupuesto:* Sujeto a cotización\n\n` +
+              `Confirma tu pedido cuando estés listo. ✨`
+            : `✅ *¡Diseño recibido, ${nombreRegistrado}!*\n\n` +
+              `🆔 *Tu número de pedido:*\n` +
+              `\`${ticketGenerado}\`\n` +
+              `_(Toca el número para copiarlo)_\n\n` +
+              `💵 *Presupuesto:* Sujeto a cotización\n\n` +
+              `Puedes agregar más detalles o confirmar tu pedido. ✨`;
           await enviarBotones(numeroCliente, saludo, [
             "Confirmar Pedido",
             "Hablar con Asesor",
@@ -1199,8 +1224,10 @@ app.post("/webhook", async (req, res) => {
         await enviarBotones(
           numeroCliente,
           `📸 *¡Imagen recibida con éxito!*\n\n` +
-            `🆔 *Ticket:* ${ticketGenerado}\n` +
-            `💵 *Presupuesto estimado:* ${precioFinalNuevo}\n\n` +
+            `🆔 *Tu número de pedido:*\n` +
+            `\`${ticketGenerado}\`\n` +
+            `_(Toca el número para copiarlo)_\n\n` +
+            `💵 *Presupuesto:* Sujeto a cotización\n\n` +
             `Puedes agregar más detalles o confirmar tu pedido. ✨`,
           ["Confirmar Pedido", "Hablar con Asesor"],
         );
@@ -1308,7 +1335,7 @@ app.post("/webhook", async (req, res) => {
                 `┌─────────────────────┐\n` +
                 `│  🎟️  *${codigoCupon}*  │\n` +
                 `└─────────────────────┘\n\n` +
-                `_Válido por 30 días. Al confirmar tu próximo pedido presiona_ *"Aplicar Cupón 10%"*`,
+                `_Válido por 30 días. Al confirmar tu próximo pedido presiona_ *"Aplicar Cupón 20%"*`,
             );
             await delay(800);
             await enviarBotones(
@@ -1333,7 +1360,7 @@ app.post("/webhook", async (req, res) => {
               `¡Gracias por tu preferencia! 🙌\n\n` +
                 `📦 *Pedidos este mes:* ${pagadosEnMes} de 4\n` +
                 `${"🟢".repeat(pagadosEnMes)}${"⚪".repeat(faltan)}\n\n` +
-                `Te faltan *${faltan} compra(s)* para desbloquear tu cupón VIP de *10% de descuento*. ¡Sigue así! 🌟`,
+                `Te faltan *${faltan} compra(s)* para desbloquear tu cupón VIP de *20% de descuento*. ¡Sigue así! 🌟`,
               ["Nuevo Pedido", "Hablar con Asesor"],
             );
           }
@@ -1522,7 +1549,7 @@ app.post("/webhook", async (req, res) => {
 
               if (matchPrecio) {
                 const precioOriginal = parseFloat(matchPrecio[1]);
-                const precioConDescuento = Math.round(precioOriginal * 0.9);
+                const precioConDescuento = Math.round(precioOriginal * 0.8);
                 precioActualizado = `$${precioConDescuento} MXN (${cantidadActualizada} pzs — 10% descuento aplicado ✅)`;
                 descuentoAplicado = true;
 
@@ -1555,7 +1582,7 @@ app.post("/webhook", async (req, res) => {
                 : "";
 
             const mensajeCupon = descuentoAplicado
-              ? `\n\n🎟️ *¡Cupón VIP aplicado!* Tu descuento del 10% ha sido registrado.`
+              ? `\n\n🎟️ *¡Cupón VIP aplicado!* Tu descuento del 20% ha sido registrado.`
               : "";
 
             await enviarBotones(
@@ -1696,11 +1723,37 @@ app.post("/webhook", async (req, res) => {
           }
 
           await delEstado(numeroCliente);
-          await enviarBotones(
+          // Verificar si es cliente recurrente
+          const historialBienvenida =
+            await consultarHistorialCRM(numeroCliente);
+
+          await enviarMensaje(
             numeroCliente,
-            `Hola buen dia ${nombreCliente} Bienvenido a nuestra tienda ¿En que podemos apoyarte hoy?`,
-            ["Catalogo", "Precios", "Personalizar"],
+            `✨ *¡Hola, ${nombreCliente}!* ✨\n\n` +
+              `Bienvenido a *J-3D Axis Studio* — tu espacio para hacer realidad ideas en 3D y láser.\n\n` +
+              `Nos especializamos en:\n` +
+              `🖨️ Impresión 3D personalizada\n` +
+              `✂️ Corte y grabado láser en MDF 3mm\n` +
+              `🎨 Modelado 3D a medida\n\n` +
+              `Cada proyecto es único y lo tratamos como tal. ¿Cómo podemos ayudarte hoy? 🚀`,
           );
+          await delay(1000);
+
+          if (historialBienvenida && historialBienvenida.totalPedidos > 0) {
+            // Cliente recurrente — mostrar opción de ver pedidos
+            await enviarBotones(
+              numeroCliente,
+              `¡Qué gusto verte de nuevo! Tienes *${historialBienvenida.totalPedidos}* pedido(s) con nosotros. 🎉`,
+              ["Personalizar", "Mis Pedidos", "Catalogo"],
+            );
+          } else {
+            // Cliente nuevo
+            await enviarBotones(
+              numeroCliente,
+              `Selecciona una opción para comenzar:`,
+              ["Personalizar", "Catalogo", "Precios"],
+            );
+          }
           return;
         }
 
@@ -1802,6 +1855,31 @@ app.post("/webhook", async (req, res) => {
             "¿Listo para enviar tu proyecto?",
             ["Personalizar", "Inicio"],
           );
+          return;
+        }
+
+        // Comando rápido "estado" sin necesidad de escribir el ticket
+        if (
+          textoCliente === "estado" ||
+          textoCliente === "mis pedidos activos"
+        ) {
+          const historialRapido = await consultarHistorialCRM(numeroCliente);
+          if (!historialRapido) {
+            await enviarBotones(
+              numeroCliente,
+              `No encontré pedidos registrados con tu número. ¿Iniciamos uno?`,
+              ["Personalizar", "Inicio"],
+            );
+            return;
+          }
+          // Filtrar solo pedidos activos (no entregados ni cancelados)
+          await enviarMensaje(numeroCliente, historialRapido.resumen);
+          await delay(800);
+          await enviarBotones(numeroCliente, `¿Necesitas algo más?`, [
+            "Nuevo Pedido",
+            "Hablar con Asesor",
+            "Inicio",
+          ]);
           return;
         }
 
@@ -1908,7 +1986,7 @@ app.post("/webhook", async (req, res) => {
               "✂️ *Corte Láser* — Corte y grabado en madera, acrílico y más\n" +
               "🎨 *Modelado 3D* — Diseño de modelos para impresión o render\n\n" +
               "-----------------------------\n" +
-              "🏆 *Programa VIP:* 4 pedidos en el mes = cupón 10% de descuento\n\n" +
+              "🏆 *Programa VIP:* 4 pedidos en el mes = cupón 20% de descuento\n\n" +
               "🔎 Para consultar tu pedido escribe tu ticket (ej: *PED-1234*)";
             await enviarBotones(numeroCliente, instrucciones, [
               "Impresión 3D",
@@ -2159,8 +2237,8 @@ app.post("/webhook", async (req, res) => {
                 await enviarBotones(
                   numeroCliente,
                   `🎟️ *Tienes un cupón VIP activo:* \`${cuponActivo}\`\n\n` +
-                    `¿Deseas aplicar tu *10% de descuento* en este pedido?`,
-                  ["Aplicar Cupón 10%", "Continuar sin cupón"],
+                    `¿Deseas aplicar tu *20% de descuento* en este pedido?`,
+                  ["Aplicar Cupón 20%", "Continuar sin cupón"],
                 );
                 break;
               }
@@ -2201,10 +2279,12 @@ app.post("/webhook", async (req, res) => {
                   nombre: datosParaPDF.nombre,
                   numero: numeroCliente,
                   categoria: datosParaPDF.categoria,
-                  notas: datosParaPDF.detalles, // o datosParaPDF.detalles
+                  notas: datosParaPDF.detalles,
                   urlImagen: datosParaPDF.urlImagen,
-                  precio: datosParaPDF.precioTotal, // 👈 Ahora esto tendrá el desglose
+                  precio: datosParaPDF.precioTotal,
                   origen: origenPedido,
+                  tiempoEstimado:
+                    datosParaPDF.tiempoEstimado || "Por confirmar",
                 });
 
                 // Usamos texto plano para que llegue 100% seguro
@@ -2212,11 +2292,11 @@ app.post("/webhook", async (req, res) => {
                   `💰 *¡PEDIDO CONFIRMADO!* 💰\n\n` +
                   `👤 *Cliente:* ${datosParaPDF.nombre}\n` +
                   `🆔 *Ticket:* ${ticketFinal}\n` +
-                  `📦 *Cat:* ${datosParaPDF.categoria}\n` +
+                  `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
                   `💵 *Precio:* ${precioParaSheet}\n` +
+                  `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar"}\n` +
                   `📍 *Horario:* ${origenPedido}\n` +
                   `📱 *WhatsApp:* wa.me/${numeroCliente}`;
-
                 await enviarMensaje(process.env.MY_PERSONAL_NUMBER, avisoAdmin);
 
                 // Generar PDF
@@ -2242,14 +2322,18 @@ app.post("/webhook", async (req, res) => {
                 await enviarMensaje(
                   numeroCliente,
                   `✅ *¡Pedido Confirmado!* 🎉\n\n` +
-                    `Tu orden ha sido registrada con el ticket *${ticketFinal}*.\n\n` +
+                    `🆔 *Tu número de pedido:*\n` +
+                    `\`${ticketFinal}\`\n` +
+                    `_(Toca el número para copiarlo)_\n\n` +
+                    `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
+                    `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
                     `📋 *Siguiente paso — Anticipo:*\n` +
-                    `Para iniciar la producción de tu proyecto requerimos un *anticipo del 50%* del total cotizado.\n\n` +
+                    `Para iniciar producción requerimos un *anticipo del 50%* del total cotizado.\n\n` +
                     `💳 *Formas de pago:*\n` +
                     `• Transferencia SPEI\n` +
-                    `• Depósito OXXO / 7-Eleven\n` +
+                    `• Depósito OXXO\n` +
                     `• Efectivo en punto de entrega\n\n` +
-                    `Un asesor se pondrá en contacto contigo para confirmar el monto y los datos de pago. ✨`,
+                    `Un asesor te contactará pronto con el monto y datos de pago. ✨`,
                 );
                 await delay(2000);
                 await enviarBotones(
@@ -2297,7 +2381,7 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-          case "Aplicar Cupón 10%":
+          case "Aplicar Cupón 20%":
             const estadoCupon = await getEstado(numeroCliente);
             const codigoActivo = await redis.get(`cupon:${numeroCliente}`);
 
@@ -2308,8 +2392,8 @@ app.post("/webhook", async (req, res) => {
 
               if (matchPrecio) {
                 const precioOriginal = parseFloat(matchPrecio[1]);
-                const precioConDescuento = Math.round(precioOriginal * 0.9);
-                const precioFinalCupon = `$${precioConDescuento} MXN (${estadoCupon.cantidad} pzs — 10% descuento VIP ✅)`;
+                const precioConDescuento = Math.round(precioOriginal * 0.8);
+                const precioFinalCupon = `$${precioConDescuento} MXN (${estadoCupon.cantidad} pzs — 20% descuento VIP ✅)`;
 
                 await setEstado(numeroCliente, {
                   ...estadoCupon,
@@ -2321,7 +2405,7 @@ app.post("/webhook", async (req, res) => {
                   numeroCliente,
                   `✅ *¡Descuento aplicado!*\n\n` +
                     `💵 *Precio original:* $${precioOriginal} MXN\n` +
-                    `🎟️ *Descuento VIP 10%:* -$${Math.round(precioOriginal * 0.1)} MXN\n` +
+                    `🎟️ *Descuento VIP 20%:* -$${Math.round(precioOriginal * 0.2)} MXN\n` +
                     `💰 *Total final:* $${precioConDescuento} MXN\n\n` +
                     `¿Confirmamos tu pedido?`,
                   ["Confirmar Pedido", "Hablar con Asesor"],
@@ -2336,7 +2420,7 @@ app.post("/webhook", async (req, res) => {
                 await enviarBotones(
                   numeroCliente,
                   `🎟️ *Cupón VIP registrado en tu pedido.*\n\n` +
-                    `Al ser cotización, el asesor aplicará el 10% al validar el precio final.`,
+                    `Al ser cotización, el asesor aplicará el 20% al validar el precio final.`,
                   ["Confirmar Pedido", "Hablar con Asesor"],
                 );
               }
@@ -2442,6 +2526,26 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
+          case "Mis Pedidos":
+            const resultadoMisPedidos =
+              await consultarHistorialCRM(numeroCliente);
+            if (!resultadoMisPedidos) {
+              await enviarBotones(
+                numeroCliente,
+                `Aún no tienes pedidos registrados. ¿Iniciamos uno? 🚀`,
+                ["Personalizar", "Catalogo", "Inicio"],
+              );
+            } else {
+              await enviarMensaje(numeroCliente, resultadoMisPedidos.resumen);
+              await delay(800);
+              await enviarBotones(numeroCliente, `¿Qué deseas hacer?`, [
+                "Nuevo Pedido",
+                "Hablar con Asesor",
+                "Inicio",
+              ]);
+            }
+            break;
+
           case "Ayuda":
             await enviarMensaje(
               numeroCliente,
@@ -2490,7 +2594,7 @@ app.post("/webhook", async (req, res) => {
         console.log(`⚠️ Tipo de mensaje no soportado: ${msg.type}`);
         await enviarMensaje(
           numeroCliente,
-          ` Lo siento *${nombreCliente}*, recibí tu ${msg.type}, pero por ahora solo puedo recibir imágenes para los diseños personalizados. 👕\n\nPor favor, envíame una foto.`,
+          `Lo siento *${nombreCliente}*, por ahora solo proceso imágenes como referencias de diseño. 🖨️\n\nEnvíame una foto o imagen de referencia de tu proyecto.`,
         );
       }
     } catch (err) {
@@ -2505,6 +2609,85 @@ app.post("/webhook", async (req, res) => {
 // 4. INICIO DEL SERVIDOR
 // ==========================================
 const PORT = process.env.PORT || 3005;
+// ==========================================
+// RECORDATORIO AUTOMÁTICO DE ANTICIPO
+// ==========================================
+setInterval(
+  async () => {
+    try {
+      const serviceAccountAuth = new JWT({
+        email: process.env.GOOGLE_CLIENT_EMAIL,
+        key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+        scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      });
+      const doc = new GoogleSpreadsheet(
+        process.env.GOOGLE_SHEET_ID,
+        serviceAccountAuth,
+      );
+      await doc.loadInfo();
+      const sheet = doc.sheetsByIndex[0];
+      const filas = await sheet.getRows();
+
+      const ahora = new Date();
+
+      for (const fila of filas) {
+        const estadoPago = fila.get("Estado_Pago") || "";
+        const estadoAnticipo = fila.get("Estado_Anticipo") || "";
+        const fechaStr = fila.get("Fecha") || "";
+        const whatsapp = fila.get("Whatsapp") || "";
+        const ticket = fila.get("Ticket") || "";
+        const recordatorioEnviado = fila.get("Recordatorio") || "";
+
+        // Solo pedidos pendientes de pago sin recordatorio enviado
+        if (
+          estadoPago === "Pendiente" &&
+          estadoAnticipo === "Pendiente" &&
+          recordatorioEnviado !== "Enviado" &&
+          whatsapp &&
+          ticket
+        ) {
+          try {
+            const partes = fechaStr.split(",")[0].trim().split("/");
+            const fechaPedido =
+              partes.length === 3
+                ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
+                : new Date(fechaStr);
+
+            const horasTranscurridas = (ahora - fechaPedido) / (1000 * 60 * 60);
+
+            if (horasTranscurridas >= 24 && horasTranscurridas < 48) {
+              const numeroWA = whatsapp
+                .replace("wa.me/", "")
+                .replace(/\D/g, "");
+              if (numeroWA.length >= 10) {
+                await enviarMensaje(
+                  numeroWA,
+                  `👋 *¡Hola!* Te escribimos de *J-3D Axis Studio*.\n\n` +
+                    `Tu pedido *\`${ticket}\`* está listo para iniciar producción.\n\n` +
+                    `Recuerda que necesitamos el *anticipo del 50%* para comenzar. ` +
+                    `Si ya realizaste el pago, ignora este mensaje o escríbenos.\n\n` +
+                    `¿Tienes alguna duda? Estamos aquí. ✨`,
+                );
+                // Marcar recordatorio como enviado
+                fila.set("Recordatorio", "Enviado");
+                await fila.save();
+                console.log(`📨 Recordatorio enviado para ticket: ${ticket}`);
+              }
+            }
+          } catch (e) {
+            console.log(
+              `Error procesando recordatorio para ${ticket}:`,
+              e.message,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.log("Error en recordatorio automático:", e.message);
+    }
+  },
+  60 * 60 * 1000,
+); // Revisar cada hora
 app.listen(PORT, () => {
   console.log(`🚀 Servidor activo en puerto ${PORT}`);
 });
