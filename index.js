@@ -1050,13 +1050,26 @@ app.post("/webhook", async (req, res) => {
       if (horaMexico === 9) {
         await enviarMensaje(
           numeroCliente,
-          `☀️ ¡Buenos Dias! Ya estamos de vuelta. Si mandaste un diseño anoche, un asesor lo esta revisando justo ahora. Estaremos enviándote actualizaciones en breve. 📝`,
+          `☀️ ¡Buenos Días! Ya estamos de vuelta. Si mandaste un proyecto anoche, un asesor lo está revisando ahora. 📝`,
         );
       }
-      if (textoCliente.includes("hola") || textoCliente.includes("inicio")) {
+      const esSaludoFueraHorario = [
+        "hola",
+        "inicio",
+        "hey",
+        "buenos días",
+        "buenas tardes",
+        "buenas noches",
+        "que tal",
+        "buen día",
+      ].some((p) => textoCliente.includes(p));
+
+      if (esSaludoFueraHorario) {
         await enviarMensaje(
           numeroCliente,
-          `Hola ${nombreCliente} Estamos fuera de horario  (Lunes a Viernes de 9am-8pm). Puedes enviarnos tu diseño de una vez y lo revisaremos.`,
+          `🌙 Hola ${nombreCliente}, en este momento estamos fuera de horario.\n\n` +
+            `📅 *Horario de atención:*\nLunes a Viernes de 9am a 9pm\n\n` +
+            `Puedes enviarnos tu imagen o referencia de proyecto y la revisaremos en cuanto abramos. ✨`,
         );
         return;
       }
@@ -1179,21 +1192,19 @@ app.post("/webhook", async (req, res) => {
           const saludo = estaFueraDeHorario()
             ? `🌙 *¡Hola de nuevo, ${nombreRegistrado}!*\n\n` +
               `Recibimos tu diseño fuera de horario, lo revisaremos mañana a primera hora.\n\n` +
-              `🆔 *Tu número de pedido:*\n` +
-              `\`${ticketGenerado}\`\n` +
-              `_(Toca el número para copiarlo)_\n\n` +
+              `🆔 *Tu número de pedido está en el siguiente mensaje para copiarlo fácilmente* 👇\n\n` +
               `💵 *Presupuesto:* Sujeto a cotización\n\n` +
               `Confirma tu pedido cuando estés listo. ✨`
             : `✅ *¡Diseño recibido, ${nombreRegistrado}!*\n\n` +
-              `🆔 *Tu número de pedido:*\n` +
-              `\`${ticketGenerado}\`\n` +
-              `_(Toca el número para copiarlo)_\n\n` +
+              `🆔 *Tu número de pedido está en el siguiente mensaje para copiarlo fácilmente* 👇\n\n` +
               `💵 *Presupuesto:* Sujeto a cotización\n\n` +
               `Puedes agregar más detalles o confirmar tu pedido. ✨`;
           await enviarBotones(numeroCliente, saludo, [
             "Confirmar Pedido",
             "Hablar con Asesor",
           ]);
+          await delay(500);
+          await enviarMensaje(numeroCliente, ticketGenerado); // 👈 ticket solo en mensaje aparte
           return;
         }
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
@@ -1224,13 +1235,13 @@ app.post("/webhook", async (req, res) => {
         await enviarBotones(
           numeroCliente,
           `📸 *¡Imagen recibida con éxito!*\n\n` +
-            `🆔 *Tu número de pedido:*\n` +
-            `\`${ticketGenerado}\`\n` +
-            `_(Toca el número para copiarlo)_\n\n` +
+            `🆔 *Tu número de pedido está en el siguiente mensaje para copiarlo fácilmente* 👇\n\n` +
             `💵 *Presupuesto:* Sujeto a cotización\n\n` +
             `Puedes agregar más detalles o confirmar tu pedido. ✨`,
           ["Confirmar Pedido", "Hablar con Asesor"],
         );
+        await delay(500);
+        await enviarMensaje(numeroCliente, ticketGenerado);
         return;
       }
 
@@ -1650,21 +1661,45 @@ app.post("/webhook", async (req, res) => {
             .replace("cancelar ", "")
             .toUpperCase()
             .trim();
+
+          // Si escribió solo "cancelar" sin ticket, buscar el activo en Redis
+          if (!ticketACancelar.includes("PED-")) {
+            const estadoActivoCancelar = await getEstado(numeroCliente);
+            if (estadoActivoCancelar?.ticket) {
+              await enviarBotones(
+                numeroCliente,
+                `¿Deseas cancelar tu pedido activo?\n\n🆔 *${estadoActivoCancelar.ticket}*`,
+                [
+                  {
+                    type: "reply",
+                    reply: {
+                      id: `CANCEL_${estadoActivoCancelar.ticket}`,
+                      title: "Cancelar Pedido",
+                    },
+                  },
+                  "Hablar con Asesor",
+                ],
+              );
+            } else {
+              await enviarMensaje(
+                numeroCliente,
+                "⚠️ No encontré un pedido activo para cancelar.\n\n" +
+                  "Si quieres cancelar un pedido anterior usa el formato:\n*Cancelar PED-12345*",
+              );
+            }
+            return;
+          }
+
+          // Si escribió "cancelar PED-XXXX" con ticket específico
           if (ticketACancelar.includes("PED-")) {
             await actualizarEstadoCRM(ticketACancelar, { Estado: "Cancelado" });
             await enviarMensaje(
               numeroCliente,
               `🚫 El pedido *${ticketACancelar}* ha sido cancelado en nuestro sistema.`,
             );
-          } else {
-            await enviarMensaje(
-              numeroCliente,
-              "⚠️ Para cancelar usa el formato *Cancelar PED-12345*",
-            );
           }
           return;
         }
-
         const groserias = [
           "puto",
           "negro",
@@ -2322,9 +2357,6 @@ app.post("/webhook", async (req, res) => {
                 await enviarMensaje(
                   numeroCliente,
                   `✅ *¡Pedido Confirmado!* 🎉\n\n` +
-                    `🆔 *Tu número de pedido:*\n` +
-                    `\`${ticketFinal}\`\n` +
-                    `_(Toca el número para copiarlo)_\n\n` +
                     `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
                     `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
                     `📋 *Siguiente paso — Anticipo:*\n` +
@@ -2333,9 +2365,11 @@ app.post("/webhook", async (req, res) => {
                     `• Transferencia SPEI\n` +
                     `• Depósito OXXO\n` +
                     `• Efectivo en punto de entrega\n\n` +
-                    `Un asesor te contactará pronto con el monto y datos de pago. ✨`,
+                    `Tu número de pedido está en el siguiente mensaje para copiarlo fácilmente 👇`,
                 );
-                await delay(2000);
+                await delay(500);
+                await enviarMensaje(numeroCliente, ticketFinal); // 👈 ticket solo
+                await delay(1500);
                 await enviarBotones(
                   numeroCliente,
                   "¿Tienes alguna duda sobre tu pedido?",
@@ -2547,20 +2581,35 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Ayuda":
+            const estadoAyuda = await getEstado(numeroCliente);
             await enviarMensaje(
               numeroCliente,
-              "🫱🏼‍🫲🏼 *No te preocupes.* Aquí te explico cómo continuar con tu pedido:\n\n" +
-                "1️⃣ Si ya enviaste tu diseño, presiona *Confirmar Pedido* para generar tu orden en PDF.\n\n" +
-                "2️⃣ Si deseas agregar más detalles a tu pedido, solo escríbelos aquí.\n\n" +
-                "3️⃣ Si necesitas hablar con una persona, presiona *Hablar con Asesor*.\n\n" +
-                "4️⃣ Si quieres cancelar y empezar de nuevo, presiona *Inicio*.",
+              "🫱🏼‍🫲🏼 *No te preocupes.* Aquí te explico cómo continuar:\n\n" +
+                "1️⃣ Si ya enviaste tu diseño presiona *Confirmar Pedido*\n\n" +
+                "2️⃣ Para agregar detalles escríbelos aquí directamente\n\n" +
+                "3️⃣ Para hablar con una persona presiona *Hablar con Asesor*\n\n" +
+                "4️⃣ Para cancelar y empezar de nuevo presiona *Cancelar Pedido*",
             );
-            await delay(1000);
-            await enviarBotones(numeroCliente, "¿Qué deseas hacer?", [
-              "Confirmar Pedido",
-              "Hablar con Asesor",
-              "Inicio",
-            ]);
+            await delay(800);
+            if (estadoAyuda?.ticket) {
+              await enviarBotones(numeroCliente, "¿Qué deseas hacer?", [
+                "Confirmar Pedido",
+                {
+                  type: "reply",
+                  reply: {
+                    id: `CANCEL_${estadoAyuda.ticket}`,
+                    title: "Cancelar Pedido",
+                  },
+                },
+                "Hablar con Asesor",
+              ]);
+            } else {
+              await enviarBotones(numeroCliente, "¿Qué deseas hacer?", [
+                "Confirmar Pedido",
+                "Hablar con Asesor",
+                "Inicio",
+              ]);
+            }
             break;
 
           case "ESPERANDO_DETALLES":
