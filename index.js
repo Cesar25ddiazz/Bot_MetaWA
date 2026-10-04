@@ -295,9 +295,6 @@ async function guardarEnCRM(datos) {
     const origen = estaFueraDeHorario() ? "🌙 Nocturno" : "☀️ Diurno";
 
     await sheet.addRow({
-      Fecha: hoy.toLocaleString("es-MX", {
-        timeZone: "America/Mexico_City",
-      }),
       Fecha: hoy.toLocaleString("es-MX", { timeZone: "America/Mexico_City" }),
       Ticket: datos.ticket,
       Cliente: datos.nombre,
@@ -402,6 +399,33 @@ async function actualizarCalificacionCRM(ticket, calificacion) {
     }
   } catch (error) {
     console.error("❌ Error guardando calificación:", error.message);
+  }
+}
+
+async function buscarFilaPorTicket(ticket) {
+  try {
+    const serviceAccountAuth = new JWT({
+      email: process.env.GOOGLE_CLIENT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const doc = new GoogleSpreadsheet(
+      process.env.GOOGLE_SHEET_ID,
+      serviceAccountAuth,
+    );
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    const filas = await sheet.getRows();
+    return (
+      filas.find(
+        (f) =>
+          String(f.get("Ticket")).trim().toUpperCase() ===
+          String(ticket).trim().toUpperCase(),
+      ) || null
+    );
+  } catch (e) {
+    console.error("❌ Error buscarFilaPorTicket:", e.message);
+    return null;
   }
 }
 
@@ -1310,7 +1334,7 @@ app.post("/webhook", async (req, res) => {
                 `Aún no tienes pedidos registrados con nosotros.\n\n` +
                 `Estamos listos para crear algo especial para ti. ` +
                 `Selecciona una categoría y empieza tu primer pedido ahora. 🎨`,
-              ["Personalizar", "Catalogo", "Precios"],
+              ["Hablar con Asesor", "Catalogo", "Personalizar"],
             );
             return;
           }
@@ -1779,14 +1803,14 @@ app.post("/webhook", async (req, res) => {
             await enviarBotones(
               numeroCliente,
               `¡Qué gusto verte de nuevo! Tienes *${historialBienvenida.totalPedidos}* pedido(s) con nosotros. 🎉`,
-              ["Personalizar", "Mis Pedidos", "Catalogo"],
+              ["Hablar con Asesor", "Mis Pedidos", "Personalizar"],
             );
           } else {
             // Cliente nuevo
             await enviarBotones(
               numeroCliente,
               `Selecciona una opción para comenzar:`,
-              ["Personalizar", "Catalogo", "Precios"],
+              ["Hablar con Asesor", "Personalizar", "Catalogo"],
             );
           }
           return;
@@ -2061,16 +2085,81 @@ app.post("/webhook", async (req, res) => {
               esperandoNombre: false,
               categoria: "IMPRESIÓN 3D",
             });
+            await enviarBotones(
+              numeroCliente,
+              `🖨️ *Impresión 3D Personalizada*\n\n` +
+                `¿Cómo quieres proceder?\n\n` +
+                `📁 *Tengo mi diseño* — Envíame la imagen o archivo STL con las especificaciones\n\n` +
+                `🌐 *Ver catálogo de modelos* — Explora miles de diseños listos para imprimir en MakerWorld`,
+              ["Tengo mi diseño", "Ver catálogo 3D"],
+            );
+            break;
+
+          case "Tengo mi diseño":
+            await setEstado(numeroCliente, {
+              nombre: nombreRegistrado || null,
+              esperandoNombre: false,
+              categoria: "IMPRESIÓN 3D",
+              esperandoDetallesExtra: false,
+            });
             await enviarMensaje(
               numeroCliente,
-              "🖨️ *Impresión 3D Personalizada*\n\n" +
-                "Envía la imagen o referencia de lo que necesitas imprimir.\n\n" +
-                "En la descripción incluye:\n" +
-                "• *Medidas aproximadas* (alto x ancho x profundidad)\n" +
-                "• *Material preferido* (PLA, PETG, resina, etc.)\n" +
-                "• *Cantidad de piezas*\n" +
-                "• *Uso o función* del objeto\n\n" +
-                "_Si tienes archivo STL o diseño propio, menciónalo. ✨_",
+              `🖨️ *Impresión 3D — Diseño propio*\n\n` +
+                `Envía la imagen o referencia de lo que necesitas imprimir.\n\n` +
+                `En la descripción incluye:\n` +
+                `• *Medidas* (alto x ancho x profundidad en mm)\n` +
+                `• *Material* (PLA, PETG, resina, etc.)\n` +
+                `• *Cantidad de piezas*\n` +
+                `• *Uso o función* del objeto\n\n` +
+                `_Si tienes archivo STL menciónalo y lo recibimos por este medio. ✨_`,
+            );
+            break;
+
+          case "Ver catálogo 3D":
+            await setEstado(numeroCliente, {
+              nombre: nombreRegistrado || null,
+              esperandoNombre: false,
+              categoria: "IMPRESIÓN 3D",
+              esperandoDetallesExtra: false,
+            });
+            await enviarMensaje(
+              numeroCliente,
+              `🌐 *Catálogo de modelos 3D*\n\n` +
+                `Explora miles de diseños listos para imprimir en *MakerWorld*:\n\n` +
+                `👉 https://makerworld.com/es\n\n` +
+                `💡 *¿Cómo usarlo?*\n` +
+                `1. Entra al link y busca el diseño que te guste\n` +
+                `2. Toma una captura o copia el link del modelo\n` +
+                `3. Envíanosla aquí junto con:\n` +
+                `   • *Tamaño* que necesitas en cm\n` +
+                `   • *Material preferido* (PLA, PETG, resina)\n` +
+                `   • *Cantidad de piezas*\n` +
+                `   • *Color* si tienes preferencia\n\n` +
+                `_Nosotros nos encargamos de imprimirlo y entregártelo. ✨_`,
+            );
+            await delay(2000);
+            await enviarBotones(numeroCliente, `¿Ya elegiste tu modelo?`, [
+              "Ya elegí mi modelo",
+              "Hablar con Asesor",
+            ]);
+            break;
+
+          case "Ya elegí mi modelo":
+            await setEstado(numeroCliente, {
+              nombre: nombreRegistrado || null,
+              esperandoNombre: false,
+              categoria: "IMPRESIÓN 3D",
+              esperandoDetallesExtra: false,
+            });
+            await enviarMensaje(
+              numeroCliente,
+              `🖨️ *¡Perfecto!*\n\n` +
+                `Envíame la *captura o link* del modelo de MakerWorld junto con:\n\n` +
+                `• *Tamaño* en cm\n` +
+                `• *Material* (PLA, PETG, resina)\n` +
+                `• *Cantidad*\n` +
+                `• *Color* preferido\n\n` +
+                `_Con esos datos te enviamos la cotización. ✨_`,
             );
             break;
 
@@ -2580,6 +2669,38 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
+          case "Aceptar y pagar anticipo":
+            await enviarMensaje(
+              numeroCliente,
+              `✅ *¡Excelente!*\n\n` +
+                `Para completar tu anticipo usa cualquiera de estos métodos:\n\n` +
+                `💳 *Transferencia SPEI*\n` +
+                `• Solicita los datos a un asesor\n\n` +
+                `🏪 *Depósito OXXO / 7-Eleven*\n` +
+                `• Solicítalo a un asesor\n\n` +
+                `💵 *Efectivo*\n` +
+                `• En punto de entrega\n\n` +
+                `_Una vez confirmado el pago iniciamos producción inmediatamente. ✨_`,
+            );
+            await delay(1000);
+            await enviarBotones(numeroCliente, "¿Ya realizaste el pago?", [
+              "Ya pagué",
+              "Hablar con Asesor",
+            ]);
+            break;
+
+          case "Ya pagué":
+            await enviarMensaje(
+              numeroCliente,
+              `🙏 *¡Gracias!*\n\n` +
+                `Nuestro equipo verificará tu pago en breve y confirmaremos el inicio de producción. ✨`,
+            );
+            await enviarMensaje(
+              process.env.MY_PERSONAL_NUMBER,
+              `💰 *CLIENTE REPORTA PAGO*\n📱 wa.me/${numeroCliente}\n_Verificar y confirmar inicio de producción._`,
+            );
+            break;
+
           case "Ayuda":
             const estadoAyuda = await getEstado(numeroCliente);
             await enviarMensaje(
@@ -2728,6 +2849,70 @@ setInterval(
               `Error procesando recordatorio para ${ticket}:`,
               e.message,
             );
+          }
+          // Cotización formal — 4 días después de confirmar
+          const cotizacionEnviada = fila.get("Cotizacion_Enviada") || "";
+          const estadoProduccion2 = fila.get("Estado_Produccion") || "";
+
+          if (
+            estadoProduccion2 === "En Cola" &&
+            cotizacionEnviada !== "Enviada" &&
+            whatsapp &&
+            ticket
+          ) {
+            try {
+              const partesCot = fechaStr.split(",")[0].trim().split("/");
+              const fechaCot =
+                partesCot.length === 3
+                  ? new Date(`${partesCot[2]}-${partesCot[1]}-${partesCot[0]}`)
+                  : new Date(fechaStr);
+
+              const diasTranscurridos =
+                (ahora - fechaCot) / (1000 * 60 * 60 * 24);
+
+              if (diasTranscurridos >= 4 && diasTranscurridos < 5) {
+                const numeroWACot = whatsapp
+                  .replace("wa.me/", "")
+                  .replace(/\D/g, "");
+                const totalFila = fila.get("Total_a_Pagar") || "Por confirmar";
+                const tiempoFila =
+                  fila.get("Tiempo_Estimado") || "Por confirmar";
+                const categoriaFila =
+                  fila.get("Tipo_Servicio") ||
+                  fila.get("Producto") ||
+                  "Tu proyecto";
+
+                if (numeroWACot.length >= 10) {
+                  await enviarMensaje(
+                    numeroWACot,
+                    `📋 *Tu cotización está lista*\n\n` +
+                      `🆔 *Pedido:*\n\`${ticket}\`\n\n` +
+                      `📦 *Servicio:* ${categoriaFila}\n` +
+                      `💵 *Total:* ${totalFila}\n` +
+                      `⏱️ *Tiempo de entrega:* ${tiempoFila}\n\n` +
+                      `Para iniciar producción requerimos el *50% de anticipo*. ✨`,
+                  );
+                  await delay(1000);
+                  await enviarBotones(
+                    numeroWACot,
+                    `¿Deseas continuar con tu pedido?`,
+                    [
+                      "Aceptar y pagar anticipo",
+                      "Hablar con Asesor",
+                      "Cancelar Pedido",
+                    ],
+                  );
+                  fila.set("Cotizacion_Enviada", "Enviada");
+                  await fila.save();
+                  await enviarMensaje(
+                    process.env.MY_PERSONAL_NUMBER,
+                    `📋 *COTIZACIÓN ENVIADA*\n🆔 ${ticket}\n📱 wa.me/${numeroWACot}\n💵 ${totalFila}`,
+                  );
+                }
+              }
+            } catch (e) {
+              console.log(`Error cotización ${ticket}:`, e.message);
+            }
           }
         }
       }
