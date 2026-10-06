@@ -18,7 +18,7 @@ function estaFueraDeHorario() {
 
   const dia = horaMexico.getDay();
   const hora = horaMexico.getHours();
-  return dia === 0 || hora >= 23 || hora < 11;
+  return dia === 0 || hora >= 23 || hora < 9;
 }
 
 //Función retraso
@@ -945,14 +945,13 @@ async function generarPDFOrden(datos, pathDestino) {
         .fontSize(12)
         .font("Helvetica-Bold")
         .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
-      doc
+            doc
         .fontSize(10)
         .font("Helvetica")
-        .text("• Instagram: @lyn_shop1", 70, marketingY + 40)
-        //.text("• TikTok: @", 70, marketingY + 55)
-        .text("• Facebook: facebook.com/lyn_shopp.39", 70, marketingY + 70);
+        .text("• Instagram: @j3d_axis_studio", 70, marketingY + 40)
+        .text("• TikTok: @j3d_axis_studio", 70, marketingY + 55);
 
-      const qrData = `https://wa.me/${process.env.MY_PERSONAL_NUMBER}?text=Hola, quisiera informes de los productos`;
+      const qrData = `https://wa.me/${process.env.MY_PERSONAL_NUMBER}?text=Hola, quisiera cotizar un proyecto`;
       const qrImage = await QRCode.toDataURL(qrData);
       doc.image(qrImage, 430, marketingY + 10, { width: 100 });
 
@@ -1433,14 +1432,6 @@ app.post("/webhook", async (req, res) => {
               "historial",
             ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
-          const esSaludo = [
-            "gracias",
-            "muchas gracias",
-            "mil gracias",
-            "grax",
-            "grácias",
-          ].some((p) => textoCliente.includes(p));
-
           if (esSaludo) {
             const estadoGracias = await getEstado(numeroCliente);
 
@@ -1469,6 +1460,32 @@ app.post("/webhook", async (req, res) => {
             }
             return;
           }
+          
+        // Respuesta de cortesía al "gracias"
+        const esSaludo = ["gracias", "muchas gracias", "mil gracias", "grax"].some(p => textoCliente.includes(p));
+        if (esSaludo) {
+          const estadoGracias = await getEstado(numeroCliente);
+          if (estadoGracias?.ticket && estadoGracias?.esperandoDetallesExtra) {
+            await enviarBotones(
+              numeroCliente,
+              `🙏 *¡Gracias a ti!* Es un placer atenderte.\n\n¿Continuamos con tu pedido?`,
+              ["Confirmar Pedido", "Hablar con Asesor"]
+            );
+          } else if (estadoGracias?.ticket) {
+            await enviarBotones(
+              numeroCliente,
+              `🙏 *¡Gracias a ti por tu preferencia!* ❤️\n\nSi necesitas algo más aquí estamos.`,
+              ["Nuevo Pedido", "Mis Pedidos", "Inicio"]
+            );
+          } else {
+            await enviarBotones(
+              numeroCliente,
+              `🙏 *¡Gracias a ti!* Es un placer tenerte aquí. ✨\n\n¿En qué más podemos ayudarte?`,
+              ["Catalogo", "Precios", "Personalizar"]
+            );
+          }
+          return;
+        }
 
           // 🚫 Palabras sociales que NO deben guardarse como notas
           const esPalabraSocial = [
@@ -1700,15 +1717,25 @@ app.post("/webhook", async (req, res) => {
           }
 
           // Comando: anticipo PED-XXXX
-          if (textoCliente.startsWith("anticipo ")) {
+                    if (textoCliente.startsWith("anticipo ")) {
             const partes = textoCliente.split(" ");
             const ticketAnticipo = partes[1]?.toUpperCase();
-                      if (ticketAnticipo?.includes("PED-")) {
-            await actualizarEstadoCRM(ticketAnticipo, {
-              Estado_Pago: "Anticipo",
-              Estado_Anticipo: "Pagado",
-            });
-              await enviarMensaje(numeroCliente, `✅ Anticipo registrado para ${ticketAnticipo}`);
+            const montoAnticipo = partes[2] || null;
+
+            if (ticketAnticipo?.includes("PED-")) {
+              const datosActualizar = {
+                Estado_Pago: "Anticipo",
+                Estado_Anticipo: "Pagado",
+              };
+              // Si viene con monto actualiza también el total
+              if (montoAnticipo) {
+                datosActualizar.Total_a_Pagar = montoAnticipo;
+              }
+              await actualizarEstadoCRM(ticketAnticipo, datosActualizar);
+              await enviarMensaje(
+                numeroCliente,
+                `✅ Anticipo registrado para ${ticketAnticipo}${montoAnticipo ? ` — Monto: ${montoAnticipo}` : ""}`
+              );
               const filaAnticipo = await buscarFilaPorTicket(ticketAnticipo);
               if (filaAnticipo) {
                 const telAnticipo = (filaAnticipo.get("Whatsapp") || "").replace("wa.me/", "").replace(/\D/g, "");
@@ -1717,6 +1744,7 @@ app.post("/webhook", async (req, res) => {
                     telAnticipo,
                     `💰 *¡Anticipo recibido!*\n\n` +
                     `🆔 *Pedido:*\n\`${ticketAnticipo}\`\n\n` +
+                    `${montoAnticipo ? `💵 *Monto registrado:* ${montoAnticipo}\n\n` : ""}` +
                     `Hemos registrado tu anticipo. ¡Todo listo para comenzar! ⚙️\n\n` +
                     `Te avisamos cuando tu proyecto esté en producción. ✨`
                   );
@@ -2606,36 +2634,22 @@ app.post("/webhook", async (req, res) => {
                   `Orden_${ticketFinal}.pdf`,
                 );
 
-                await enviarMensaje(
+                               await enviarMensaje(
                   numeroCliente,
                   `✅ *¡Pedido Confirmado!* 🎉\n\n` +
-                    `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
-                    `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
-                    `📋 *Siguiente paso — Anticipo:*\n` +
-                    `Para iniciar producción requerimos un *anticipo del 50%* del total cotizado.\n\n` +
-                    `💳 *Formas de pago:*\n` +
-                    `• Transferencia SPEI\n` +
-                    `• Depósito OXXO\n` +
-                    `• Efectivo en punto de entrega\n\n` +
-                    `Tu número de pedido está en el siguiente mensaje para copiarlo fácilmente 👇`,
+                  `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
+                  `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
+                  `📋 *Siguiente paso — Anticipo:*\n` +
+                  `Para iniciar producción requerimos un *anticipo del 50%* del total cotizado.\n\n` +
+                  `Un asesor te contactará pronto con el monto exacto. ✨`,
                 );
                 await delay(500);
-                await enviarMensaje(numeroCliente, ticketFinal); // 👈 ticket solo
+                await enviarMensaje(numeroCliente, ticketFinal);
                 await delay(1500);
                 await enviarBotones(
                   numeroCliente,
-                  "¿Tienes alguna duda sobre tu pedido?",
-                  [
-                    {
-                      type: "reply",
-                      reply: {
-                        id: `CANCEL_${datosParaPDF?.ticket}`,
-                        title: "Cancelar Pedido",
-                      },
-                    },
-                    "Hablar con Asesor",
-                    "Inicio",
-                  ],
+                  `¿Cómo deseas proceder?`,
+                  ["Aceptar y pagar anticipo", "Hablar con Asesor", "Inicio"]
                 );
 
                 // Enviar calificación después de 4 segundos
