@@ -353,9 +353,12 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
       if (nuevosDatos.Estado_Pago) {
         fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
       }
-      if (nuevosDatos.Estado_Produccion) {
-        fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
-      }
+                  if (nuevosDatos.Estado_Anticipo) {
+              fila.set("Estado_Anticipo", nuevosDatos.Estado_Anticipo);
+            }
+            if (nuevosDatos.Total_a_Pagar) {
+              fila.set("Total_a_Pagar", nuevosDatos.Total_a_Pagar);
+            }
 
       // 3. GUARDADO (Crucial)
       await fila.save();
@@ -1710,8 +1713,11 @@ app.post("/webhook", async (req, res) => {
           if (textoCliente.startsWith("anticipo ")) {
             const partes = textoCliente.split(" ");
             const ticketAnticipo = partes[1]?.toUpperCase();
-            if (ticketAnticipo?.includes("PED-")) {
-              await actualizarEstadoCRM(ticketAnticipo, { Estado_Pago: "Anticipo" });
+                      if (ticketAnticipo?.includes("PED-")) {
+            await actualizarEstadoCRM(ticketAnticipo, {
+              Estado_Pago: "Anticipo",
+              Estado_Anticipo: "Pagado",
+            });
               await enviarMensaje(numeroCliente, `✅ Anticipo registrado para ${ticketAnticipo}`);
               const filaAnticipo = await buscarFilaPorTicket(ticketAnticipo);
               if (filaAnticipo) {
@@ -1894,6 +1900,20 @@ app.post("/webhook", async (req, res) => {
             numeroCliente,
             "¿En que podemos ayudarte formalmente?",
             ["Inicio", "Catalogo", "Personalizar"],
+          );
+          return;
+        }
+
+                // Si tiene pedido pendiente de confirmación, recordárselo
+        const estadoHola = await getEstado(numeroCliente);
+        if (estadoHola?.pendienteConfirmacion) {
+          await enviarBotones(
+            numeroCliente,
+            `📋 Tienes una solicitud pendiente de confirmar:\n\n` +
+            `🛠️ *Servicio:* ${estadoHola.categoria}\n` +
+            `📝 *Descripción:* ${estadoHola.detalles || "Sin descripción"}\n\n` +
+            `¿Qué deseas hacer?`,
+            ["Sí, continuar", "Corregir descripción", "Inicio"]
           );
           return;
         }
@@ -2201,7 +2221,8 @@ app.post("/webhook", async (req, res) => {
             ]);
             break;
 
-          case "Tallas":
+                    case "Tallas":
+          case "Ver especificaciones":
             await enviarMensaje(
               numeroCliente,
               `📐 *Especificaciones Técnicas*\n\n` +
@@ -2816,43 +2837,33 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-          case "Aceptar y pagar anticipo":
-            await enviarMensaje(
-              numeroCliente,
-              `✅ *¡Excelente!*\n\n` +
-                `Para completar tu anticipo usa cualquiera de estos métodos:\n\n` +
-                `💳 *Transferencia SPEI*\n` +
-                `• Solicita los datos a un asesor\n\n` +
-                `🏪 *Depósito OXXO / 7-Eleven*\n` +
-                `• Solicítalo a un asesor\n\n` +
-                `💵 *Efectivo*\n` +
-                `• En punto de entrega\n\n` +
-                `_Una vez confirmado el pago iniciamos producción inmediatamente. ✨_`,
-            );
-            await delay(1000);
-            await enviarBotones(numeroCliente, "¿Ya realizaste el pago?", [
-              "Ya pagué",
-              "Hablar con Asesor",
-            ]);
-            break;
+                    case "Aceptar y pagar anticipo":
+            const estadoAceptar = await getEstado(numeroCliente);
+            const ticketAceptar = estadoAceptar?.ticket || estadoAceptar?.ultimoTicket;
+            let montoAnticipo = "Por confirmar con asesor";
 
-          case "Ya pagué":
-            await enviarMensaje(
-              numeroCliente,
-              `🙏 *¡Gracias!*\n\n` +
-                `Nuestro equipo verificará tu pago en breve y confirmaremos el inicio de producción. ✨`,
-            );
-            await enviarMensaje(
-              process.env.MY_PERSONAL_NUMBER,
-              `💰 *CLIENTE REPORTA PAGO*\n📱 wa.me/${numeroCliente}\n_Verificar y confirmar inicio de producción._`,
-            );
-            break;
+            if (ticketAceptar) {
+              const filaAceptar = await buscarFilaPorTicket(ticketAceptar);
+              if (filaAceptar) {
+                const totalAceptar = filaAceptar.get("Total_a_Pagar") || "";
+                if (totalAceptar && totalAceptar !== "Por confirmar") {
+                  const matchMonto = totalAceptar.match(/[\d,.]+/);
+                  if (matchMonto) {
+                    const totalNum = parseFloat(matchMonto[0].replace(",", ""));
+                    montoAnticipo = `$${Math.round(totalNum * 0.5)} MXN`;
+                  }
+                }
+                // Actualizar Estado_Anticipo en Sheets
+                filaAceptar.set("Estado_Anticipo", "En proceso");
+                await filaAceptar.save();
+              }
+            }
 
-                      case "Aceptar y pagar anticipo":
             await enviarMensaje(
               numeroCliente,
               `✅ *¡Excelente decisión!*\n\n` +
-              `Para completar tu anticipo usa cualquiera de estos métodos:\n\n` +
+              `💵 *Monto del anticipo (50%):* ${montoAnticipo}\n\n` +
+              `Para completar tu pago usa cualquiera de estos métodos:\n\n` +
               `💳 *Transferencia SPEI*\n` +
               `• Solicita los datos a un asesor\n\n` +
               `🏪 *Depósito OXXO / 7-Eleven*\n` +
@@ -2866,6 +2877,18 @@ app.post("/webhook", async (req, res) => {
               numeroCliente,
               "¿Ya realizaste el pago?",
               ["Ya pagué", "Hablar con Asesor"]
+            );
+            break;
+
+          case "Ya pagué":
+            await enviarMensaje(
+              numeroCliente,
+              `🙏 *¡Gracias!*\n\n` +
+                `Nuestro equipo verificará tu pago en breve y confirmaremos el inicio de producción. ✨`,
+            );
+            await enviarMensaje(
+              process.env.MY_PERSONAL_NUMBER,
+              `💰 *CLIENTE REPORTA PAGO*\n📱 wa.me/${numeroCliente}\n_Verificar y confirmar inicio de producción._`,
             );
             break;
 
