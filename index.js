@@ -326,7 +326,6 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
       key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
-
     const doc = new GoogleSpreadsheet(
       process.env.GOOGLE_SHEET_ID,
       serviceAccountAuth,
@@ -335,32 +334,24 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
     const sheet = doc.sheetsByIndex[0];
     const filas = await sheet.getRows();
 
-    //Busca la fila que coincida con el ticket
     const fila = filas.find((f) => {
       const ticketEnSheet = String(f.get("Ticket")).trim().toUpperCase();
       const ticketBuscado = String(ticket).trim().toUpperCase();
-
       return ticketEnSheet === ticketBuscado;
     });
 
     if (fila) {
       console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
-
-      // LOG DE CONTROL: Ver que datos llegan
       console.log("Datos recibidos para actualizar:", nuevosDatos);
 
-      // 2. Aplicamos los cambios
-      if (nuevosDatos.Estado_Pago) {
-        fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
-      }
-                  if (nuevosDatos.Estado_Anticipo) {
-              fila.set("Estado_Anticipo", nuevosDatos.Estado_Anticipo);
-            }
-            if (nuevosDatos.Total_a_Pagar) {
-              fila.set("Total_a_Pagar", nuevosDatos.Total_a_Pagar);
-            }
+      if (nuevosDatos.Estado_Pago)       fila.set("Estado_Pago",       nuevosDatos.Estado_Pago);
+      if (nuevosDatos.Estado_Produccion) fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
+      if (nuevosDatos.Estado_Anticipo)   fila.set("Estado_Anticipo",   nuevosDatos.Estado_Anticipo);
+      if (nuevosDatos.Total_a_Pagar)     fila.set("Total_a_Pagar",     nuevosDatos.Total_a_Pagar);
+      if (nuevosDatos.Calificacion)      fila.set("Calificacion",      nuevosDatos.Calificacion);
+      if (nuevosDatos.Recordatorio)      fila.set("Recordatorio",      nuevosDatos.Recordatorio);
+      if (nuevosDatos.Estado)            fila.set("Estado_Produccion", nuevosDatos.Estado);
 
-      // 3. GUARDADO (Crucial)
       await fila.save();
       console.log("💾 Guardado en Sheets con éxito");
       return true;
@@ -526,7 +517,7 @@ async function consultarHistorialCRM(whatsapp) {
           partes.length === 3
             ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
             : new Date(fechaStr);
-        return fecha >= hace30dias && pago === "Pagado";
+        return fecha >= hace30dias && (pago === "Pagado" || pago === "Anticipo");
       } catch {
         return false;
       }
@@ -1481,7 +1472,6 @@ app.post("/webhook", async (req, res) => {
 
           // 🚫 Palabras sociales que NO deben guardarse como notas
           const esPalabraSocial = [
-            "gracias",
             "ok",
             "okay",
             "okey",
@@ -1741,7 +1731,9 @@ app.post("/webhook", async (req, res) => {
             const partes = textoCliente.split(" ");
             const ticketListo = partes[1]?.toUpperCase();
             if (ticketListo?.includes("PED-")) {
-              await actualizarEstadoCRM(ticketListo, { Estado_Produccion: "Listo" });
+              await actualizarEstadoCRM(ticketListo, {
+  Estado_Produccion: "Listo",
+});
               await enviarMensaje(numeroCliente, `✅ Pedido ${ticketListo} marcado como Listo`);
               const filaListo = await buscarFilaPorTicket(ticketListo);
               if (filaListo) {
@@ -1771,7 +1763,10 @@ app.post("/webhook", async (req, res) => {
             const partes = textoCliente.split(" ");
             const ticketEntregado = partes[1]?.toUpperCase();
             if (ticketEntregado?.includes("PED-")) {
-              await actualizarEstadoCRM(ticketEntregado, { Estado_Produccion: "Entregado" });
+              await actualizarEstadoCRM(ticketEntregado, {
+  Estado_Produccion: "Entregado",
+  Estado_Pago: "Pagado",
+});
               await enviarMensaje(numeroCliente, `✅ Pedido ${ticketEntregado} marcado como Entregado`);
               const filaEntregado = await buscarFilaPorTicket(ticketEntregado);
               if (filaEntregado) {
@@ -2837,7 +2832,7 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-                    case "Aceptar y pagar anticipo":
+                             case "Aceptar y pagar anticipo": {
             const estadoAceptar = await getEstado(numeroCliente);
             const ticketAceptar = estadoAceptar?.ticket || estadoAceptar?.ultimoTicket;
             let montoAnticipo = "Por confirmar con asesor";
@@ -2853,7 +2848,6 @@ app.post("/webhook", async (req, res) => {
                     montoAnticipo = `$${Math.round(totalNum * 0.5)} MXN`;
                   }
                 }
-                // Actualizar Estado_Anticipo en Sheets
                 filaAceptar.set("Estado_Anticipo", "En proceso");
                 await filaAceptar.save();
               }
@@ -2879,6 +2873,7 @@ app.post("/webhook", async (req, res) => {
               ["Ya pagué", "Hablar con Asesor"]
             );
             break;
+          }
 
           case "Ya pagué":
             await enviarMensaje(
@@ -2939,7 +2934,7 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-                      case "Sí, continuar":
+                               case "Sí, continuar":
             const estadoPendiente = await getEstado(numeroCliente);
             if (estadoPendiente?.pendienteConfirmacion && estadoPendiente?.imagenPendiente) {
               await setEstado(numeroCliente, {
@@ -2954,6 +2949,20 @@ app.post("/webhook", async (req, res) => {
                 estadoPendiente.imagenPendiente.comentarioImagen,
                 estadoPendiente.ticket,
               );
+              // 👇 AGREGAR ESTO
+              await delay(3000);
+              const estadoTrasProcess = await getEstado(numeroCliente);
+              await enviarBotones(
+                numeroCliente,
+                `✅ *¡Imagen procesada!*\n\n` +
+                `🆔 *Tu número de pedido:*\n\`${estadoPendiente.ticket}\`\n\n` +
+                `💡 *¿Tienes detalles extra?*\n` +
+                `Puedes escribir medidas, colores, material o cualquier especificación adicional ahora.\n\n` +
+                `O confirma tu pedido cuando estés listo. ✨`,
+                ["Confirmar Pedido", "Hablar con Asesor"]
+              );
+              await delay(500);
+              await enviarMensaje(numeroCliente, estadoPendiente.ticket);
             } else {
               await enviarBotones(
                 numeroCliente,
