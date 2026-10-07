@@ -344,13 +344,19 @@ async function actualizarEstadoCRM(ticket, nuevosDatos) {
       console.log(`✅ Fila encontrada. Actualizando ticket: ${ticket}`);
       console.log("Datos recibidos para actualizar:", nuevosDatos);
 
-      if (nuevosDatos.Estado_Pago)       fila.set("Estado_Pago",       nuevosDatos.Estado_Pago);
-      if (nuevosDatos.Estado_Produccion) fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
-      if (nuevosDatos.Estado_Anticipo)   fila.set("Estado_Anticipo",   nuevosDatos.Estado_Anticipo);
-      if (nuevosDatos.Total_a_Pagar)     fila.set("Total_a_Pagar",     nuevosDatos.Total_a_Pagar);
-      if (nuevosDatos.Calificacion)      fila.set("Calificacion",      nuevosDatos.Calificacion);
-      if (nuevosDatos.Recordatorio)      fila.set("Recordatorio",      nuevosDatos.Recordatorio);
-      if (nuevosDatos.Estado)            fila.set("Estado_Produccion", nuevosDatos.Estado);
+      if (nuevosDatos.Estado_Pago)
+        fila.set("Estado_Pago", nuevosDatos.Estado_Pago);
+      if (nuevosDatos.Estado_Produccion)
+        fila.set("Estado_Produccion", nuevosDatos.Estado_Produccion);
+      if (nuevosDatos.Estado_Anticipo)
+        fila.set("Estado_Anticipo", nuevosDatos.Estado_Anticipo);
+      if (nuevosDatos.Total_a_Pagar)
+        fila.set("Total_a_Pagar", nuevosDatos.Total_a_Pagar);
+      if (nuevosDatos.Calificacion)
+        fila.set("Calificacion", nuevosDatos.Calificacion);
+      if (nuevosDatos.Recordatorio)
+        fila.set("Recordatorio", nuevosDatos.Recordatorio);
+      if (nuevosDatos.Estado) fila.set("Estado_Produccion", nuevosDatos.Estado);
 
       await fila.save();
       console.log("💾 Guardado en Sheets con éxito");
@@ -517,7 +523,9 @@ async function consultarHistorialCRM(whatsapp) {
           partes.length === 3
             ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
             : new Date(fechaStr);
-        return fecha >= hace30dias && (pago === "Pagado" || pago === "Anticipo");
+        return (
+          fecha >= hace30dias && (pago === "Pagado" || pago === "Anticipo")
+        );
       } catch {
         return false;
       }
@@ -754,11 +762,14 @@ async function procesarPedidoDetallado(
     if (numerosFinales) cantidadDetectada = parseInt(numerosFinales[0]);
 
     // Tiempo estimado según servicio
-        // Calcular fecha real de entrega
-    const diasEntrega = cat.includes("IMPRESIÓN 3D") ? 5
-      : cat.includes("CORTE LÁSER") ? 4
-      : cat.includes("MODELADO 3D") ? 7
-      : 5;
+    // Calcular fecha real de entrega
+    const diasEntrega = cat.includes("IMPRESIÓN 3D")
+      ? 5
+      : cat.includes("CORTE LÁSER")
+        ? 4
+        : cat.includes("MODELADO 3D")
+          ? 7
+          : 5;
 
     const fechaEntrega = new Date();
     let diasContados = 0;
@@ -777,10 +788,10 @@ async function procesarPedidoDetallado(
     const tiempoEstimado = cat.includes("IMPRESIÓN 3D")
       ? `3 a 5 días hábiles (aprox. ${fechaEntregaStr})`
       : cat.includes("CORTE LÁSER")
-      ? `2 a 7 días hábiles (aprox. ${fechaEntregaStr})`
-      : cat.includes("MODELADO 3D")
-      ? `3 a 7 días hábiles (aprox. ${fechaEntregaStr})`
-      : `Por confirmar con asesor`;
+        ? `2 a 7 días hábiles (aprox. ${fechaEntregaStr})`
+        : cat.includes("MODELADO 3D")
+          ? `3 a 7 días hábiles (aprox. ${fechaEntregaStr})`
+          : `Por confirmar con asesor`;
 
     await setEstado(numeroCliente, {
       ...estadoActualPedido2,
@@ -945,7 +956,7 @@ async function generarPDFOrden(datos, pathDestino) {
         .fontSize(12)
         .font("Helvetica-Bold")
         .text("NUESTRAS REDES SOCIALES", 70, marketingY + 15);
-            doc
+      doc
         .fontSize(10)
         .font("Helvetica")
         .text("• Instagram: @j3d_axis_studio", 70, marketingY + 40)
@@ -1202,7 +1213,7 @@ app.post("/webhook", async (req, res) => {
             console.log("Duplicado detectado, ignorando...");
             return;
           }
-                   await setEstado(numeroCliente, {
+          await setEstado(numeroCliente, {
             ...estadoPrevioRegistrado,
             nombre: nombreRegistrado,
             ticket: ticketGenerado,
@@ -1223,16 +1234,16 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(
             numeroCliente,
             `📋 *Confirmemos tu solicitud:*\n\n` +
-            `🛠️ *Servicio:* ${estadoPrevioRegistrado.categoria}\n` +
-            `📝 *Descripción:* ${comentarioImagen || "Sin descripción"}\n\n` +
-            `¿Todo correcto o necesitas corregir algo?`,
-            ["Sí, continuar", "Corregir descripción"]
+              `🛠️ *Servicio:* ${estadoPrevioRegistrado.categoria}\n` +
+              `📝 *Descripción:* ${comentarioImagen || "Sin descripción"}\n\n` +
+              `¿Todo correcto o necesitas corregir algo?`,
+            ["Sí, continuar", "Corregir descripción"],
           );
           return;
         }
 
         //Guardamos el estado donde le cliente manda su foto y esperamos su nombre
-                await setEstado(numeroCliente, {
+        await setEstado(numeroCliente, {
           esperandoNombre: false,
           esperandoDetallesExtra: false,
           pendienteConfirmacion: true,
@@ -1252,10 +1263,10 @@ app.post("/webhook", async (req, res) => {
         await enviarBotones(
           numeroCliente,
           `📋 *Confirmemos tu solicitud:*\n\n` +
-          `🛠️ *Servicio:* ${estadoPrevio.categoria}\n` +
-          `📝 *Descripción:* ${comentarioImagen || "Sin descripción"}\n\n` +
-          `¿Todo correcto o necesitas corregir algo?`,
-          ["Sí, continuar", "Corregir descripción"]
+            `🛠️ *Servicio:* ${estadoPrevio.categoria}\n` +
+            `📝 *Descripción:* ${comentarioImagen || "Sin descripción"}\n\n` +
+            `¿Todo correcto o necesitas corregir algo?`,
+          ["Sí, continuar", "Corregir descripción"],
         );
         return;
       }
@@ -1315,14 +1326,13 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(
             numeroCliente,
             `📋 Tienes una solicitud pendiente de confirmar:\n\n` +
-            `🛠️ *Servicio:* ${estadoHola.categoria}\n` +
-            `📝 *Descripción:* ${estadoHola.detalles || "Sin descripción"}\n\n` +
-            `¿Qué deseas hacer?`,
-            ["Sí, continuar", "Corregir descripción", "Inicio"]
+              `🛠️ *Servicio:* ${estadoHola.categoria}\n` +
+              `📝 *Descripción:* ${estadoHola.detalles || "Sin descripción"}\n\n` +
+              `¿Qué deseas hacer?`,
+            ["Sí, continuar", "Corregir descripción", "Inicio"],
           );
           return;
         }
-
 
         // 🎯 PRIORIDAD 2: Historial de pedidos
         if (
@@ -1425,47 +1435,86 @@ app.post("/webhook", async (req, res) => {
           );
           return;
         }
-                       // ✅ Respuesta de cortesía al "gracias" — funciona en cualquier contexto
-        const esSaludo = ["gracias", "muchas gracias", "mil gracias", "grax"].some(
-          p => textoCliente.includes(p)
-        );
+        // ✅ Respuesta de cortesía al "gracias" — funciona en cualquier contexto
+        const esSaludo = [
+          "gracias",
+          "muchas gracias",
+          "mil gracias",
+          "grax",
+        ].some((p) => textoCliente.includes(p));
         if (esSaludo) {
           const estadoGracias = await getEstado(numeroCliente);
           if (estadoGracias?.esperandoDetallesExtra) {
             await enviarBotones(
               numeroCliente,
               `🙏 *¡Gracias a ti!* Es un placer atenderte.\n\n¿Continuamos con tu pedido?`,
-              ["Confirmar Pedido", "Hablar con Asesor"]
+              ["Confirmar Pedido", "Hablar con Asesor"],
             );
           } else if (estadoGracias?.ticket) {
             await enviarBotones(
               numeroCliente,
               `🙏 *¡Gracias a ti por tu preferencia!* ❤️\n\nSi necesitas algo más aquí estamos.`,
-              ["Nuevo Pedido", "Mis Pedidos", "Inicio"]
+              ["Nuevo Pedido", "Mis Pedidos", "Inicio"],
             );
           } else {
             await enviarBotones(
               numeroCliente,
               `🙏 *¡Gracias a ti!* Es un placer tenerte aquí. ✨\n\n¿En qué más podemos ayudarte?`,
-              ["Catalogo", "Precios", "Personalizar"]
+              ["Catalogo", "Precios", "Personalizar"],
             );
           }
           return;
         }
 
-        if (estadoTexto?.esperandoDetallesExtra && !estadoTexto?.esperandoNombre) {
-          const esComando = [
-            "hola", "inicio", "catalogo", "catálogo", "personalizar",
-            "confirmar pedido", "tallas", "precios", "reiniciar", "cancelar",
-            "mis pedidos", "mis compras", "historial",
-          ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
+        if (
+          estadoTexto?.esperandoDetallesExtra &&
+          !estadoTexto?.esperandoNombre
+        ) {
+          const esComando =
+            [
+              "hola",
+              "inicio",
+              "catalogo",
+              "catálogo",
+              "personalizar",
+              "confirmar pedido",
+              "tallas",
+              "precios",
+              "reiniciar",
+              "cancelar",
+              "mis pedidos",
+              "mis compras",
+              "historial",
+            ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
 
           // 🚫 Palabras sociales
           const esPalabraSocial = [
-            "ok", "okay", "okey", "entendido", "perfecto", "listo",
-            "de acuerdo", "dale", "claro", "si", "sí", "no", "excelente",
-            "bien", "genial", "👍", "😊", "🙏", "❤️", "jaja", "jajaja",
-            "👌", "bueno", "sale", "va", "ya",
+            "ok",
+            "okay",
+            "okey",
+            "entendido",
+            "perfecto",
+            "listo",
+            "de acuerdo",
+            "dale",
+            "claro",
+            "si",
+            "sí",
+            "no",
+            "excelente",
+            "bien",
+            "genial",
+            "👍",
+            "😊",
+            "🙏",
+            "❤️",
+            "jaja",
+            "jajaja",
+            "👌",
+            "bueno",
+            "sale",
+            "va",
+            "ya",
           ].includes(textoCliente);
 
           if (esPalabraSocial) {
@@ -1605,29 +1654,36 @@ app.post("/webhook", async (req, res) => {
           );
           return;
         }
-        
+
         // ==========================================
         // COMANDOS DEL ADMINISTRADOR
         // ==========================================
         if (numeroCliente === process.env.MY_PERSONAL_NUMBER) {
-
           // Comando: pago PED-XXXX o pagado PED-XXXX
-          if (textoCliente.startsWith("pago ") || textoCliente.startsWith("pagado ")) {
+          if (
+            textoCliente.startsWith("pago ") ||
+            textoCliente.startsWith("pagado ")
+          ) {
             const partes = textoCliente.split(" ");
             const ticketPago = partes[1]?.toUpperCase();
             if (ticketPago?.includes("PED-")) {
               await actualizarEstadoCRM(ticketPago, { Estado_Pago: "Pagado" });
-              await enviarMensaje(numeroCliente, `✅ Pago registrado para ${ticketPago}`);
+              await enviarMensaje(
+                numeroCliente,
+                `✅ Pago registrado para ${ticketPago}`,
+              );
               const filaCliente = await buscarFilaPorTicket(ticketPago);
               if (filaCliente) {
-                const telCliente = (filaCliente.get("Whatsapp") || "").replace("wa.me/", "").replace(/\D/g, "");
+                const telCliente = (filaCliente.get("Whatsapp") || "")
+                  .replace("wa.me/", "")
+                  .replace(/\D/g, "");
                 if (telCliente.length >= 10) {
                   await enviarMensaje(
                     telCliente,
                     `💰 *¡Pago confirmado!*\n\n` +
-                    `🆔 *Pedido:*\n\`${ticketPago}\`\n\n` +
-                    `Tu pago ha sido registrado. ¡Iniciamos producción de inmediato! ⚙️\n\n` +
-                    `Te notificaremos cuando tu proyecto esté listo. ✨`
+                      `🆔 *Pedido:*\n\`${ticketPago}\`\n\n` +
+                      `Tu pago ha sido registrado. ¡Iniciamos producción de inmediato! ⚙️\n\n` +
+                      `Te notificaremos cuando tu proyecto esté listo. ✨`,
                   );
                 }
               }
@@ -1636,7 +1692,7 @@ app.post("/webhook", async (req, res) => {
           }
 
           // Comando: anticipo PED-XXXX
-                    if (textoCliente.startsWith("anticipo ")) {
+          if (textoCliente.startsWith("anticipo ")) {
             const partes = textoCliente.split(" ");
             const ticketAnticipo = partes[1]?.toUpperCase();
             const montoAnticipo = partes[2] || null;
@@ -1653,19 +1709,21 @@ app.post("/webhook", async (req, res) => {
               await actualizarEstadoCRM(ticketAnticipo, datosActualizar);
               await enviarMensaje(
                 numeroCliente,
-                `✅ Anticipo registrado para ${ticketAnticipo}${montoAnticipo ? ` — Monto: ${montoAnticipo}` : ""}`
+                `✅ Anticipo registrado para ${ticketAnticipo}${montoAnticipo ? ` — Monto: ${montoAnticipo}` : ""}`,
               );
               const filaAnticipo = await buscarFilaPorTicket(ticketAnticipo);
               if (filaAnticipo) {
-                const telAnticipo = (filaAnticipo.get("Whatsapp") || "").replace("wa.me/", "").replace(/\D/g, "");
+                const telAnticipo = (filaAnticipo.get("Whatsapp") || "")
+                  .replace("wa.me/", "")
+                  .replace(/\D/g, "");
                 if (telAnticipo.length >= 10) {
                   await enviarMensaje(
                     telAnticipo,
                     `💰 *¡Anticipo recibido!*\n\n` +
-                    `🆔 *Pedido:*\n\`${ticketAnticipo}\`\n\n` +
-                    `${montoAnticipo ? `💵 *Monto registrado:* ${montoAnticipo}\n\n` : ""}` +
-                    `Hemos registrado tu anticipo. ¡Todo listo para comenzar! ⚙️\n\n` +
-                    `Te avisamos cuando tu proyecto esté en producción. ✨`
+                      `🆔 *Pedido:*\n\`${ticketAnticipo}\`\n\n` +
+                      `${montoAnticipo ? `💵 *Monto registrado:* ${montoAnticipo}\n\n` : ""}` +
+                      `Hemos registrado tu anticipo. ¡Todo listo para comenzar! ⚙️\n\n` +
+                      `Te avisamos cuando tu proyecto esté en producción. ✨`,
                   );
                 }
               }
@@ -1679,25 +1737,29 @@ app.post("/webhook", async (req, res) => {
             const ticketListo = partes[1]?.toUpperCase();
             if (ticketListo?.includes("PED-")) {
               await actualizarEstadoCRM(ticketListo, {
-  Estado_Produccion: "Listo",
-});
-              await enviarMensaje(numeroCliente, `✅ Pedido ${ticketListo} marcado como Listo`);
+                Estado_Produccion: "Listo",
+              });
+              await enviarMensaje(
+                numeroCliente,
+                `✅ Pedido ${ticketListo} marcado como Listo`,
+              );
               const filaListo = await buscarFilaPorTicket(ticketListo);
               if (filaListo) {
-                const telListo = (filaListo.get("Whatsapp") || "").replace("wa.me/", "").replace(/\D/g, "");
+                const telListo = (filaListo.get("Whatsapp") || "")
+                  .replace("wa.me/", "")
+                  .replace(/\D/g, "");
                 if (telListo.length >= 10) {
                   await enviarMensaje(
                     telListo,
                     `📦 *¡Tu proyecto está listo!*\n\n` +
-                    `🆔 *Pedido:*\n\`${ticketListo}\`\n\n` +
-                    `Tu proyecto ha sido completado y está listo para entrega. ✨\n\n` +
-                    `Coordina la entrega con nuestro equipo.`
+                      `🆔 *Pedido:*\n\`${ticketListo}\`\n\n` +
+                      `Tu proyecto ha sido completado y está listo para entrega. ✨\n\n` +
+                      `Coordina la entrega con nuestro equipo.`,
                   );
-                  await enviarBotones(
-                    telListo,
-                    `¿Cómo prefieres recibirlo?`,
-                    ["Hablar con Asesor", "Mis Pedidos"]
-                  );
+                  await enviarBotones(telListo, `¿Cómo prefieres recibirlo?`, [
+                    "Hablar con Asesor",
+                    "Mis Pedidos",
+                  ]);
                 }
               }
             }
@@ -1710,25 +1772,30 @@ app.post("/webhook", async (req, res) => {
             const ticketEntregado = partes[1]?.toUpperCase();
             if (ticketEntregado?.includes("PED-")) {
               await actualizarEstadoCRM(ticketEntregado, {
-  Estado_Produccion: "Entregado",
-  Estado_Pago: "Pagado",
-});
-              await enviarMensaje(numeroCliente, `✅ Pedido ${ticketEntregado} marcado como Entregado`);
+                Estado_Produccion: "Entregado",
+                Estado_Pago: "Pagado",
+              });
+              await enviarMensaje(
+                numeroCliente,
+                `✅ Pedido ${ticketEntregado} marcado como Entregado`,
+              );
               const filaEntregado = await buscarFilaPorTicket(ticketEntregado);
               if (filaEntregado) {
-                const telEntregado = (filaEntregado.get("Whatsapp") || "").replace("wa.me/", "").replace(/\D/g, "");
+                const telEntregado = (filaEntregado.get("Whatsapp") || "")
+                  .replace("wa.me/", "")
+                  .replace(/\D/g, "");
                 if (telEntregado.length >= 10) {
                   await enviarMensaje(
                     telEntregado,
                     `🎉 *¡Tu proyecto fue entregado!*\n\n` +
-                    `Gracias por confiar en *J-3D Axis Studio*. ` +
-                    `Esperamos que estés muy satisfecho con el resultado. ✨`
+                      `Gracias por confiar en *J-3D Axis Studio*. ` +
+                      `Esperamos que estés muy satisfecho con el resultado. ✨`,
                   );
                   // Guardar fecha de entrega para encuesta 48hrs después
                   await redis.set(
                     `encuesta:${telEntregado}`,
                     ticketEntregado,
-                    { ex: 60 * 60 * 72 } // expira en 72 horas
+                    { ex: 60 * 60 * 72 }, // expira en 72 horas
                   );
                 }
               }
@@ -1742,28 +1809,41 @@ app.post("/webhook", async (req, res) => {
             const ticketCotizar = partes[1]?.toUpperCase();
             const montoCotizar = partes[2] || "Por confirmar";
             if (ticketCotizar?.includes("PED-")) {
-              await actualizarEstadoCRM(ticketCotizar, { Total_a_Pagar: montoCotizar });
-              await enviarMensaje(numeroCliente, `✅ Cotización actualizada para ${ticketCotizar}: ${montoCotizar}`);
+              await actualizarEstadoCRM(ticketCotizar, {
+                Total_a_Pagar: montoCotizar,
+              });
+              await enviarMensaje(
+                numeroCliente,
+                `✅ Cotización actualizada para ${ticketCotizar}: ${montoCotizar}`,
+              );
               const filaCotizar = await buscarFilaPorTicket(ticketCotizar);
               if (filaCotizar) {
-                const telCotizar = (filaCotizar.get("Whatsapp") || "").replace("wa.me/", "").replace(/\D/g, "");
-                const tiempoCotizar = filaCotizar.get("Tiempo_Estimado") || "Por confirmar";
-                const catCotizar = filaCotizar.get("Tipo_Servicio") || "Tu proyecto";
+                const telCotizar = (filaCotizar.get("Whatsapp") || "")
+                  .replace("wa.me/", "")
+                  .replace(/\D/g, "");
+                const tiempoCotizar =
+                  filaCotizar.get("Tiempo_Estimado") || "Por confirmar";
+                const catCotizar =
+                  filaCotizar.get("Tipo_Servicio") || "Tu proyecto";
                 if (telCotizar.length >= 10) {
                   await enviarMensaje(
                     telCotizar,
                     `📋 *Tu cotización está lista*\n\n` +
-                    `🆔 *Pedido:*\n\`${ticketCotizar}\`\n\n` +
-                    `📦 *Servicio:* ${catCotizar}\n` +
-                    `💵 *Total:* ${montoCotizar}\n` +
-                    `⏱️ *Tiempo estimado:* ${tiempoCotizar}\n\n` +
-                    `Para iniciar producción requerimos el *50% de anticipo*. ✨`
+                      `🆔 *Pedido:*\n\`${ticketCotizar}\`\n\n` +
+                      `📦 *Servicio:* ${catCotizar}\n` +
+                      `💵 *Total:* ${montoCotizar}\n` +
+                      `⏱️ *Tiempo estimado:* ${tiempoCotizar}\n\n` +
+                      `Para iniciar producción requerimos el *50% de anticipo*. ✨`,
                   );
                   await delay(1000);
                   await enviarBotones(
                     telCotizar,
                     `¿Deseas continuar con tu pedido?`,
-                    ["Aceptar y pagar anticipo", "Hablar con Asesor", "Cancelar Pedido"]
+                    [
+                      "Aceptar y pagar anticipo",
+                      "Hablar con Asesor",
+                      "Cancelar Pedido",
+                    ],
                   );
                 }
               }
@@ -1771,7 +1851,7 @@ app.post("/webhook", async (req, res) => {
             return;
           }
         }
-        
+
         //Cancelacion de Pedido
         if (textoCliente.startsWith("cancelar")) {
           const ticketACancelar = textoCliente
@@ -2082,11 +2162,8 @@ app.post("/webhook", async (req, res) => {
         let nombreRegistrado;
 
         switch (resBtn) {
-          case "Inicio":
           case "Hola":
           case "Menu":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
             await enviarBotones(
               numeroCliente,
               "🏠 *Menu Principal*\nBienvenido a nuestro centro de atención. ¿Que deseas consultar?",
@@ -2147,7 +2224,7 @@ app.post("/webhook", async (req, res) => {
             ]);
             break;
 
-                    case "Tallas":
+          case "Tallas":
           case "Ver especificaciones":
             await enviarMensaje(
               numeroCliente,
@@ -2537,23 +2614,23 @@ app.post("/webhook", async (req, res) => {
                   `Orden_${ticketFinal}.pdf`,
                 );
 
-                               await enviarMensaje(
+                await enviarMensaje(
                   numeroCliente,
                   `✅ *¡Pedido Confirmado!* 🎉\n\n` +
-                  `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
-                  `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
-                  `📋 *Siguiente paso — Anticipo:*\n` +
-                  `Para iniciar producción requerimos un *anticipo del 50%* del total cotizado.\n\n` +
-                  `Un asesor te contactará pronto con el monto exacto. ✨`,
+                    `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
+                    `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
+                    `📋 *Siguiente paso — Anticipo:*\n` +
+                    `Para iniciar producción requerimos un *anticipo del 50%* del total cotizado.\n\n` +
+                    `Un asesor te contactará pronto con el monto exacto. ✨`,
                 );
                 await delay(500);
                 await enviarMensaje(numeroCliente, ticketFinal);
                 await delay(1500);
-                await enviarBotones(
-                  numeroCliente,
-                  `¿Cómo deseas proceder?`,
-                  ["Aceptar y pagar anticipo", "Hablar con Asesor", "Inicio"]
-                );
+                await enviarBotones(numeroCliente, `¿Cómo deseas proceder?`, [
+                  "Aceptar y pagar anticipo",
+                  "Hablar con Asesor",
+                  "Inicio",
+                ]);
 
                 // Enviar calificación después de 4 segundos
                 await delay(4000);
@@ -2650,8 +2727,8 @@ app.post("/webhook", async (req, res) => {
                 `Nos alegra mucho saber que tuviste una excelente experiencia. ` +
                 `Tu confianza es lo que nos motiva a seguir mejorando cada día. ❤️\n\n` +
                 `No olvides seguirnos en redes:\n` +
-                `📸 Instagram: @lyn_shop1\n` +
-                `👍 Facebook: facebook.com/lyn_shopp.39`,
+                `📸 Instagram: @j3d_axis_studio\n` +
+                `🎵 TikTok: @j3d_axis_studio`,
             );
             await delay(1000);
             await enviarBotones(
@@ -2749,46 +2826,74 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-                                    case "Aceptar y pagar anticipo": {
+          case "Aceptar y pagar anticipo": {
             const estadoAceptar = await getEstado(numeroCliente);
-            const ticketAceptar = estadoAceptar?.ticket || estadoAceptar?.ultimoTicket;
+            const ticketAceptar =
+              estadoAceptar?.ticket || estadoAceptar?.ultimoTicket;
             let montoAnticipo = "Por confirmar con asesor";
+            let filaAceptar = null;
 
             if (ticketAceptar) {
-              const filaAceptar = await buscarFilaPorTicket(ticketAceptar);
-              if (filaAceptar) {
-                const totalAceptar = filaAceptar.get("Total_a_Pagar") || "";
-                if (totalAceptar && totalAceptar !== "Por confirmar") {
-                  const matchMonto = totalAceptar.match(/[\d,.]+/);
-                  if (matchMonto) {
-                    const totalNum = parseFloat(matchMonto[0].replace(",", ""));
-                    montoAnticipo = `$${Math.round(totalNum * 0.5)} MXN`;
-                  }
+              filaAceptar = await buscarFilaPorTicket(ticketAceptar);
+            } else {
+              // Buscar el pedido más reciente del cliente en Sheets directamente
+              try {
+                const serviceAccountAuth = new JWT({
+                  email: process.env.GOOGLE_CLIENT_EMAIL,
+                  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+                  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+                });
+                const doc = new GoogleSpreadsheet(
+                  process.env.GOOGLE_SHEET_ID,
+                  serviceAccountAuth,
+                );
+                await doc.loadInfo();
+                const sheet = doc.sheetsByIndex[0];
+                const filas = await sheet.getRows();
+                const telCliente = numeroCliente.replace(/\D/g, "");
+                const pedidosCliente = filas.filter((f) => {
+                  const wa = (f.get("Whatsapp") || "").replace(/\D/g, "");
+                  return wa.length >= 10 && telCliente.endsWith(wa.slice(-10));
+                });
+                if (pedidosCliente.length > 0) {
+                  filaAceptar = pedidosCliente[pedidosCliente.length - 1];
                 }
-                filaAceptar.set("Estado_Anticipo", "En proceso");
-                await filaAceptar.save();
+              } catch (e) {
+                console.log("Error buscando pedido:", e.message);
               }
+            }
+
+            if (filaAceptar) {
+              const totalAceptar = filaAceptar.get("Total_a_Pagar") || "";
+              if (totalAceptar && totalAceptar !== "Por confirmar") {
+                const matchMonto = totalAceptar.match(/[\d,.]+/);
+                if (matchMonto) {
+                  const totalNum = parseFloat(matchMonto[0].replace(",", ""));
+                  montoAnticipo = `$${Math.round(totalNum * 0.5)} MXN`;
+                }
+              }
+              filaAceptar.set("Estado_Anticipo", "En proceso");
+              await filaAceptar.save();
             }
 
             await enviarMensaje(
               numeroCliente,
               `✅ *¡Excelente decisión!*\n\n` +
-              `💵 *Monto del anticipo (50%):* ${montoAnticipo}\n\n` +
-              `Para completar tu pago usa cualquiera de estos métodos:\n\n` +
-              `💳 *Transferencia SPEI*\n` +
-              `• Solicita los datos a un asesor\n\n` +
-              `🏪 *Depósito OXXO / 7-Eleven*\n` +
-              `• Solicítalo a un asesor\n\n` +
-              `💵 *Efectivo*\n` +
-              `• En punto de entrega\n\n` +
-              `_Una vez confirmado el pago iniciamos producción inmediatamente. ✨_`
+                `💵 *Monto del anticipo (50%):* ${montoAnticipo}\n\n` +
+                `Para completar tu pago usa cualquiera de estos métodos:\n\n` +
+                `💳 *Transferencia SPEI*\n` +
+                `• Solicita los datos a un asesor\n\n` +
+                `🏪 *Depósito OXXO / 7-Eleven*\n` +
+                `• Solicítalo a un asesor\n\n` +
+                `💵 *Efectivo*\n` +
+                `• En punto de entrega\n\n` +
+                `_Una vez confirmado el pago iniciamos producción inmediatamente. ✨_`,
             );
             await delay(1000);
-            await enviarBotones(
-              numeroCliente,
-              "¿Ya realizaste el pago?",
-              ["Ya pagué", "Hablar con Asesor"]
-            );
+            await enviarBotones(numeroCliente, "¿Ya realizaste el pago?", [
+              "Ya pagué",
+              "Hablar con Asesor",
+            ]);
             break;
           }
 
@@ -2796,14 +2901,14 @@ app.post("/webhook", async (req, res) => {
             await enviarMensaje(
               numeroCliente,
               `🙏 *¡Gracias!*\n\n` +
-              `Nuestro equipo verificará tu pago en breve y te confirmamos ` +
-              `el inicio de producción. ✨`
+                `Nuestro equipo verificará tu pago en breve y te confirmamos ` +
+                `el inicio de producción. ✨`,
             );
             await enviarMensaje(
               process.env.MY_PERSONAL_NUMBER,
               `💰 *CLIENTE REPORTA PAGO*\n` +
-              `📱 wa.me/${numeroCliente}\n` +
-              `_Verificar pago y confirmar inicio de producción._`
+                `📱 wa.me/${numeroCliente}\n` +
+                `_Verificar pago y confirmar inicio de producción._`,
             );
             break;
 
@@ -2839,31 +2944,34 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-                               case "Sí, continuar":
+          case "Sí, continuar":
             const estadoPendiente = await getEstado(numeroCliente);
-            if (estadoPendiente?.pendienteConfirmacion && estadoPendiente?.imagenPendiente) {
+            if (
+              estadoPendiente?.pendienteConfirmacion &&
+              estadoPendiente?.imagenPendiente
+            ) {
               await setEstado(numeroCliente, {
                 ...estadoPendiente,
                 pendienteConfirmacion: false,
                 esperandoDetallesExtra: true,
               });
-                            await procesarPedidoDetallado(
+              await procesarPedidoDetallado(
                 estadoPendiente.nombre || "Pendiente",
                 numeroCliente,
                 estadoPendiente.imagenPendiente.idDeLaImagen,
                 estadoPendiente.imagenPendiente.comentarioImagen,
                 estadoPendiente.ticket,
               );
-              await delay(45000); // Esperar que termine procesarPedidoDetallado
+              await delay(3000); // Esperar que termine procesarPedidoDetallado
               const estadoTrasProcess = await getEstado(numeroCliente);
               await enviarBotones(
                 numeroCliente,
                 `✅ *¡Imagen procesada!*\n\n` +
-                `🆔 *Tu número de pedido:*\n\`${estadoPendiente.ticket}\`\n\n` +
-                `💡 *¿Tienes detalles extra?*\n` +
-                `Puedes escribir medidas, colores, material o cualquier especificación adicional ahora.\n\n` +
-                `O confirma tu pedido cuando estés listo. ✨`,
-                ["Confirmar Pedido", "Hablar con Asesor"]
+                  `🆔 *Tu número de pedido:*\n\`${estadoPendiente.ticket}\`\n\n` +
+                  `💡 *¿Tienes detalles extra?*\n` +
+                  `Puedes escribir medidas, colores, material o cualquier especificación adicional ahora.\n\n` +
+                  `O confirma tu pedido cuando estés listo. ✨`,
+                ["Confirmar Pedido", "Hablar con Asesor"],
               );
               await delay(500);
               await enviarMensaje(numeroCliente, estadoPendiente.ticket);
@@ -2871,7 +2979,7 @@ app.post("/webhook", async (req, res) => {
               await enviarBotones(
                 numeroCliente,
                 "No encontré una solicitud pendiente. ¿Iniciamos un nuevo pedido?",
-                ["Personalizar", "Inicio"]
+                ["Personalizar", "Inicio"],
               );
             }
             break;
@@ -2886,18 +2994,17 @@ app.post("/webhook", async (req, res) => {
             await enviarMensaje(
               numeroCliente,
               `✏️ *Sin problema.* Vuelve a enviar la imagen con la descripción corregida.\n\n` +
-              `Recuerda incluir:\n` +
-              `• Tipo de servicio (impresión 3D, corte láser, modelado)\n` +
-              `• Medidas aproximadas\n` +
-              `• Cantidad\n` +
-              `• Material si aplica`
+                `Recuerda incluir:\n` +
+                `• Tipo de servicio (impresión 3D, corte láser, modelado)\n` +
+                `• Medidas aproximadas\n` +
+                `• Cantidad\n` +
+                `• Material si aplica`,
             );
             await delay(1000);
-            await enviarBotones(
-              numeroCliente,
-              "¿Necesitas ayuda?",
-              ["Ver especificaciones", "Hablar con Asesor"]
-            );
+            await enviarBotones(numeroCliente, "¿Necesitas ayuda?", [
+              "Ver especificaciones",
+              "Hablar con Asesor",
+            ]);
             break;
 
           case "ESPERANDO_DETALLES":
@@ -2925,24 +3032,24 @@ app.post("/webhook", async (req, res) => {
             );
             break;
 
-                      case "Todo perfecto 🌟":
+          case "Todo perfecto 🌟":
             await enviarMensaje(
               numeroCliente,
               `🌟 *¡Nos alegra mucho escuchar eso!*\n\n` +
-              `Tu satisfacción es nuestra mayor motivación. ` +
-              `Si en algún momento necesitas otro proyecto no dudes en escribirnos. ✨\n\n` +
-              `📸 *¿Nos compartes una foto del resultado?*\n` +
-              `Nos encantaría ver cómo quedó y compartirlo en nuestras redes.`
+                `Tu satisfacción es nuestra mayor motivación. ` +
+                `Si en algún momento necesitas otro proyecto no dudes en escribirnos. ✨\n\n` +
+                `📸 *¿Nos compartes una foto del resultado?*\n` +
+                `Nos encantaría ver cómo quedó y compartirlo en nuestras redes.`,
             );
             await delay(1000);
             await enviarBotones(
               numeroCliente,
               `¿Te gustaría hacer otro proyecto?`,
-              ["Nuevo Pedido", "Inicio"]
+              ["Nuevo Pedido", "Inicio"],
             );
             await enviarMensaje(
               process.env.MY_PERSONAL_NUMBER,
-              `🌟 *CLIENTE SATISFECHO*\n📱 wa.me/${numeroCliente}\n_Pedido completado exitosamente._`
+              `🌟 *CLIENTE SATISFECHO*\n📱 wa.me/${numeroCliente}\n_Pedido completado exitosamente._`,
             );
             break;
 
@@ -2950,12 +3057,12 @@ app.post("/webhook", async (req, res) => {
             await enviarMensaje(
               numeroCliente,
               `📝 *¡Gracias por tomarte el tiempo!*\n\n` +
-              `Tu comentario nos ayuda a mejorar. ` +
-              `Escríbenos aquí lo que piensas y un asesor lo revisará. ✨`
+                `Tu comentario nos ayuda a mejorar. ` +
+                `Escríbenos aquí lo que piensas y un asesor lo revisará. ✨`,
             );
             await enviarMensaje(
               process.env.MY_PERSONAL_NUMBER,
-              `📝 *CLIENTE TIENE COMENTARIO*\n📱 wa.me/${numeroCliente}\n_Revisar conversación._`
+              `📝 *CLIENTE TIENE COMENTARIO*\n📱 wa.me/${numeroCliente}\n_Revisar conversación._`,
             );
             break;
 
@@ -2963,17 +3070,17 @@ app.post("/webhook", async (req, res) => {
             await enviarMensaje(
               numeroCliente,
               `😟 *Lamentamos mucho escuchar eso.*\n\n` +
-              `Queremos resolverlo lo antes posible. ` +
-              `Un asesor se pondrá en contacto contigo en breve para ayudarte. ✨`
+                `Queremos resolverlo lo antes posible. ` +
+                `Un asesor se pondrá en contacto contigo en breve para ayudarte. ✨`,
             );
             await enviarBotones(
               numeroCliente,
               `¿Deseas que te contactemos ahora?`,
-              ["Hablar con Asesor", "Inicio"]
+              ["Hablar con Asesor", "Inicio"],
             );
             await enviarMensaje(
               process.env.MY_PERSONAL_NUMBER,
-              `🚨 *PROBLEMA POST-ENTREGA*\n📱 wa.me/${numeroCliente}\n_Atender urgente — cliente reporta problema con su proyecto._`
+              `🚨 *PROBLEMA POST-ENTREGA*\n📱 wa.me/${numeroCliente}\n_Atender urgente — cliente reporta problema con su proyecto._`,
             );
             break;
         }
@@ -3036,11 +3143,14 @@ setInterval(
         let fechaPedido;
         try {
           const partes = fechaStr.split(",")[0].trim().split("/");
-          fechaPedido = partes.length === 3
-            ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
-            : new Date(fechaStr);
+          fechaPedido =
+            partes.length === 3
+              ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
+              : new Date(fechaStr);
           if (isNaN(fechaPedido)) continue;
-        } catch { continue; }
+        } catch {
+          continue;
+        }
 
         const horasTranscurridas = (ahora - fechaPedido) / (1000 * 60 * 60);
         const diasTranscurridos = horasTranscurridas / 24;
@@ -3057,10 +3167,10 @@ setInterval(
             await enviarMensaje(
               numeroWA,
               `👋 *¡Hola!* Te escribimos de *J-3D Axis Studio*.\n\n` +
-              `Tu pedido *\`${ticket}\`* está listo para iniciar producción.\n\n` +
-              `Recuerda que necesitamos el *anticipo del 50%* para comenzar. ` +
-              `Si ya realizaste el pago ignora este mensaje o escríbenos.\n\n` +
-              `¿Tienes alguna duda? Estamos aquí. ✨`
+                `Tu pedido *\`${ticket}\`* está listo para iniciar producción.\n\n` +
+                `Recuerda que necesitamos el *anticipo del 50%* para comenzar. ` +
+                `Si ya realizaste el pago ignora este mensaje o escríbenos.\n\n` +
+                `¿Tienes alguna duda? Estamos aquí. ✨`,
             );
             fila.set("Recordatorio", "Enviado");
             await fila.save();
@@ -3080,28 +3190,31 @@ setInterval(
           try {
             const totalFila = fila.get("Total_a_Pagar") || "Por confirmar";
             const tiempoFila = fila.get("Tiempo_Estimado") || "Por confirmar";
-            const categoriaFila = fila.get("Tipo_Servicio") || fila.get("Producto") || "Tu proyecto";
+            const categoriaFila =
+              fila.get("Tipo_Servicio") ||
+              fila.get("Producto") ||
+              "Tu proyecto";
 
             await enviarMensaje(
               numeroWA,
               `📋 *Tu cotización está lista*\n\n` +
-              `🆔 *Pedido:*\n\`${ticket}\`\n\n` +
-              `📦 *Servicio:* ${categoriaFila}\n` +
-              `💵 *Total:* ${totalFila}\n` +
-              `⏱️ *Tiempo de entrega:* ${tiempoFila}\n\n` +
-              `Para iniciar producción requerimos el *50% de anticipo*. ✨`
+                `🆔 *Pedido:*\n\`${ticket}\`\n\n` +
+                `📦 *Servicio:* ${categoriaFila}\n` +
+                `💵 *Total:* ${totalFila}\n` +
+                `⏱️ *Tiempo de entrega:* ${tiempoFila}\n\n` +
+                `Para iniciar producción requerimos el *50% de anticipo*. ✨`,
             );
             await delay(1000);
-            await enviarBotones(
-              numeroWA,
-              `¿Deseas continuar con tu pedido?`,
-              ["Aceptar y pagar anticipo", "Hablar con Asesor", "Cancelar Pedido"]
-            );
+            await enviarBotones(numeroWA, `¿Deseas continuar con tu pedido?`, [
+              "Aceptar y pagar anticipo",
+              "Hablar con Asesor",
+              "Cancelar Pedido",
+            ]);
             fila.set("Cotizacion_Enviada", "Enviada");
             await fila.save();
             await enviarMensaje(
               process.env.MY_PERSONAL_NUMBER,
-              `📋 *COTIZACIÓN ENVIADA*\n🆔 ${ticket}\n📱 wa.me/${numeroWA}\n💵 ${totalFila}`
+              `📋 *COTIZACIÓN ENVIADA*\n🆔 ${ticket}\n📱 wa.me/${numeroWA}\n💵 ${totalFila}`,
             );
             console.log(`📋 Cotización enviada: ${ticket}`);
           } catch (e) {
@@ -3118,14 +3231,14 @@ setInterval(
             await enviarMensaje(
               numeroWA,
               `👋 *¡Hola de nuevo!*\n\n` +
-              `Han pasado 2 días desde que recibiste tu proyecto *${ticketEncuesta}*.\n\n` +
-              `Nos importa mucho tu opinión. ¿Cómo resultó todo? 😊`
+                `Han pasado 2 días desde que recibiste tu proyecto *${ticketEncuesta}*.\n\n` +
+                `Nos importa mucho tu opinión. ¿Cómo resultó todo? 😊`,
             );
             await delay(1000);
             await enviarBotones(
               numeroWA,
               `¿Quedaste satisfecho con tu proyecto?`,
-              ["Todo perfecto 🌟", "Tengo un comentario", "Hubo un problema"]
+              ["Todo perfecto 🌟", "Tengo un comentario", "Hubo un problema"],
             );
             await redis.del(encuestaKey);
             console.log(`📊 Encuesta enviada: ${ticketEncuesta}`);
