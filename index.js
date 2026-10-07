@@ -1309,6 +1309,21 @@ app.post("/webhook", async (req, res) => {
           // Si es un comando, cae a la lógica normal de abajo
         }
 
+        // Si tiene pedido pendiente de confirmación, recordárselo
+        const estadoHola = await getEstado(numeroCliente);
+        if (estadoHola?.pendienteConfirmacion) {
+          await enviarBotones(
+            numeroCliente,
+            `📋 Tienes una solicitud pendiente de confirmar:\n\n` +
+            `🛠️ *Servicio:* ${estadoHola.categoria}\n` +
+            `📝 *Descripción:* ${estadoHola.detalles || "Sin descripción"}\n\n` +
+            `¿Qué deseas hacer?`,
+            ["Sí, continuar", "Corregir descripción", "Inicio"]
+          );
+          return;
+        }
+
+
         // 🎯 PRIORIDAD 2: Historial de pedidos
         if (
           textoCliente.includes("mis pedidos") ||
@@ -1410,62 +1425,13 @@ app.post("/webhook", async (req, res) => {
           );
           return;
         }
-
-        if (
-          estadoTexto?.esperandoDetallesExtra &&
-          !estadoTexto?.esperandoNombre
-        ) {
-          const esComando =
-            [
-              "hola",
-              "inicio",
-              "catalogo",
-              "catálogo",
-              "personalizar",
-              "confirmar pedido",
-              "tallas",
-              "precios",
-              "reiniciar",
-              "cancelar",
-              "mis pedidos",
-              "mis compras",
-              "historial",
-            ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
-
-          if (esSaludo) {
-            const estadoGracias = await getEstado(numeroCliente);
-
-            // Respuesta según el contexto donde está el cliente
-            if (
-              estadoGracias?.ticket &&
-              estadoGracias?.esperandoDetallesExtra
-            ) {
-              await enviarBotones(
-                numeroCliente,
-                `🙏 *¡Gracias a ti!* Es un placer atenderte.\n\n¿Continuamos con tu pedido?`,
-                ["Confirmar Pedido", "Hablar con Asesor"],
-              );
-            } else if (estadoGracias?.ticket) {
-              await enviarBotones(
-                numeroCliente,
-                `🙏 *¡Gracias a ti por tu preferencia!* ❤️\n\nSi necesitas algo más aquí estamos.`,
-                ["Nuevo Pedido", "Mis Pedidos", "Inicio"],
-              );
-            } else {
-              await enviarBotones(
-                numeroCliente,
-                `🙏 *¡Gracias a ti!* Es un placer tenerte aquí. ✨\n\n¿En qué más podemos ayudarte?`,
-                ["Catalogo", "Precios", "Personalizar"],
-              );
-            }
-            return;
-          }
-          
-        // Respuesta de cortesía al "gracias"
-        const esSaludo = ["gracias", "muchas gracias", "mil gracias", "grax"].some(p => textoCliente.includes(p));
+                       // ✅ Respuesta de cortesía al "gracias" — funciona en cualquier contexto
+        const esSaludo = ["gracias", "muchas gracias", "mil gracias", "grax"].some(
+          p => textoCliente.includes(p)
+        );
         if (esSaludo) {
           const estadoGracias = await getEstado(numeroCliente);
-          if (estadoGracias?.ticket && estadoGracias?.esperandoDetallesExtra) {
+          if (estadoGracias?.esperandoDetallesExtra) {
             await enviarBotones(
               numeroCliente,
               `🙏 *¡Gracias a ti!* Es un placer atenderte.\n\n¿Continuamos con tu pedido?`,
@@ -1487,34 +1453,19 @@ app.post("/webhook", async (req, res) => {
           return;
         }
 
-          // 🚫 Palabras sociales que NO deben guardarse como notas
+        if (estadoTexto?.esperandoDetallesExtra && !estadoTexto?.esperandoNombre) {
+          const esComando = [
+            "hola", "inicio", "catalogo", "catálogo", "personalizar",
+            "confirmar pedido", "tallas", "precios", "reiniciar", "cancelar",
+            "mis pedidos", "mis compras", "historial",
+          ].includes(textoCliente) || textoCliente.match(/PED-\d+/i);
+
+          // 🚫 Palabras sociales
           const esPalabraSocial = [
-            "ok",
-            "okay",
-            "okey",
-            "entendido",
-            "perfecto",
-            "listo",
-            "de acuerdo",
-            "dale",
-            "claro",
-            "si",
-            "sí",
-            "no",
-            "excelente",
-            "bien",
-            "genial",
-            "👍",
-            "😊",
-            "🙏",
-            "❤️",
-            "jaja",
-            "jajaja",
-            "👌",
-            "bueno",
-            "sale",
-            "va",
-            "ya",
+            "ok", "okay", "okey", "entendido", "perfecto", "listo",
+            "de acuerdo", "dale", "claro", "si", "sí", "no", "excelente",
+            "bien", "genial", "👍", "😊", "🙏", "❤️", "jaja", "jajaja",
+            "👌", "bueno", "sale", "va", "ya",
           ].includes(textoCliente);
 
           if (esPalabraSocial) {
@@ -1637,38 +1588,6 @@ app.post("/webhook", async (req, res) => {
           }
         }
 
-        if (esAdmin) {
-          if (
-            textoCliente.toLowerCase().startsWith("pago ") ||
-            textoCliente.toLowerCase().startsWith("pagado ")
-          ) {
-            const ticketId = textoCliente.split(" ")[1].trim();
-            console.log("Ticket detectado con éxito:", ticketId);
-
-            // Pasamos el objeto EXACTAMENTE como lo espera la función
-            await actualizarEstadoCRM(ticketId, {
-              Estado_Pago: "Pagado",
-              Estado_Produccion: "En Proceso",
-            });
-
-            // segundo parámetro sea un STRING
-            const mensajeConfirmacion = `✅ El ticket *${ticketId}* ha sido marcado como PAGADO en el sistema.`;
-            await enviarMensaje(numeroCliente, mensajeConfirmacion);
-            return;
-          }
-
-          if (textoCliente.toLowerCase().startsWith("anticipo ")) {
-            const ticketId = textoCliente.split(" ")[1].trim();
-
-            await actualizarEstadoCRM(ticketId, {
-              Estado_Pago: "Anticipo",
-            });
-            const mensajeConfirmacionA = `💰 Anticipo registrado para el ticket: *${ticketId}*`;
-            await enviarMensaje(numeroCliente, mensajeConfirmacionA);
-            return;
-          }
-        }
-
         //CANCELACION Y DUDA
         //Ayuda de un asesor si no sabe el cliente
         if (
@@ -1786,7 +1705,6 @@ app.post("/webhook", async (req, res) => {
           }
 
           // Comando: entregado PED-XXXX
-                    // Comando: entregado PED-XXXX
           if (textoCliente.startsWith("entregado ")) {
             const partes = textoCliente.split(" ");
             const ticketEntregado = partes[1]?.toUpperCase();
@@ -1852,7 +1770,6 @@ app.post("/webhook", async (req, res) => {
             }
             return;
           }
-
         }
         
         //Cancelacion de Pedido
@@ -1923,20 +1840,6 @@ app.post("/webhook", async (req, res) => {
             numeroCliente,
             "¿En que podemos ayudarte formalmente?",
             ["Inicio", "Catalogo", "Personalizar"],
-          );
-          return;
-        }
-
-                // Si tiene pedido pendiente de confirmación, recordárselo
-        const estadoHola = await getEstado(numeroCliente);
-        if (estadoHola?.pendienteConfirmacion) {
-          await enviarBotones(
-            numeroCliente,
-            `📋 Tienes una solicitud pendiente de confirmar:\n\n` +
-            `🛠️ *Servicio:* ${estadoHola.categoria}\n` +
-            `📝 *Descripción:* ${estadoHola.detalles || "Sin descripción"}\n\n` +
-            `¿Qué deseas hacer?`,
-            ["Sí, continuar", "Corregir descripción", "Inicio"]
           );
           return;
         }
@@ -2846,7 +2749,7 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-                             case "Aceptar y pagar anticipo": {
+                                    case "Aceptar y pagar anticipo": {
             const estadoAceptar = await getEstado(numeroCliente);
             const ticketAceptar = estadoAceptar?.ticket || estadoAceptar?.ultimoTicket;
             let montoAnticipo = "Por confirmar con asesor";
@@ -2888,18 +2791,6 @@ app.post("/webhook", async (req, res) => {
             );
             break;
           }
-
-          case "Ya pagué":
-            await enviarMensaje(
-              numeroCliente,
-              `🙏 *¡Gracias!*\n\n` +
-                `Nuestro equipo verificará tu pago en breve y confirmaremos el inicio de producción. ✨`,
-            );
-            await enviarMensaje(
-              process.env.MY_PERSONAL_NUMBER,
-              `💰 *CLIENTE REPORTA PAGO*\n📱 wa.me/${numeroCliente}\n_Verificar y confirmar inicio de producción._`,
-            );
-            break;
 
           case "Ya pagué":
             await enviarMensaje(
@@ -2956,15 +2847,14 @@ app.post("/webhook", async (req, res) => {
                 pendienteConfirmacion: false,
                 esperandoDetallesExtra: true,
               });
-              await procesarPedidoDetallado(
+                            await procesarPedidoDetallado(
                 estadoPendiente.nombre || "Pendiente",
                 numeroCliente,
                 estadoPendiente.imagenPendiente.idDeLaImagen,
                 estadoPendiente.imagenPendiente.comentarioImagen,
                 estadoPendiente.ticket,
               );
-              // 👇 AGREGAR ESTO
-              await delay(3000);
+              await delay(45000); // Esperar que termine procesarPedidoDetallado
               const estadoTrasProcess = await getEstado(numeroCliente);
               await enviarBotones(
                 numeroCliente,
