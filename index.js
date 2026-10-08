@@ -308,7 +308,6 @@ async function guardarEnCRM(datos) {
       Fecha_Entrega: entrega.toLocaleDateString("es-MX"),
       Origen: origen,
       Calificacion: "Sin calificar",
-      Anticipo: "Pendiente",
       Tipo_Servicio: datos.categoria || "📦 GENERAL",
       Tiempo_Estimado: datos.tiempoEstimado || "Por confirmar",
       Estado_Anticipo: "Pendiente",
@@ -1460,7 +1459,7 @@ app.post("/webhook", async (req, res) => {
             await enviarBotones(
               numeroCliente,
               `🙏 *¡Gracias a ti!* Es un placer tenerte aquí. ✨\n\n¿En qué más podemos ayudarte?`,
-              ["Catalogo", "Precios", "Personalizar"],
+              ["Catalogo", "¿Cómo funciona?", "Personalizar"],
             );
           }
           return;
@@ -1480,6 +1479,7 @@ app.post("/webhook", async (req, res) => {
               "confirmar pedido",
               "tallas",
               "precios",
+              "¿Cómo funciona?",
               "reiniciar",
               "cancelar",
               "mis pedidos",
@@ -2030,7 +2030,7 @@ app.post("/webhook", async (req, res) => {
           await enviarBotones(
             numeroCliente,
             "¿Listo para iniciar tu proyecto?",
-            ["Personalizar", "Precios"],
+            ["Personalizar", "¿Cómo funciona?"],
           );
           return;
         }
@@ -2167,20 +2167,26 @@ app.post("/webhook", async (req, res) => {
             await enviarBotones(
               numeroCliente,
               "🏠 *Menu Principal*\nBienvenido a nuestro centro de atención. ¿Que deseas consultar?",
-              ["Catalogo", "Precios", "Personalizar"],
+              ["Catalogo", "¿Cómo funciona?", "Personalizar"],
             );
             break;
 
           case "Precios":
-            //await escribir(numeroCliente); //El cliente ve escribiendo
-            //await delay(1500);
-            const listaPrecios =
-              `💰 *Nuestros Servicios*\n\n` +
-              `🖨️ *Impresión 3D:* ${PRECIOS.impresion_3d}\n\n` +
-              `✂️ *Corte y Grabado Láser:* ${PRECIOS.corte_laser}\n\n` +
-              `🎨 *Modelado 3D:* ${PRECIOS.modelado_3d}\n\n` +
-              `_Cada proyecto es único. Contáctanos con tu idea y te cotizamos._`;
-            await enviarMensaje(numeroCliente, listaPrecios);
+          case "¿Cómo funciona?":
+            await enviarMensaje(
+              numeroCliente,
+              `⚙️ *¿Cómo funciona J-3D Axis Studio?*\n\n` +
+                `Es muy sencillo:\n\n` +
+                `1️⃣ *Envías tu imagen o referencia*\n` +
+                `Mándanos la foto de tu diseño con las medidas y especificaciones.\n\n` +
+                `2️⃣ *Te cotizamos en menos de 24 horas*\n` +
+                `Nuestro equipo revisa tu proyecto y te envía el precio exacto.\n\n` +
+                `3️⃣ *Pagas el 50% de anticipo*\n` +
+                `Una vez que aceptas la cotización iniciamos producción inmediatamente.\n\n` +
+                `4️⃣ *Recibe tu proyecto*\n` +
+                `Te notificamos cuando esté listo. Entrega en punto de encuentro o envío. ✨\n\n` +
+                `_Todos nuestros proyectos son 100% personalizados y sujetos a cotización._`,
+            );
             await delay(2000);
             await enviarBotones(
               numeroCliente,
@@ -2202,7 +2208,7 @@ app.post("/webhook", async (req, res) => {
             await enviarBotones(
               numeroCliente,
               "¿Te gustaría iniciar un proyecto?",
-              ["Personalizar", "Precios", "Inicio"],
+              ["Personalizar", "¿Cómo funciona?", "Inicio"],
             );
             break;
           }
@@ -2382,7 +2388,7 @@ app.post("/webhook", async (req, res) => {
             await enviarBotones(
               numeroCliente,
               "Menu principal 🏠\n Selecciona una opción:",
-              ["Catalogo", "Precios", "Personalizar"],
+              ["Catalogo", "¿Cómo funciona?", "Personalizar"],
             );
             break;
 
@@ -2626,11 +2632,11 @@ app.post("/webhook", async (req, res) => {
                 await delay(500);
                 await enviarMensaje(numeroCliente, ticketFinal);
                 await delay(1500);
-                await enviarBotones(numeroCliente, `¿Cómo deseas proceder?`, [
-                  "Aceptar y pagar anticipo",
-                  "Hablar con Asesor",
-                  "Inicio",
-                ]);
+                await enviarBotones(
+                  numeroCliente,
+                  `¿Tienes alguna duda sobre tu pedido?`,
+                  ["Hablar con Asesor", "Mis Pedidos", "Inicio"],
+                );
 
                 // Enviar calificación después de 4 segundos
                 await delay(4000);
@@ -2827,6 +2833,7 @@ app.post("/webhook", async (req, res) => {
             break;
 
           case "Aceptar y pagar anticipo": {
+            console.log("🔵 Entrando a Aceptar y pagar anticipo");
             const estadoAceptar = await getEstado(numeroCliente);
             const ticketAceptar =
               estadoAceptar?.ticket || estadoAceptar?.ultimoTicket;
@@ -2872,8 +2879,12 @@ app.post("/webhook", async (req, res) => {
                   montoAnticipo = `$${Math.round(totalNum * 0.5)} MXN`;
                 }
               }
-              filaAceptar.set("Estado_Anticipo", "En proceso");
-              await filaAceptar.save();
+              try {
+                filaAceptar.set("Estado_Anticipo", "En proceso");
+                await filaAceptar.save();
+              } catch (e) {
+                console.log("Error actualizando Estado_Anticipo:", e.message);
+              }
             }
 
             await enviarMensaje(
