@@ -1114,9 +1114,10 @@ app.post("/webhook", async (req, res) => {
       if (esSaludoFueraHorario) {
         await enviarMensaje(
           numeroCliente,
-          `🌙 Hola ${nombreCliente}, en este momento estamos fuera de horario.\n\n` +
-            `📅 *Horario de atención:*\nLunes a Viernes de 9am a 9pm\n\n` +
-            `Puedes enviarnos tu imagen o referencia de proyecto y la revisaremos en cuanto abramos. ✨`,
+          `🌙 *Hola ${nombreCliente}*, en este momento estamos fuera de horario.\n\n` +
+            `📅 *Horario de atención:*\nLunes a Viernes de 9am — 9pm\n\n` +
+            `✅ *Puedes enviar tu imagen ahora* — la recibiremos y cotizaremos en cuanto abramos.\n\n` +
+            `Si ya enviaste tu diseño, queda registrado y un asesor te contactará mañana. ✨`,
         );
         return;
       }
@@ -1593,7 +1594,7 @@ app.post("/webhook", async (req, res) => {
               if (matchPrecio) {
                 const precioOriginal = parseFloat(matchPrecio[1]);
                 const precioConDescuento = Math.round(precioOriginal * 0.8);
-                precioActualizado = `$${precioConDescuento} MXN (${cantidadActualizada} pzs — 10% descuento aplicado ✅)`;
+                precioActualizado = `$${precioConDescuento} MXN (${cantidadActualizada} pzs — 20% descuento aplicado ✅)`;
                 descuentoAplicado = true;
 
                 await setEstado(numeroCliente, {
@@ -1731,6 +1732,36 @@ app.post("/webhook", async (req, res) => {
             return;
           }
 
+          if (textoCliente.startsWith("proceso ")) {
+            const partes = textoCliente.split(" ");
+            const ticketProceso = partes[1]?.toUpperCase();
+            if (ticketProceso?.includes("PED-")) {
+              await actualizarEstadoCRM(ticketProceso, {
+                Estado_Produccion: "En Proceso",
+              });
+              await enviarMensaje(
+                numeroCliente,
+                `✅ Pedido ${ticketProceso} marcado como En Proceso`,
+              );
+              const filaProceso = await buscarFilaPorTicket(ticketProceso);
+              if (filaProceso) {
+                const telProceso = (filaProceso.get("Whatsapp") || "")
+                  .replace("wa.me/", "")
+                  .replace(/\D/g, "");
+                if (telProceso.length >= 10) {
+                  await enviarMensaje(
+                    telProceso,
+                    `⚙️ *¡Tu proyecto está en producción!*\n\n` +
+                      `🆔 *Pedido:*\n\`${ticketProceso}\`\n\n` +
+                      `Nuestro equipo ya comenzó a trabajar en tu proyecto. ` +
+                      `Te notificaremos cuando esté listo. ✨`,
+                  );
+                }
+              }
+            }
+            return;
+          }
+
           // Comando: listo PED-XXXX
           if (textoCliente.startsWith("listo ")) {
             const partes = textoCliente.split(" ");
@@ -1839,11 +1870,7 @@ app.post("/webhook", async (req, res) => {
                   await enviarBotones(
                     telCotizar,
                     `¿Deseas continuar con tu pedido?`,
-                    [
-                      "Aceptar y pagar anticipo",
-                      "Hablar con Asesor",
-                      "Cancelar Pedido",
-                    ],
+                    ["Hablar con Asesor", "Cancelar Pedido", "Mis Pedidos"],
                   );
                 }
               }
@@ -2625,19 +2652,18 @@ app.post("/webhook", async (req, res) => {
                   `✅ *¡Pedido Confirmado!* 🎉\n\n` +
                     `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
                     `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
-                    `📋 *Siguiente paso — Anticipo:*\n` +
-                    `Para iniciar producción requerimos un *anticipo del 50%* del total cotizado.\n\n` +
-                    `Un asesor te contactará pronto con el monto exacto. ✨`,
+                    `📋 *Siguiente paso:*\n` +
+                    `Un asesor revisará tu proyecto y te contactará con el monto de cotización y los datos de pago. ✨\n\n` +
+                    `🆔 *Tu número de pedido:*`,
                 );
                 await delay(500);
                 await enviarMensaje(numeroCliente, ticketFinal);
                 await delay(1500);
-                await enviarBotones(
-                  numeroCliente,
-                  `¿Tienes alguna duda sobre tu pedido?`,
-                  ["Hablar con Asesor", "Mis Pedidos", "Inicio"],
-                );
-
+                await enviarBotones(numeroCliente, `¿Tienes alguna duda?`, [
+                  "Hablar con Asesor",
+                  "Mis Pedidos",
+                  "Inicio",
+                ]);
                 // Enviar calificación después de 4 segundos
                 await delay(4000);
                 await enviarBotones(
@@ -2832,97 +2858,6 @@ app.post("/webhook", async (req, res) => {
             }
             break;
 
-          case "Aceptar y pagar anticipo": {
-            console.log("🔵 Entrando a Aceptar y pagar anticipo");
-            const estadoAceptar = await getEstado(numeroCliente);
-            const ticketAceptar =
-              estadoAceptar?.ticket || estadoAceptar?.ultimoTicket;
-            let montoAnticipo = "Por confirmar con asesor";
-            let filaAceptar = null;
-
-            if (ticketAceptar) {
-              filaAceptar = await buscarFilaPorTicket(ticketAceptar);
-            } else {
-              // Buscar el pedido más reciente del cliente en Sheets directamente
-              try {
-                const serviceAccountAuth = new JWT({
-                  email: process.env.GOOGLE_CLIENT_EMAIL,
-                  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-                  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-                });
-                const doc = new GoogleSpreadsheet(
-                  process.env.GOOGLE_SHEET_ID,
-                  serviceAccountAuth,
-                );
-                await doc.loadInfo();
-                const sheet = doc.sheetsByIndex[0];
-                const filas = await sheet.getRows();
-                const telCliente = numeroCliente.replace(/\D/g, "");
-                const pedidosCliente = filas.filter((f) => {
-                  const wa = (f.get("Whatsapp") || "").replace(/\D/g, "");
-                  return wa.length >= 10 && telCliente.endsWith(wa.slice(-10));
-                });
-                if (pedidosCliente.length > 0) {
-                  filaAceptar = pedidosCliente[pedidosCliente.length - 1];
-                }
-              } catch (e) {
-                console.log("Error buscando pedido:", e.message);
-              }
-            }
-
-            if (filaAceptar) {
-              const totalAceptar = filaAceptar.get("Total_a_Pagar") || "";
-              if (totalAceptar && totalAceptar !== "Por confirmar") {
-                const matchMonto = totalAceptar.match(/[\d,.]+/);
-                if (matchMonto) {
-                  const totalNum = parseFloat(matchMonto[0].replace(",", ""));
-                  montoAnticipo = `$${Math.round(totalNum * 0.5)} MXN`;
-                }
-              }
-              try {
-                filaAceptar.set("Estado_Anticipo", "En proceso");
-                await filaAceptar.save();
-              } catch (e) {
-                console.log("Error actualizando Estado_Anticipo:", e.message);
-              }
-            }
-
-            await enviarMensaje(
-              numeroCliente,
-              `✅ *¡Excelente decisión!*\n\n` +
-                `💵 *Monto del anticipo (50%):* ${montoAnticipo}\n\n` +
-                `Para completar tu pago usa cualquiera de estos métodos:\n\n` +
-                `💳 *Transferencia SPEI*\n` +
-                `• Solicita los datos a un asesor\n\n` +
-                `🏪 *Depósito OXXO / 7-Eleven*\n` +
-                `• Solicítalo a un asesor\n\n` +
-                `💵 *Efectivo*\n` +
-                `• En punto de entrega\n\n` +
-                `_Una vez confirmado el pago iniciamos producción inmediatamente. ✨_`,
-            );
-            await delay(1000);
-            await enviarBotones(numeroCliente, "¿Ya realizaste el pago?", [
-              "Ya pagué",
-              "Hablar con Asesor",
-            ]);
-            break;
-          }
-
-          case "Ya pagué":
-            await enviarMensaje(
-              numeroCliente,
-              `🙏 *¡Gracias!*\n\n` +
-                `Nuestro equipo verificará tu pago en breve y te confirmamos ` +
-                `el inicio de producción. ✨`,
-            );
-            await enviarMensaje(
-              process.env.MY_PERSONAL_NUMBER,
-              `💰 *CLIENTE REPORTA PAGO*\n` +
-                `📱 wa.me/${numeroCliente}\n` +
-                `_Verificar pago y confirmar inicio de producción._`,
-            );
-            break;
-
           case "Ayuda":
             const estadoAyuda = await getEstado(numeroCliente);
             await enviarMensaje(
@@ -2974,7 +2909,6 @@ app.post("/webhook", async (req, res) => {
                 estadoPendiente.ticket,
               );
               await delay(3000); // Esperar que termine procesarPedidoDetallado
-              const estadoTrasProcess = await getEstado(numeroCliente);
               await enviarBotones(
                 numeroCliente,
                 `✅ *¡Imagen procesada!*\n\n` +
@@ -3217,9 +3151,9 @@ setInterval(
             );
             await delay(1000);
             await enviarBotones(numeroWA, `¿Deseas continuar con tu pedido?`, [
-              "Aceptar y pagar anticipo",
               "Hablar con Asesor",
               "Cancelar Pedido",
+              "Mis Pedidos",
             ]);
             fila.set("Cotizacion_Enviada", "Enviada");
             await fila.save();
@@ -3256,6 +3190,38 @@ setInterval(
           }
         } catch (e) {
           console.log(`Error encuesta ${ticket}:`, e.message);
+        }
+
+        // ── 4. RECORDATORIO AL ADMIN — PRE-ORDEN sin atender 2 horas ──
+        try {
+          const estadoProd = fila.get("Estado_Produccion") || "";
+          const estadoPag = fila.get("Estado_Pago") || "";
+          const adminRecordatorio = fila.get("Admin_Recordatorio") || "";
+
+          if (
+            estadoProd === "En Cola" &&
+            estadoPag === "Pendiente" &&
+            adminRecordatorio !== "Enviado" &&
+            horasTranscurridas >= 2 &&
+            horasTranscurridas < 3
+          ) {
+            const catFila =
+              fila.get("Tipo_Servicio") || fila.get("Producto") || "Proyecto";
+            await enviarMensaje(
+              process.env.MY_PERSONAL_NUMBER,
+              `⚠️ *PRE-ORDEN SIN ATENDER*\n\n` +
+                `🆔 *Ticket:* ${ticket}\n` +
+                `📦 *Servicio:* ${catFila}\n` +
+                `📱 *Cliente:* wa.me/${numeroWA}\n\n` +
+                `_Lleva más de 2 horas sin cotización. Usa:_\n` +
+                `*cotizar ${ticket} $MONTO*`,
+            );
+            fila.set("Admin_Recordatorio", "Enviado");
+            await fila.save();
+            console.log(`⚠️ Recordatorio admin enviado: ${ticket}`);
+          }
+        } catch (e) {
+          console.log(`Error recordatorio admin ${ticket}:`, e.message);
         }
       }
     } catch (e) {
