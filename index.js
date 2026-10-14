@@ -2000,17 +2000,17 @@ app.post("/webhook", async (req, res) => {
 
           if (historialBienvenida && historialBienvenida.totalPedidos > 0) {
             // Cliente recurrente — mostrar opción de ver pedidos
-            await enviarBotones(
+                        await enviarBotones(
               numeroCliente,
-              `¡Qué gusto verte de nuevo! Tienes *${historialBienvenida.totalPedidos}* pedido(s) con nosotros. 🎉`,
-              ["Hablar con Asesor", "Mis Pedidos", "Personalizar"],
+              `¡Qué gusto verte de nuevo! 🎉\n\nTienes *${historialBienvenida.totalPedidos}* pedido(s) con nosotros.\n\n¿Qué necesitas hoy?`,
+              ["🎨 Quiero un diseño", "📦 Ver mi pedido", "💬 Hablar con alguien"],
             );
           } else {
             // Cliente nuevo
-            await enviarBotones(
+                       await enviarBotones(
               numeroCliente,
-              `Selecciona una opción para comenzar:`,
-              ["Hablar con Asesor", "Personalizar", "Catalogo"],
+              `¿Qué te gustaría hacer hoy? 😊`,
+              ["🎨 Quiero un diseño", "📦 Ver mi pedido", "💬 Hablar con alguien"],
             );
           }
           return;
@@ -2170,12 +2170,15 @@ app.post("/webhook", async (req, res) => {
         }
 
         console.log(`Mensaje no reconocido: ${textoCliente}`);
-        const mensajeNoEntendido = `Lo siento, no logre entender tu mensaje: "${textoCliente}". 😅`;
-        await enviarBotones(numeroCliente, mensajeNoEntendido, [
-          "Inicio",
-          "Catalogo",
-          "Personalizar",
-        ]);
+                await enviarBotones(
+          numeroCliente,
+          `Hmm, no estoy seguro de entenderte bien. 😊\n\n` +
+          `No te preocupes — puedes:\n` +
+          `• Presionar un botón del menú\n` +
+          `• Escribir *"hola"* para empezar de nuevo\n` +
+          `• O simplemente contarme qué necesitas con tus palabras`,
+          ["🎨 Quiero un diseño", "📦 Ver mi pedido", "💬 Hablar con alguien"],
+        );
         return;
       }
 
@@ -2289,12 +2292,12 @@ app.post("/webhook", async (req, res) => {
               esperandoNombre: false,
               categoria: "IMPRESIÓN 3D",
             });
-            await enviarBotones(
+                        await enviarBotones(
               numeroCliente,
-              `🖨️ *Impresión 3D Personalizada*\n\n` +
-                `¿Cómo quieres proceder?\n\n` +
-                `📁 *Tengo mi diseño* — Envíame la imagen o archivo STL con las especificaciones\n\n` +
-                `🌐 *Ver catálogo de modelos* — Explora miles de diseños listos para imprimir en MakerWorld`,
+              `🖨️ *¡Perfecto, Impresión 3D!*\n\n` +
+              `Es muy sencillo — solo dinos qué quieres imprimir:\n\n` +
+              `📁 *Ya tengo mi diseño* — Te envío la imagen o el archivo\n\n` +
+              `🌐 *Quiero ver ideas* — Muéstrame diseños ya listos para imprimir`,
               ["Tengo mi diseño", "Ver catálogo 3D"],
             );
             break;
@@ -2374,17 +2377,17 @@ app.post("/webhook", async (req, res) => {
               esperandoNombre: false,
               categoria: "CORTE LÁSER",
             });
-            await enviarMensaje(
+                        await enviarMensaje(
               numeroCliente,
-              "✂️ *Corte y Grabado Láser*\n\n" +
-                "Envía la imagen o diseño vectorial de lo que necesitas.\n\n" +
-                "En la descripción incluye:\n" +
-                "• *Material* (madera MDF, acrílico, cuero, etc.)\n" +
-                "• *Grosor del material* en mm\n" +
-                "• *Medidas de la pieza*\n" +
-                "• *Cantidad*\n" +
-                "• *¿Corte, grabado o ambos?*\n\n" +
-                "_Entre más detalle nos des, más precisa será la cotización. ✨_",
+              `✂️ *¡Perfecto, Corte Láser!*\n\n` +
+              `Solo haz esto:\n\n` +
+              `📸 *Paso 1:* Toma foto o imagen de lo que quieres cortar o grabar\n\n` +
+              `✍️ *Paso 2:* En tu mensaje escribe:\n` +
+              `   — ¿En qué material? (madera, acrílico, etc.)\n` +
+              `   — ¿Qué tamaño necesitas?\n` +
+              `   — ¿Cuántas piezas?\n` +
+              `   — ¿Corte, grabado o los dos?\n\n` +
+              `📤 *Paso 3:* Envíanosla aquí y cotizamos para ti. ✨`,
             );
             break;
 
@@ -2395,16 +2398,17 @@ app.post("/webhook", async (req, res) => {
               esperandoNombre: false,
               categoria: "MODELADO 3D",
             });
-            await enviarMensaje(
+                        await enviarMensaje(
               numeroCliente,
-              "🎨 *Modelado 3D Personalizado*\n\n" +
-                "Envía referencias, bocetos o imágenes de lo que deseas modelar.\n\n" +
-                "En la descripción incluye:\n" +
-                "• *Descripción detallada* del objeto o figura\n" +
-                "• *Uso final* (impresión 3D, render, animación, etc.)\n" +
-                "• *Medidas aproximadas* si aplica\n" +
-                "• *Nivel de detalle* requerido\n\n" +
-                "_Mientras más referencias nos envíes, mejor resultado obtendrás. ✨_",
+              `🎨 *¡Perfecto, Modelado 3D!*\n\n` +
+              `No te preocupes si no tienes un archivo — nosotros lo creamos desde cero. 😊\n\n` +
+              `Solo haz esto:\n\n` +
+              `📸 *Paso 1:* Mándanos una foto o imagen de referencia de lo que tienes en mente\n\n` +
+              `✍️ *Paso 2:* Cuéntanos:\n` +
+              `   — ¿Para qué lo usarás? (imprimirlo, verlo en render, etc.)\n` +
+              `   — ¿Qué tamaño aproximado?\n` +
+              `   — ¿Qué tan detallado lo necesitas?\n\n` +
+              `📤 *Paso 3:* Envíanoslo y te decimos cómo queda. ✨`,
             );
             break;
 
@@ -2430,6 +2434,52 @@ app.post("/webhook", async (req, res) => {
             await enviarMensaje(
               MI_NUMERO,
               `⚠️ *ATENCIÓN HUMANA:* El cliente wa.me/${numeroCliente} solicita un asesor especializado.`,
+            );
+            break;
+
+                      case "🎨 Quiero un diseño":
+            await enviarBotones(
+              numeroCliente,
+              `¡Genial! 🎨\n\n` +
+              `Tenemos 3 servicios disponibles:\n\n` +
+              `🖨️ *Impresión 3D* — Figuras, piezas y prototipos\n` +
+              `✂️ *Corte Láser* — Corte y grabado en madera y acrílico\n` +
+              `🎨 *Modelado 3D* — Diseño digital de tu idea\n\n` +
+              `¿Cuál necesitas?`,
+              ["Impresión 3D", "Corte Láser", "Modelado 3D"],
+            );
+            break;
+
+          case "📦 Ver mi pedido":
+            const historialBtn = await consultarHistorialCRM(numeroCliente);
+            if (!historialBtn) {
+              await enviarBotones(
+                numeroCliente,
+                `Aún no tienes pedidos con nosotros. 😊\n\n¿Te gustaría hacer uno?`,
+                ["🎨 Quiero un diseño", "💬 Hablar con alguien"],
+              );
+            } else {
+              await enviarMensaje(numeroCliente, historialBtn.resumen);
+              await delay(800);
+              await enviarBotones(
+                numeroCliente,
+                `¿Necesitas algo más?`,
+                ["🎨 Quiero un diseño", "💬 Hablar con alguien", "Inicio"],
+              );
+            }
+            break;
+
+          case "💬 Hablar con alguien":
+            await enviarMensaje(
+              numeroCliente,
+              `¡Claro que sí! 😊\n\n` +
+              `He avisado a nuestro equipo. En un momento alguien te atenderá personalmente. ✨`
+            );
+            await enviarMensaje(
+              MI_NUMERO,
+              `💬 *CLIENTE SOLICITA ASESOR*\n` +
+              `📱 wa.me/${numeroCliente}\n` +
+              `_El cliente presionó "Hablar con alguien" desde el menú principal._`
             );
             break;
 
@@ -2647,17 +2697,22 @@ app.post("/webhook", async (req, res) => {
                   `Orden_${ticketFinal}.pdf`,
                 );
 
-                await enviarMensaje(
+                                await enviarMensaje(
                   numeroCliente,
-                  `✅ *¡Pedido Confirmado!* 🎉\n\n` +
-                    `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
-                    `⏱️ *Tiempo estimado:* ${datosParaPDF.tiempoEstimado || "Por confirmar con asesor"}\n\n` +
-                    `📋 *Siguiente paso:*\n` +
-                    `Un asesor revisará tu proyecto y te contactará con el monto de cotización y los datos de pago. ✨\n\n` +
-                    `🆔 *Tu número de pedido:*`,
+                  `✅ *¡Listo! Ya recibimos tu proyecto.* 🎉\n\n` +
+                  `📦 *Servicio:* ${datosParaPDF.categoria}\n` +
+                  `⏱️ *Entrega estimada:* ${datosParaPDF.tiempoEstimado || "Te lo confirmamos pronto"}\n\n` +
+                  `😊 *¿Y ahora qué?*\n` +
+                  `No tienes que hacer nada más por ahora.\n` +
+                  `Un asesor revisará tu diseño y te escribirá pronto con el precio.\n\n` +
+                  `📌 *Guarda este número para rastrear tu pedido:*`
                 );
                 await delay(500);
-                await enviarMensaje(numeroCliente, ticketFinal);
+                                const ticketCorto = ticketFinal.slice(-4);
+                await enviarMensaje(
+                  numeroCliente,
+                  `🎫 ${ticketFinal}\n_(Guarda este número — con él puedes consultar tu pedido escribiéndonos)_`
+                );
                 await delay(1500);
                 await enviarBotones(numeroCliente, `¿Tienes alguna duda?`, [
                   "Hablar con Asesor",
@@ -2919,7 +2974,10 @@ app.post("/webhook", async (req, res) => {
                 ["Confirmar Pedido", "Hablar con Asesor"],
               );
               await delay(500);
-              await enviarMensaje(numeroCliente, estadoPendiente.ticket);
+                            await enviarMensaje(
+                numeroCliente,
+                `🎫 ${estadoPendiente.ticket}\n_(Guarda este número — con él puedes consultar tu pedido escribiéndonos)_`
+              );
             } else {
               await enviarBotones(
                 numeroCliente,
@@ -3125,7 +3183,7 @@ setInterval(
           }
         }
 
-        // ── 2. COTIZACIÓN FORMAL — 4 días ──
+              // ── 2. RECORDATORIO AL CLIENTE — 4 días sin respuesta ──
         if (
           estadoProduccion === "En Cola" &&
           cotizacionEnviada !== "Enviada" &&
@@ -3133,37 +3191,24 @@ setInterval(
           diasTranscurridos < 5
         ) {
           try {
-            const totalFila = fila.get("Total_a_Pagar") || "Por confirmar";
-            const tiempoFila = fila.get("Tiempo_Estimado") || "Por confirmar";
-            const categoriaFila =
-              fila.get("Tipo_Servicio") ||
-              fila.get("Producto") ||
-              "Tu proyecto";
-
             await enviarMensaje(
               numeroWA,
-              `📋 *Tu cotización está lista*\n\n` +
-                `🆔 *Pedido:*\n\`${ticket}\`\n\n` +
-                `📦 *Servicio:* ${categoriaFila}\n` +
-                `💵 *Total:* ${totalFila}\n` +
-                `⏱️ *Tiempo de entrega:* ${tiempoFila}\n\n` +
-                `Para iniciar producción requerimos el *50% de anticipo*. ✨`,
+              `👋 *¡Hola!* Te escribimos de *J-3D Axis Studio*.\n\n` +
+              `Tu pedido *\`${ticket}\`* está siendo revisado por nuestro equipo.\n\n` +
+              `En breve un asesor se pondrá en contacto contigo con los detalles de tu cotización. ✨\n\n` +
+              `Si tienes alguna duda puedes escribirnos directamente.`
             );
             await delay(1000);
-            await enviarBotones(numeroWA, `¿Deseas continuar con tu pedido?`, [
-              "Hablar con Asesor",
-              "Cancelar Pedido",
-              "Mis Pedidos",
-            ]);
+            await enviarBotones(
+              numeroWA,
+              `¿Necesitas algo más?`,
+              ["Hablar con Asesor", "Cancelar Pedido", "Mis Pedidos"]
+            );
             fila.set("Cotizacion_Enviada", "Enviada");
             await fila.save();
-            await enviarMensaje(
-              process.env.MY_PERSONAL_NUMBER,
-              `📋 *COTIZACIÓN ENVIADA*\n🆔 ${ticket}\n📱 wa.me/${numeroWA}\n💵 ${totalFila}`,
-            );
-            console.log(`📋 Cotización enviada: ${ticket}`);
+            console.log(`📋 Recordatorio cliente enviado: ${ticket}`);
           } catch (e) {
-            console.log(`Error cotización ${ticket}:`, e.message);
+            console.log(`Error recordatorio cliente ${ticket}:`, e.message);
           }
         }
 
