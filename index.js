@@ -1986,9 +1986,10 @@ app.post("/webhook", async (req, res) => {
           const historialBienvenida =
             await consultarHistorialCRM(numeroCliente);
 
+                   const nombreParaBienvenida = await buscarNombreEnSheets(numeroCliente) || nombreCliente;
           await enviarMensaje(
             numeroCliente,
-            `✨ *¡Hola, ${nombreCliente}!* ✨\n\n` +
+            `✨ *¡Hola, ${nombreParaBienvenida}!* ✨\n\n` +
               `Bienvenido a *J-3D Axis Studio* — tu espacio para hacer realidad ideas en 3D y láser.\n\n` +
               `Nos especializamos en:\n` +
               `🖨️ Impresión 3D personalizada\n` +
@@ -3237,7 +3238,7 @@ setInterval(
           console.log(`Error encuesta ${ticket}:`, e.message);
         }
 
-        // ── 4. RECORDATORIO AL ADMIN — PRE-ORDEN sin atender 2 horas ──
+                // ── 4. RECORDATORIO AL ADMIN — PRE-ORDEN sin atender 2 horas ──
         try {
           const estadoProd = fila.get("Estado_Produccion") || "";
           const estadoPag = fila.get("Estado_Pago") || "";
@@ -3250,16 +3251,15 @@ setInterval(
             horasTranscurridas >= 2 &&
             horasTranscurridas < 3
           ) {
-            const catFila =
-              fila.get("Tipo_Servicio") || fila.get("Producto") || "Proyecto";
+            const catFila = fila.get("Tipo_Servicio") || fila.get("Producto") || "Proyecto";
             await enviarMensaje(
               process.env.MY_PERSONAL_NUMBER,
               `⚠️ *PRE-ORDEN SIN ATENDER*\n\n` +
-                `🆔 *Ticket:* ${ticket}\n` +
-                `📦 *Servicio:* ${catFila}\n` +
-                `📱 *Cliente:* wa.me/${numeroWA}\n\n` +
-                `_Lleva más de 2 horas sin cotización. Usa:_\n` +
-                `*cotizar ${ticket} $MONTO*`,
+              `🆔 *Ticket:* ${ticket}\n` +
+              `📦 *Servicio:* ${catFila}\n` +
+              `📱 *Cliente:* wa.me/${numeroWA}\n\n` +
+              `_Lleva más de 2 horas sin cotización. Usa:_\n` +
+              `*cotizar ${ticket} $MONTO*`,
             );
             fila.set("Admin_Recordatorio", "Enviado");
             await fila.save();
@@ -3268,13 +3268,82 @@ setInterval(
         } catch (e) {
           console.log(`Error recordatorio admin ${ticket}:`, e.message);
         }
-      }
+
+        // ── 5. RECOMPRA INTELIGENTE — 60 días después de entregado ──
+        try {
+          const estadoProdRecompra = fila.get("Estado_Produccion") || "";
+          const recompraEnviada = fila.get("Recompra_Enviada") || "";
+
+          if (
+            estadoProdRecompra === "Entregado" &&
+            recompraEnviada !== "Enviada" &&
+            diasTranscurridos >= 60 &&
+            diasTranscurridos < 61
+          ) {
+            const catRecompra = fila.get("Tipo_Servicio") || fila.get("Producto") || "tu proyecto";
+            await enviarMensaje(
+              numeroWA,
+              `👋 *¡Hola de nuevo!*\n\n` +
+              `Hace 2 meses trabajamos juntos en *${catRecompra}*. ` +
+              `Esperamos que haya quedado exactamente como lo imaginabas. 😊\n\n` +
+              `Si tienes un nuevo proyecto en mente o quieres repetir algo similar, ` +
+              `aquí seguimos listos para ayudarte. ✨`
+            );
+            await delay(1000);
+            await enviarBotones(
+              numeroWA,
+              `¿Te gustaría iniciar algo nuevo?`,
+              ["🎨 Quiero un diseño", "📦 Ver mi pedido", "💬 Hablar con alguien"]
+            );
+            fila.set("Recompra_Enviada", "Enviada");
+            await fila.save();
+            console.log(`🔄 Recompra enviada: ${ticket}`);
+          }
+        } catch (e) {
+          console.log(`Error recompra ${ticket}:`, e.message);
+        }
+
+        // ── 6. RECORDATORIO CUPÓN VIP ACTIVO ──
+        try {
+          const cuponActivo = await redis.get(`cupon:${numeroWA}`);
+          if (cuponActivo) {
+            const cuponRecordatorio = await redis.get(`cupon:recordatorio:${numeroWA}`);
+            if (!cuponRecordatorio) {
+              await enviarMensaje(
+                numeroWA,
+                `🎟️ *¡Oye, tienes un cupón VIP esperándote!*\n\n` +
+                `Tu cupón de *20% de descuento* sigue activo:\n\n` +
+                `┌─────────────────────┐\n` +
+                `│  🎟️  *${cuponActivo}*  │\n` +
+                `└─────────────────────┘\n\n` +
+                `_Úsalo en tu próximo pedido antes de que expire. ✨_`
+              );
+              await delay(1000);
+              await enviarBotones(
+                numeroWA,
+                `¿Iniciamos un nuevo proyecto?`,
+                ["🎨 Quiero un diseño", "💬 Hablar con alguien"]
+              );
+              await redis.set(
+                `cupon:recordatorio:${numeroWA}`,
+                "1",
+                { ex: 60 * 60 * 24 * 7 }
+              );
+              console.log(`🎟️ Recordatorio cupón enviado: ${numeroWA}`);
+            }
+          }
+        } catch (e) {
+          console.log(`Error recordatorio cupón ${ticket}:`, e.message);
+        }
+
+      }  // ← cierre del for
     } catch (e) {
       console.log("Error en recordatorio automático:", e.message);
     }
   },
-  60 * 60 * 1000,
-); // Revisar cada hora
+  30 * 60 * 1000,
+); // Revisar cada 30 minutos
+
 app.listen(PORT, () => {
   console.log(`🚀 Servidor activo en puerto ${PORT}`);
 });
