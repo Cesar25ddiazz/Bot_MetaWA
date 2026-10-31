@@ -509,28 +509,16 @@ async function consultarHistorialCRM(whatsapp) {
     // Ordenar por fecha descendente y tomar los últimos 5
     const ultimos = pedidosCliente.slice(-5).reverse();
 
-    // Verificar fidelidad: algún pedido en los últimos 30 días con estado Pagado
-    const hace30dias = new Date();
-    hace30dias.setDate(hace30dias.getDate() - 30);
-
-    const pedidosPagadosEnMes = pedidosCliente.filter((f) => {
-      const fechaStr = f.get("Fecha") || "";
+       // Tarjeta de cliente frecuente: cuentan pedidos pagados por completo Y entregados
+    const pedidosCompletados = pedidosCliente.filter((f) => {
       const pago = f.get("Estado_Pago") || "";
-      try {
-        const partes = fechaStr.split(",")[0].trim().split("/");
-        const fecha =
-          partes.length === 3
-            ? new Date(`${partes[2]}-${partes[1]}-${partes[0]}`)
-            : new Date(fechaStr);
-        return (
-          fecha >= hace30dias && (pago === "Pagado" || pago === "Anticipo")
-        );
-      } catch {
-        return false;
-      }
+      const prod = f.get("Estado_Produccion") || "";
+      return pago === "Pagado" && prod === "Entregado";
     });
+    const totalCompletados = pedidosCompletados.length;
+    const enCiclo = totalCompletados % 5; // la tarjeta se reinicia cada 5
+    const esFiel = totalCompletados > 0 && enCiclo === 0;
 
-    const esFiel = pedidosPagadosEnMes.length >= 4;
     // Emojis por estado de pago
     const emojoPago = (p) => {
       if (!p || p === "Pendiente") return "🕐 Pendiente";
@@ -574,11 +562,12 @@ async function consultarHistorialCRM(whatsapp) {
 
     resumen += `\n━━━━━━━━━━━━━━━━━━━━━`;
 
-    return {
+       return {
       resumen,
       esFiel,
       totalPedidos: pedidosCliente.length,
-      pagadosEnMes: pedidosPagadosEnMes.length,
+      completados: totalCompletados,
+      enCiclo,
     };
   } catch (error) {
     console.error("❌ Error consultando historial:", error.message);
@@ -1359,60 +1348,41 @@ app.post("/webhook", async (req, res) => {
           await enviarMensaje(numeroCliente, resultado.resumen);
           await delay(1000);
 
-          if (resultado.esFiel) {
-            const cuponResultado = await generarCupon(numeroCliente);
-
-            if (!cuponResultado) {
-              // Ya usó su cupón este mes
-              await enviarBotones(
-                numeroCliente,
-                `🏆 *¡Eres cliente VIP!*\n\n` +
-                  `Ya canjeaste tu cupón este mes. ¡Sigue comprando para ganar el siguiente! 🌟`,
-                ["Nuevo Pedido", "Hablar con Asesor"],
-              );
-              return;
-            }
-
-            const { codigo: codigoCupon, esNuevo } = cuponResultado;
-            await delay(800);
-            await enviarMensaje(
-              numeroCliente,
-              `🏆 *¡Eres un cliente VIP!*\n\n` +
-                `${
-                  esNuevo
-                    ? "Como reconocimiento a tus 4 compras este mes, te hemos generado un cupón exclusivo:"
-                    : "Tu cupón activo es:"
-                }\n\n` +
-                `┌─────────────────────┐\n` +
-                `│  🎟️  *${codigoCupon}*  │\n` +
-                `└─────────────────────┘\n\n` +
-                `_Válido por 30 días. Al confirmar tu próximo pedido presiona_ *"Aplicar Cupón 20%"*`,
-            );
+                    if (resultado.esFiel) {
             await delay(800);
             await enviarBotones(
               numeroCliente,
-              `¿Listo para tu siguiente pedido con descuento?`,
-              ["Personalizar", "Hablar con Asesor"],
+              `🏆 *¡Felicidades, completaste tu tarjeta de cliente frecuente!*\n\n` +
+                `🟢🟢🟢🟢🟢  (5 de 5)\n\n` +
+                `🎁 Pide a nuestro asesor tu *recompensa del 20%* para tu siguiente proyecto.`,
+              ["Hablar con Asesor", "🎨 Quiero un diseño"],
             );
-            await enviarMensaje(
-              MI_NUMERO,
-              `🏆 *CLIENTE VIP*\n` +
-                `📱 wa.me/${numeroCliente}\n` +
-                `🎟️ Cupón ${esNuevo ? "generado" : "activo"}: *${codigoCupon}*\n` +
-                `📦 Total de pedidos: ${resultado.totalPedidos}`,
+            // Avisar al admin solo una vez por tarjeta completada
+            const primeraVez = await redis.set(
+              `fidelidad:aviso:${numeroCliente}:${resultado.completados}`,
+              "1",
+              { nx: true, ex: 60 * 60 * 24 * 90 },
             );
+            if (primeraVez) {
+              await enviarMensaje(
+                MI_NUMERO,
+                `🏆 *CLIENTE COMPLETÓ SU TARJETA*\n` +
+                  `📱 wa.me/${numeroCliente}\n` +
+                  `📦 Pedidos completados: ${resultado.completados}\n` +
+                  `_Entregar recompensa y aplicar 20% en su siguiente cotización._`,
+              );
+            }
           } else {
-            // Cliente con historial pero sin compra reciente
-            const pagadosEnMes = resultado.pagadosEnMes;
-            const faltan = Math.max(0, 4 - pagadosEnMes);
-
+            const enCiclo = resultado.enCiclo;
+            const faltan = 5 - enCiclo;
             await enviarBotones(
               numeroCliente,
               `¡Gracias por tu preferencia! 🙌\n\n` +
-                `📦 *Pedidos este mes:* ${pagadosEnMes} de 4\n` +
-                `${"🟢".repeat(pagadosEnMes)}${"⚪".repeat(faltan)}\n\n` +
-                `Te faltan *${faltan} compra(s)* para desbloquear tu cupón VIP de *20% de descuento*. ¡Sigue así! 🌟`,
-              ["Nuevo Pedido", "Hablar con Asesor"],
+                `🎫 *Tu tarjeta de cliente frecuente:*\n` +
+                `${"🟢".repeat(enCiclo)}${"⚪".repeat(faltan)}  (${enCiclo} de 5)\n\n` +
+                `Te ${faltan === 1 ? "falta *1 pedido*" : `faltan *${faltan} pedidos*`} para tu recompensa del *20% de descuento*. 🌟\n\n` +
+                `_Cuentan los pedidos pagados por completo y entregados._`,
+              ["🎨 Quiero un diseño", "Hablar con Asesor"],
             );
           }
           return;
@@ -1804,7 +1774,6 @@ app.post("/webhook", async (req, res) => {
             if (ticketEntregado?.includes("PED-")) {
               await actualizarEstadoCRM(ticketEntregado, {
                 Estado_Produccion: "Entregado",
-                Estado_Pago: "Pagado",
               });
               await enviarMensaje(
                 numeroCliente,
@@ -2261,7 +2230,7 @@ app.post("/webhook", async (req, res) => {
               "✂️ *Corte Láser* — Corte y grabado en madera, acrílico y más\n" +
               "🎨 *Modelado 3D* — Diseño de modelos para impresión o render\n\n" +
               "-----------------------------\n" +
-              "🏆 *Programa VIP:* 4 pedidos en el mes = cupón 20% de descuento\n\n" +
+                            "🎫 *Cliente frecuente:* a tu 5º pedido completado, ¡20% de descuento! Pide tu tarjeta.\n\n" +
               "🔎 Para consultar tu pedido escribe tu ticket (ej: *PED-1234*)";
             await enviarBotones(numeroCliente, instrucciones, [
               "Impresión 3D",
@@ -2615,21 +2584,6 @@ app.post("/webhook", async (req, res) => {
             const datosParaPDF = await getEstado(numeroCliente);
 
             if (datosParaPDF) {
-              // 🎟️ Si tiene cupón activo y no lo ha aplicado, ofrecer botón
-              const cuponActivo = await redis.get(`cupon:${numeroCliente}`);
-              if (cuponActivo && !datosParaPDF.cuponAplicado) {
-                await setEstado(numeroCliente, {
-                  ...datosParaPDF,
-                  esperandoAplicarCupon: true,
-                });
-                await enviarBotones(
-                  numeroCliente,
-                  `🎟️ *Tienes un cupón VIP activo:* \`${cuponActivo}\`\n\n` +
-                    `¿Deseas aplicar tu *20% de descuento* en este pedido?`,
-                  ["Aplicar Cupón 20%", "Continuar sin cupón"],
-                );
-                break;
-              }
 
               // Si el nombre es Pendiente, pedimos el nombre antes de generar el PDF
               if (datosParaPDF.nombre === "Pendiente") {
@@ -2750,79 +2704,12 @@ app.post("/webhook", async (req, res) => {
                   2 * 60 * 1000,
                 ); // 2 minutos
 
-                // 🎟️ Si usó cupón, eliminarlo y activar enfriamiento 30 días
-                if (datosParaPDF.cuponAplicado) {
-                  await redis.del(`cupon:${numeroCliente}`);
-                  await redis.set(`cupon:usado:${numeroCliente}`, "1", {
-                    ex: 60 * 60 * 24 * 30,
-                  });
-                  console.log(`🎟️ Cupón canjeado. Enfriamiento activado.`);
-                }
                 // Guardar ultimoTicket para la calificación (expira en 5 minutos)
                 await setEstado(numeroCliente, { ultimoTicket: ticketFinal });
               } catch (error) {
                 console.error("❌ Error en Confirmar Pedido:", error);
               }
             }
-            break;
-
-          case "Aplicar Cupón 20%":
-            const estadoCupon = await getEstado(numeroCliente);
-            const codigoActivo = await redis.get(`cupon:${numeroCliente}`);
-
-            if (estadoCupon && codigoActivo) {
-              const matchPrecio = (estadoCupon.precioTotal || "").match(
-                /\$(\d+(\.\d+)?)/,
-              );
-
-              if (matchPrecio) {
-                const precioOriginal = parseFloat(matchPrecio[1]);
-                const precioConDescuento = Math.round(precioOriginal * 0.8);
-                const precioFinalCupon = `$${precioConDescuento} MXN (${estadoCupon.cantidad} pzs — 20% descuento VIP ✅)`;
-
-                await setEstado(numeroCliente, {
-                  ...estadoCupon,
-                  precioTotal: precioFinalCupon,
-                  cuponAplicado: codigoActivo,
-                  esperandoAplicarCupon: false,
-                });
-                await enviarBotones(
-                  numeroCliente,
-                  `✅ *¡Descuento aplicado!*\n\n` +
-                    `💵 *Precio original:* $${precioOriginal} MXN\n` +
-                    `🎟️ *Descuento VIP 20%:* -$${Math.round(precioOriginal * 0.2)} MXN\n` +
-                    `💰 *Total final:* $${precioConDescuento} MXN\n\n` +
-                    `¿Confirmamos tu pedido?`,
-                  ["Confirmar Pedido", "Hablar con Asesor"],
-                );
-              } else {
-                // Precio es cotización, no se puede calcular automático
-                await setEstado(numeroCliente, {
-                  ...estadoCupon,
-                  cuponAplicado: codigoActivo,
-                  esperandoAplicarCupon: false,
-                });
-                await enviarBotones(
-                  numeroCliente,
-                  `🎟️ *Cupón VIP registrado en tu pedido.*\n\n` +
-                    `Al ser cotización, el asesor aplicará el 20% al validar el precio final.`,
-                  ["Confirmar Pedido", "Hablar con Asesor"],
-                );
-              }
-            }
-            break;
-
-          case "Continuar sin cupón":
-            const estadoSinCupon = await getEstado(numeroCliente);
-            await setEstado(numeroCliente, {
-              ...estadoSinCupon,
-              esperandoAplicarCupon: false,
-            });
-            await enviarBotones(
-              numeroCliente,
-              `De acuerdo, continuamos sin cupón. ¿Confirmamos tu pedido?`,
-              ["Confirmar Pedido", "Hablar con Asesor"],
-            );
             break;
 
           case "⭐⭐⭐⭐⭐ Excelente":
@@ -3339,38 +3226,7 @@ setInterval(
           console.log(`Error recompra ${ticket}:`, e.message);
         }
 
-        // ── 6. RECORDATORIO CUPÓN VIP ACTIVO ──
-        try {
-          const cuponActivo = await redis.get(`cupon:${numeroWA}`);
-          if (cuponActivo) {
-            const cuponRecordatorio = await redis.get(
-              `cupon:recordatorio:${numeroWA}`,
-            );
-            if (!cuponRecordatorio) {
-              await enviarMensaje(
-                numeroWA,
-                `🎟️ *¡Oye, tienes un cupón VIP esperándote!*\n\n` +
-                  `Tu cupón de *20% de descuento* sigue activo:\n\n` +
-                  `┌─────────────────────┐\n` +
-                  `│  🎟️  *${cuponActivo}*  │\n` +
-                  `└─────────────────────┘\n\n` +
-                  `_Úsalo en tu próximo pedido antes de que expire. ✨_`,
-              );
-              await delay(1000);
-              await enviarBotones(numeroWA, `¿Iniciamos un nuevo proyecto?`, [
-                "🎨 Quiero un diseño",
-                "💬 Hablar con alguien",
-              ]);
-              await redis.set(`cupon:recordatorio:${numeroWA}`, "1", {
-                ex: 60 * 60 * 24 * 7,
-              });
-              console.log(`🎟️ Recordatorio cupón enviado: ${numeroWA}`);
-            }
-          }
-        } catch (e) {
-          console.log(`Error recordatorio cupón ${ticket}:`, e.message);
-        }
-      } // ← cierre del for
+      }// ← cierre del for
     } catch (e) {
       console.log("Error en recordatorio automático:", e.message);
     }
